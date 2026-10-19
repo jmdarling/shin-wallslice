@@ -1,0 +1,9 @@
+:root {
+  font-family: var(--wa-font-family-body, system-ui, sans-serif);
+  color: #19392d;
+  background: #eff5ef;
+}
+body {
+  margin: 0;
+  min-width: 280px;
+}

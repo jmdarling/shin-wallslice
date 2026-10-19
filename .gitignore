@@ -147,3 +147,8 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Workspace-specific ignores
+dist/
+coverage/
+.DS_Store

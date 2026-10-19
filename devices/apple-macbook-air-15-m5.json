@@ -1,0 +1,13 @@
+{
+  "$schema": "./device.schema.json",
+  "id": "apple-macbook-air-15-m5",
+  "name": "MacBook Air 15-inch (M5)",
+  "brand": "Apple",
+  "category": "laptop",
+  "year": 2026,
+  "resolution": {
+    "width": 2880,
+    "height": 1864
+  },
+  "source": "https://www.macworld.com/article/219909/best-mac.html"
+}

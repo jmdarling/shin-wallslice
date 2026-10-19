@@ -1,0 +1,13 @@
+{
+  "$schema": "./device.schema.json",
+  "id": "apple-iphone-air",
+  "name": "iPhone Air",
+  "brand": "Apple",
+  "category": "phone",
+  "year": 2025,
+  "resolution": {
+    "width": 1260,
+    "height": 2736
+  },
+  "source": "https://en.wikipedia.org/wiki/IPhone_Air"
+}

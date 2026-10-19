@@ -1,0 +1,13 @@
+{
+  "$schema": "./device.schema.json",
+  "id": "apple-ipad-a16",
+  "name": "iPad (A16)",
+  "brand": "Apple",
+  "category": "tablet",
+  "year": 2025,
+  "resolution": {
+    "width": 1640,
+    "height": 2360
+  },
+  "source": "https://iosref.com/res"
+}

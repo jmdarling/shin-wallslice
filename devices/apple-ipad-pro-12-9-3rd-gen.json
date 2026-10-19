@@ -1,0 +1,13 @@
+{
+  "$schema": "./device.schema.json",
+  "id": "apple-ipad-pro-12-9-3rd-gen",
+  "name": "iPad Pro 12.9-inch (3rd generation)",
+  "brand": "Apple",
+  "category": "tablet",
+  "year": 2018,
+  "resolution": {
+    "width": 2048,
+    "height": 2732
+  },
+  "source": "https://iosref.com/res"
+}

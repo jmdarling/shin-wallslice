@@ -1,0 +1,12 @@
+{
+  "$schema": "./device.schema.json",
+  "id": "generic-5k",
+  "name": "5K",
+  "brand": "Generic",
+  "category": "monitor",
+  "resolution": {
+    "width": 5120,
+    "height": 2880
+  },
+  "source": "https://en.wikipedia.org/wiki/Display_resolution_standards"
+}

@@ -1,0 +1,13 @@
+{
+  "$schema": "./device.schema.json",
+  "id": "samsung-galaxy-s26-ultra",
+  "name": "Galaxy S26 Ultra",
+  "brand": "Samsung",
+  "category": "phone",
+  "year": 2026,
+  "resolution": {
+    "width": 1440,
+    "height": 3120
+  },
+  "source": "https://www.dpreview.com/news/iphone-18-pro-vs-pixel-11-pro-vs-galaxy-s26-which-flagship-wins/"
+}

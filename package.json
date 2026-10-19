@@ -1,0 +1,31 @@
+{
+  "name": "shin-wallslice",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @shin-wallslice/core build && concurrently -n core,server,web -c blue,green,magenta \"pnpm --filter @shin-wallslice/core dev\" \"pnpm --filter @shin-wallslice/server dev\" \"pnpm --filter @shin-wallslice/web dev\"",
+    "build": "pnpm -r --workspace-concurrency=1 build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "models": "node scripts/fetch-models.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.0",
+    "concurrently": "^10.0.6",
+    "eslint": "^10.13.0",
+    "eslint-config-prettier": "^10.1.0",
+    "eslint-plugin-lit": "^2.3.1",
+    "eslint-plugin-wc": "^3.1.0",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.71.2"
+  }
+}

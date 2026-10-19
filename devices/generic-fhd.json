@@ -1,0 +1,16 @@
+{
+  "$schema": "./device.schema.json",
+  "id": "generic-fhd",
+  "name": "Full HD (1080p)",
+  "brand": "Generic",
+  "category": "monitor",
+  "resolution": {
+    "width": 1920,
+    "height": 1080
+  },
+  "aliases": [
+    "1080p",
+    "fhd"
+  ],
+  "source": "https://en.wikipedia.org/wiki/Display_resolution_standards"
+}

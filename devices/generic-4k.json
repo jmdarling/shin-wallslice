@@ -1,0 +1,16 @@
+{
+  "$schema": "./device.schema.json",
+  "id": "generic-4k",
+  "name": "4K UHD",
+  "brand": "Generic",
+  "category": "monitor",
+  "resolution": {
+    "width": 3840,
+    "height": 2160
+  },
+  "aliases": [
+    "2160p",
+    "uhd"
+  ],
+  "source": "https://en.wikipedia.org/wiki/Display_resolution_standards"
+}

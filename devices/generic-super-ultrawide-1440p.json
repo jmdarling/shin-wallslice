@@ -1,0 +1,16 @@
+{
+  "$schema": "./device.schema.json",
+  "id": "generic-super-ultrawide-1440p",
+  "name": "Super Ultrawide 1440p (32:9)",
+  "brand": "Generic",
+  "category": "monitor",
+  "resolution": {
+    "width": 5120,
+    "height": 1440
+  },
+  "aliases": [
+    "dqhd",
+    "super ultrawide"
+  ],
+  "source": "https://en.wikipedia.org/wiki/Display_resolution_standards"
+}

@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/jmdarling/shin-wallslice/devices/device.schema.json",
+  "title": "shin-wallslice device",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "name", "brand", "category", "resolution"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "id": {
+      "description": "Stable kebab-case slug; must match the file name.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "maxLength": 80
+    },
+    "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "brand": { "type": "string", "minLength": 1, "maxLength": 60 },
+    "category": {
+      "type": "string",
+      "enum": ["phone", "tablet", "laptop", "desktop", "monitor", "other"]
+    },
+    "year": { "type": "integer", "minimum": 2000, "maximum": 2100 },
+    "resolution": {
+      "description": "Native panel pixels. Phones and tablets are portrait-natural (width < height).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "height"],
+      "properties": {
+        "width": { "type": "integer", "minimum": 16, "maximum": 16384 },
+        "height": { "type": "integer", "minimum": 16, "maximum": 16384 }
+      }
+    },
+    "rotates": {
+      "description": "Used in both orientations, so output is square. Defaults to true for tablets, false otherwise.",
+      "type": "boolean"
+    },
+    "aliases": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "source": {
+      "description": "Manufacturer spec page the resolution was taken from.",
+      "type": "string",
+      "format": "uri"
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "./device.schema.json",
+  "id": "generic-8k",
+  "name": "8K UHD",
+  "brand": "Generic",
+  "category": "monitor",
+  "resolution": {
+    "width": 7680,
+    "height": 4320
+  },
+  "aliases": [
+    "4320p"
+  ],
+  "source": "https://en.wikipedia.org/wiki/Display_resolution_standards"
+}

@@ -1,0 +1,13 @@
+{
+  "$schema": "./device.schema.json",
+  "id": "apple-ipad-air-11-m4",
+  "name": "iPad Air 11-inch (M4)",
+  "brand": "Apple",
+  "category": "tablet",
+  "year": 2026,
+  "resolution": {
+    "width": 1640,
+    "height": 2360
+  },
+  "source": "https://en.wikipedia.org/wiki/IPad_Air_(M4)"
+}

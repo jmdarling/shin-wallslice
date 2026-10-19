@@ -1,0 +1,13 @@
+{
+  "$schema": "./device.schema.json",
+  "id": "apple-macbook-pro-16-m5",
+  "name": "MacBook Pro 16-inch (M5 Pro/Max)",
+  "brand": "Apple",
+  "category": "laptop",
+  "year": 2026,
+  "resolution": {
+    "width": 3456,
+    "height": 2234
+  },
+  "source": "https://www.macworld.com/article/219909/best-mac.html"
+}

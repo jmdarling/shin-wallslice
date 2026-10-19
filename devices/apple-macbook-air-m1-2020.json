@@ -1,0 +1,13 @@
+{
+  "$schema": "./device.schema.json",
+  "id": "apple-macbook-air-m1-2020",
+  "name": "MacBook Air (M1, 2020)",
+  "brand": "Apple",
+  "category": "laptop",
+  "year": 2020,
+  "resolution": {
+    "width": 2560,
+    "height": 1600
+  },
+  "source": "https://iosref.com/res"
+}

@@ -1,0 +1,13 @@
+{
+  "$schema": "./device.schema.json",
+  "id": "apple-iphone-18-pro-max",
+  "name": "iPhone 18 Pro Max",
+  "brand": "Apple",
+  "category": "phone",
+  "year": 2026,
+  "resolution": {
+    "width": 1320,
+    "height": 2868
+  },
+  "source": "https://support.apple.com/en-us/148591"
+}

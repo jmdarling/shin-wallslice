@@ -1,0 +1,13 @@
+{
+  "$schema": "./device.schema.json",
+  "id": "apple-studio-display-xdr",
+  "name": "Studio Display XDR",
+  "brand": "Apple",
+  "category": "monitor",
+  "year": 2026,
+  "resolution": {
+    "width": 5120,
+    "height": 2880
+  },
+  "source": "https://manofmany.com/tech/apple-m5-macbook-air-macbook-pro-studio-display-xdr"
+}

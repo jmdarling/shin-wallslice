@@ -1,0 +1,17 @@
+{
+  "$schema": "./device.schema.json",
+  "id": "generic-qhd",
+  "name": "QHD / WQHD (1440p)",
+  "brand": "Generic",
+  "category": "monitor",
+  "resolution": {
+    "width": 2560,
+    "height": 1440
+  },
+  "aliases": [
+    "1440p",
+    "wqhd",
+    "qhd"
+  ],
+  "source": "https://en.wikipedia.org/wiki/Display_resolution_standards"
+}

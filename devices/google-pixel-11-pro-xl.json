@@ -1,0 +1,13 @@
+{
+  "$schema": "./device.schema.json",
+  "id": "google-pixel-11-pro-xl",
+  "name": "Pixel 11 Pro XL",
+  "brand": "Google",
+  "category": "phone",
+  "year": 2026,
+  "resolution": {
+    "width": 1344,
+    "height": 2992
+  },
+  "source": "https://www.engadget.com/2235132/pixel-11-pro-vs-galaxy-s26-ultra-specs-compared/"
+}

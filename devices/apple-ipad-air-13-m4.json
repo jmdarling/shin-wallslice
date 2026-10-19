@@ -1,0 +1,13 @@
+{
+  "$schema": "./device.schema.json",
+  "id": "apple-ipad-air-13-m4",
+  "name": "iPad Air 13-inch (M4)",
+  "brand": "Apple",
+  "category": "tablet",
+  "year": 2026,
+  "resolution": {
+    "width": 2048,
+    "height": 2732
+  },
+  "source": "https://en.wikipedia.org/wiki/IPad_Air_(M4)"
+}

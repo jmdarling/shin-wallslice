@@ -1,0 +1,13 @@
+{
+  "$schema": "./device.schema.json",
+  "id": "apple-iphone-16-pro",
+  "name": "iPhone 16 Pro",
+  "brand": "Apple",
+  "category": "phone",
+  "year": 2024,
+  "resolution": {
+    "width": 1206,
+    "height": 2622
+  },
+  "source": "https://iosref.com/res"
+}

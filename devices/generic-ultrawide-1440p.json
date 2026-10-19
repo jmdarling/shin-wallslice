@@ -1,0 +1,16 @@
+{
+  "$schema": "./device.schema.json",
+  "id": "generic-ultrawide-1440p",
+  "name": "Ultrawide 1440p (21:9)",
+  "brand": "Generic",
+  "category": "monitor",
+  "resolution": {
+    "width": 3440,
+    "height": 1440
+  },
+  "aliases": [
+    "uwqhd",
+    "ultrawide"
+  ],
+  "source": "https://en.wikipedia.org/wiki/Display_resolution_standards"
+}

@@ -1,0 +1,13 @@
+{
+  "$schema": "./device.schema.json",
+  "id": "apple-macbook-pro-14-m5",
+  "name": "MacBook Pro 14-inch (M5)",
+  "brand": "Apple",
+  "category": "laptop",
+  "year": 2025,
+  "resolution": {
+    "width": 3024,
+    "height": 1964
+  },
+  "source": "https://www.macworld.com/article/219909/best-mac.html"
+}

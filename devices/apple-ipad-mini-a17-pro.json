@@ -1,0 +1,13 @@
+{
+  "$schema": "./device.schema.json",
+  "id": "apple-ipad-mini-a17-pro",
+  "name": "iPad mini (A17 Pro)",
+  "brand": "Apple",
+  "category": "tablet",
+  "year": 2024,
+  "resolution": {
+    "width": 1488,
+    "height": 2266
+  },
+  "source": "https://www.itechguides.com/ipad-display-list-size-resolution-ppi-panel-type-and-brightness-for-every-model/"
+}

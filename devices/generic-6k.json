@@ -1,0 +1,12 @@
+{
+  "$schema": "./device.schema.json",
+  "id": "generic-6k",
+  "name": "6K",
+  "brand": "Generic",
+  "category": "monitor",
+  "resolution": {
+    "width": 6016,
+    "height": 3384
+  },
+  "source": "https://en.wikipedia.org/wiki/Display_resolution_standards"
+}

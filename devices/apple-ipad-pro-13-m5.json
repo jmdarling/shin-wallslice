@@ -1,0 +1,13 @@
+{
+  "$schema": "./device.schema.json",
+  "id": "apple-ipad-pro-13-m5",
+  "name": "iPad Pro 13-inch (M5)",
+  "brand": "Apple",
+  "category": "tablet",
+  "year": 2025,
+  "resolution": {
+    "width": 2064,
+    "height": 2752
+  },
+  "source": "https://en.wikipedia.org/wiki/IPad_Pro_(M5)"
+}

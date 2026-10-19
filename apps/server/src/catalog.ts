@@ -22,7 +22,9 @@ export async function loadCatalog(devicesDir: string): Promise<Catalog> {
       try {
         return { fileName, data: JSON.parse(raw) as unknown };
       } catch (error) {
-        throw new Error(`${fileName}: invalid JSON (${(error as Error).message})`, { cause: error });
+        throw new Error(`${fileName}: invalid JSON (${(error as Error).message})`, {
+          cause: error,
+        });
       }
     }),
   );

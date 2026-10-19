@@ -56,7 +56,9 @@ export class Pipeline {
     const id = store.newId();
     await store.create(id, buffer);
     try {
-      const proxy = await limiter.run(() => renderProxy(store.originalPath(id), maxInputMegapixels));
+      const proxy = await limiter.run(() =>
+        renderProxy(store.originalPath(id), maxInputMegapixels),
+      );
       await store.writeProxy(id, proxy.buffer);
       const meta: SourceMeta = {
         id,
@@ -100,7 +102,10 @@ export class Pipeline {
   ): Promise<{ meta: SourceMeta; planned: PlannedTarget[] }> {
     if (targets.length === 0) throw badRequest('no_targets', 'Select at least one device.');
     if (targets.length > MAX_TARGETS_PER_REQUEST) {
-      throw badRequest('too_many_targets', `At most ${MAX_TARGETS_PER_REQUEST} targets per request.`);
+      throw badRequest(
+        'too_many_targets',
+        `At most ${MAX_TARGETS_PER_REQUEST} targets per request.`,
+      );
     }
     const meta = await this.deps.store.readMeta(id);
     const subject = subjectOverride ?? (await this.subject(id));
@@ -111,7 +116,10 @@ export class Pipeline {
       if (!target) throw badRequest('invalid_target', 'Unknown device or invalid custom size.');
       if (seen.has(target.key)) continue;
       seen.add(target.key);
-      planned.push({ target, crop: computeCrop(meta.size, subject, target.outputSize, request.override) });
+      planned.push({
+        target,
+        crop: computeCrop(meta.size, subject, target.outputSize, request.override),
+      });
     }
     return { meta, planned };
   }
@@ -119,7 +127,12 @@ export class Pipeline {
   render(id: string, planned: PlannedTarget): Promise<Buffer> {
     const { store, limiter, maxInputMegapixels } = this.deps;
     return limiter.run(() =>
-      renderCrop(store.originalPath(id), maxInputMegapixels, planned.crop.rect, planned.crop.outputSize),
+      renderCrop(
+        store.originalPath(id),
+        maxInputMegapixels,
+        planned.crop.rect,
+        planned.crop.outputSize,
+      ),
     );
   }
 
@@ -128,7 +141,9 @@ export class Pipeline {
     const fileName = `${slugify(name)}.png`;
     const zip = new yazl.ZipFile();
     for (const item of planned) {
-      zip.addBuffer(await this.render(id, item), `${item.target.key}/${fileName}`, { compress: false });
+      zip.addBuffer(await this.render(id, item), `${item.target.key}/${fileName}`, {
+        compress: false,
+      });
     }
     zip.end();
     return zip.outputStream as Readable;

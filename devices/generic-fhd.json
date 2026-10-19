@@ -8,9 +8,6 @@
     "width": 1920,
     "height": 1080
   },
-  "aliases": [
-    "1080p",
-    "fhd"
-  ],
+  "aliases": ["1080p", "fhd"],
   "source": "https://en.wikipedia.org/wiki/Display_resolution_standards"
 }

@@ -150,9 +150,16 @@ export class SwTargetCard extends SignalWatcher(LitElement) {
         <header>
           <div>
             <h3>${label}</h3>
-            <span class="size">${outputSize.width} × ${outputSize.height}${rotates ? ' · square' : ''}</span>
+            <span class="size"
+              >${outputSize.width} × ${outputSize.height}${rotates ? ' · square' : ''}</span
+            >
           </div>
-          <button class="ghost icon" aria-label="Remove ${label}" title="Remove" @click=${() => removeTarget(this.targetKey)}>
+          <button
+            class="ghost icon"
+            aria-label="Remove ${label}"
+            title="Remove"
+            @click=${() => removeTarget(this.targetKey)}
+          >
             ×
           </button>
         </header>
@@ -170,19 +177,28 @@ export class SwTargetCard extends SignalWatcher(LitElement) {
           ></canvas>
         </div>
         <div class="badges">
-          ${crop?.upscaled
-            ? html`<span class="badge warning" title="The source is smaller than this screen"
-                >Upscaled ${crop.scale.toFixed(1)}× — may look soft</span
-              >`
-            : nothing}
+          ${
+            crop?.upscaled
+              ? html`<span class="badge warning" title="The source is smaller than this screen"
+                  >Upscaled ${crop.scale.toFixed(1)}× — may look soft</span
+                >`
+              : nothing
+          }
           ${crop?.subjectClipped ? html`<span class="badge warning">Subject doesn’t fully fit</span>` : nothing}
-          ${subject && subject.method !== 'manual' && subject.confidence < LOW_CONFIDENCE_THRESHOLD && !adjusted
-            ? html`<span class="badge warning">Check this crop</span>`
-            : nothing}
+          ${
+            subject &&
+            subject.method !== 'manual' &&
+            subject.confidence < LOW_CONFIDENCE_THRESHOLD &&
+            !adjusted
+              ? html`<span class="badge warning">Check this crop</span>`
+              : nothing
+          }
           ${adjusted ? html`<span class="badge info">Adjusted</span>` : nothing}
         </div>
         <div class="actions">
-          <button ?disabled=${!crop || !!busy.get()} @click=${() => downloadOne(this.targetKey)}>Download</button>
+          <button ?disabled=${!crop || !!busy.get()} @click=${() => downloadOne(this.targetKey)}>
+            Download
+          </button>
           ${adjusted ? html`<button class="ghost" @click=${() => clearCropOverride(this.targetKey)}>Reset to auto</button>` : nothing}
         </div>
       </article>
@@ -221,8 +237,10 @@ export class SwTargetCard extends SignalWatcher(LitElement) {
 
     // Fit the output aspect ratio inside the frame.
     const styles = getComputedStyle(frame);
-    const availableWidth = frame.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight);
-    const availableHeight = frame.clientHeight - parseFloat(styles.paddingTop) - parseFloat(styles.paddingBottom);
+    const availableWidth =
+      frame.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight);
+    const availableHeight =
+      frame.clientHeight - parseFloat(styles.paddingTop) - parseFloat(styles.paddingBottom);
     const aspect = crop.outputSize.width / crop.outputSize.height;
     const cssWidth = Math.max(1, Math.min(availableWidth, availableHeight * aspect));
     const cssHeight = cssWidth / aspect;
@@ -252,7 +270,8 @@ export class SwTargetCard extends SignalWatcher(LitElement) {
       canvas.height,
     );
 
-    if (target.resolved.rotates && showGuides.get()) this.drawOrientationGuides(context, canvas, target.resolved.resolution);
+    if (target.resolved.rotates && showGuides.get())
+      this.drawOrientationGuides(context, canvas, target.resolved.resolution);
   }
 
   /** Dashed outlines of what the device shows in portrait and landscape. */
@@ -261,7 +280,8 @@ export class SwTargetCard extends SignalWatcher(LitElement) {
     canvas: HTMLCanvasElement,
     resolution: { width: number; height: number },
   ) {
-    const short = Math.min(resolution.width, resolution.height) / Math.max(resolution.width, resolution.height);
+    const short =
+      Math.min(resolution.width, resolution.height) / Math.max(resolution.width, resolution.height);
     const portraitWidth = canvas.width * short;
     const landscapeHeight = canvas.height * short;
     const ratio = window.devicePixelRatio || 1;
@@ -274,7 +294,12 @@ export class SwTargetCard extends SignalWatcher(LitElement) {
     context.shadowBlur = 3 * ratio;
     context.strokeStyle = guide;
     context.strokeRect((canvas.width - portraitWidth) / 2, 0.5, portraitWidth, canvas.height - 1);
-    context.strokeRect(0.5, (canvas.height - landscapeHeight) / 2, canvas.width - 1, landscapeHeight);
+    context.strokeRect(
+      0.5,
+      (canvas.height - landscapeHeight) / 2,
+      canvas.width - 1,
+      landscapeHeight,
+    );
     context.restore();
   }
 
@@ -325,7 +350,10 @@ export class SwTargetCard extends SignalWatcher(LitElement) {
     this.pointers.set(event.pointerId, next);
 
     if (this.pointers.size === 2) {
-      const [a, b] = [...this.pointers.values()] as [{ x: number; y: number }, { x: number; y: number }];
+      const [a, b] = [...this.pointers.values()] as [
+        { x: number; y: number },
+        { x: number; y: number },
+      ];
       const distance = Math.hypot(a.x - b.x, a.y - b.y);
       if (this.pinchDistance) this.zoomBy(distance / this.pinchDistance);
       this.pinchDistance = distance;

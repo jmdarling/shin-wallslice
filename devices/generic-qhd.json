@@ -8,10 +8,6 @@
     "width": 2560,
     "height": 1440
   },
-  "aliases": [
-    "1440p",
-    "wqhd",
-    "qhd"
-  ],
+  "aliases": ["1440p", "wqhd", "qhd"],
   "source": "https://en.wikipedia.org/wiki/Display_resolution_standards"
 }

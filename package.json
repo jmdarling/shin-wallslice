@@ -7,13 +7,15 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "pnpm --filter @shin-wallslice/core build && concurrently -n core,server,web -c blue,green,magenta \"pnpm --filter @shin-wallslice/core dev\" \"pnpm --filter @shin-wallslice/server dev\" \"pnpm --filter @shin-wallslice/web dev\"",
+    "dev": "pnpm build:core && concurrently -n core,server,web -c blue,green,magenta \"pnpm --filter @shin-wallslice/core dev\" \"pnpm --filter @shin-wallslice/server dev\" \"pnpm --filter @shin-wallslice/web dev\"",
     "build": "pnpm -r --workspace-concurrency=1 build",
-    "typecheck": "pnpm -r typecheck",
+    "build:core": "pnpm --filter @shin-wallslice/core build",
+    "typecheck": "pnpm build:core && pnpm -r typecheck",
     "test": "pnpm -r test",
-    "lint": "eslint .",
+    "lint": "pnpm build:core && eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
     "models": "node scripts/fetch-models.mjs"
   },
   "devDependencies": {

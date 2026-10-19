@@ -13,5 +13,6 @@ export class AppError extends Error {
 export const badRequest = (code: string, message: string) => new AppError(400, code, message);
 export const notFound = (code: string, message: string) => new AppError(404, code, message);
 export const payloadTooLarge = (message: string) => new AppError(413, 'payload_too_large', message);
-export const unsupportedMedia = (message: string) => new AppError(415, 'unsupported_media_type', message);
+export const unsupportedMedia = (message: string) =>
+  new AppError(415, 'unsupported_media_type', message);
 export const unavailable = (code: string, message: string) => new AppError(503, code, message);

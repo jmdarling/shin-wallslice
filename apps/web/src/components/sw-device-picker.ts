@@ -23,7 +23,13 @@ const CATEGORY_LABELS: Record<DeviceCategory, string> = {
 
 function matches(device: Device, query: string): boolean {
   if (!query) return true;
-  const haystack = [device.name, device.brand, device.category, String(device.year ?? ''), ...(device.aliases ?? [])]
+  const haystack = [
+    device.name,
+    device.brand,
+    device.category,
+    String(device.year ?? ''),
+    ...(device.aliases ?? []),
+  ]
     .join(' ')
     .toLowerCase();
   return query
@@ -189,34 +195,59 @@ export class SwDevicePicker extends SignalWatcher(LitElement) {
           <summary>Custom size</summary>
           <form class="custom" @submit=${this.onCustomSubmit}>
             <label class="visually-hidden" for="w">Width</label>
-            <input id="w" name="width" type="number" min=${CUSTOM_SIZE_MIN} max=${CUSTOM_SIZE_MAX} placeholder="Width" required />
+            <input
+              id="w"
+              name="width"
+              type="number"
+              min=${CUSTOM_SIZE_MIN}
+              max=${CUSTOM_SIZE_MAX}
+              placeholder="Width"
+              required
+            />
             <span aria-hidden="true">×</span>
             <label class="visually-hidden" for="h">Height</label>
-            <input id="h" name="height" type="number" min=${CUSTOM_SIZE_MIN} max=${CUSTOM_SIZE_MAX} placeholder="Height" required />
+            <input
+              id="h"
+              name="height"
+              type="number"
+              min=${CUSTOM_SIZE_MIN}
+              max=${CUSTOM_SIZE_MAX}
+              placeholder="Height"
+              required
+            />
             <label class="visually-hidden" for="label">Label</label>
-            <input id="label" name="label" type="text" placeholder="Label (optional)" maxlength="80" />
+            <input
+              id="label"
+              name="label"
+              type="text"
+              placeholder="Label (optional)"
+              maxlength="80"
+            />
             <label class="device" style="grid-template-columns: auto auto">
               <input type="checkbox" name="rotates" /> Rotates (square)
             </label>
             <button type="submit">Add</button>
             ${this.customError ? html`<span class="error" role="alert">${this.customError}</span>` : nothing}
           </form>
-          ${customs.length > 0
-            ? html`<div class="customs">
-                ${customs.map(
-                  (t) => html`<span class="badge"
-                    >${t.resolved.label}
-                    <button
-                      class="ghost icon"
-                      aria-label="Remove ${t.resolved.label}"
-                      @click=${() => removeTarget(t.resolved.key)}
-                    >
-                      ×
-                    </button></span
-                  >`,
-                )}
-              </div>`
-            : nothing}
+          ${
+            customs.length > 0
+              ? html`<div class="customs">
+                  ${customs.map(
+                    (t) =>
+                      html`<span class="badge"
+                        >${t.resolved.label}
+                        <button
+                          class="ghost icon"
+                          aria-label="Remove ${t.resolved.label}"
+                          @click=${() => removeTarget(t.resolved.key)}
+                        >
+                          ×
+                        </button></span
+                      >`,
+                  )}
+                </div>`
+              : nothing
+          }
         </details>
       </div>
     `;
@@ -231,8 +262,13 @@ export class SwDevicePicker extends SignalWatcher(LitElement) {
           .checked=${checked}
           @change=${(e: Event) => toggleDevice(device.id, (e.target as HTMLInputElement).checked)}
         />
-        <span>${device.name} <span class="brand">${device.brand === 'Generic' ? '' : device.brand}</span></span>
-        <span class="size" title=${deviceRotates(device) ? 'Square output for both orientations' : ''}
+        <span
+          >${device.name}
+          <span class="brand">${device.brand === 'Generic' ? '' : device.brand}</span></span
+        >
+        <span
+          class="size"
+          title=${deviceRotates(device) ? 'Square output for both orientations' : ''}
           >${output.width}×${output.height}${deviceRotates(device) ? ' ⟳' : ''}</span
         >
       </label>
@@ -249,7 +285,8 @@ export class SwDevicePicker extends SignalWatcher(LitElement) {
       this.customError = `Width and height must be whole numbers from ${CUSTOM_SIZE_MIN} to ${CUSTOM_SIZE_MAX}.`;
       return;
     }
-    const label = String(data.get('label') ?? '').trim();
+    const rawLabel = data.get('label');
+    const label = typeof rawLabel === 'string' ? rawLabel.trim() : '';
     addCustomTarget({
       kind: 'custom',
       width,

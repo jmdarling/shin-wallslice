@@ -22,7 +22,11 @@ import './sw-source-view.js';
 import './sw-target-card.js';
 
 const NEXT_THEME: Record<Theme, Theme> = { system: 'light', light: 'dark', dark: 'system' };
-const THEME_LABEL: Record<Theme, string> = { system: 'Theme: system', light: 'Theme: light', dark: 'Theme: dark' };
+const THEME_LABEL: Record<Theme, string> = {
+  system: 'Theme: system',
+  light: 'Theme: light',
+  dark: 'Theme: dark',
+};
 
 /** Application shell: one page, live previews. */
 export class SwApp extends SignalWatcher(LitElement) {
@@ -172,51 +176,73 @@ export class SwApp extends SignalWatcher(LitElement) {
           <h1>shin-wallslice</h1>
           <span class="muted tagline">Form-fit wallpapers to every device</span>
         </div>
-        <button class="ghost" @click=${() => setTheme(NEXT_THEME[currentTheme])} aria-label=${THEME_LABEL[currentTheme]}>
+        <button
+          class="ghost"
+          @click=${() => setTheme(NEXT_THEME[currentTheme])}
+          aria-label=${THEME_LABEL[currentTheme]}
+        >
           ${THEME_LABEL[currentTheme]}
         </button>
       </header>
       <main @sw-file=${this.onFileEvent} @sw-url=${this.onUrlEvent}>
-        ${!current
-          ? loading
-            ? html`<div class="loading" role="status">Loading image…</div>`
-            : html`<sw-drop-zone max-upload-mb=${config.get()?.limits.maxUploadMb ?? 100}></sw-drop-zone>`
-          : html`
-              <div class="workspace">
-                <div class="sidebar">
-                  <sw-source-view></sw-source-view>
-                  <sw-device-picker></sw-device-picker>
-                  <sw-drop-zone compact ?disabled=${loading}></sw-drop-zone>
-                </div>
-                <section class="previews" aria-label="Previews">
-                  <div class="previews-header">
-                    <h2>Previews</h2>
-                    <label class="toggle">
-                      <input
-                        type="checkbox"
-                        .checked=${showGuides.get()}
-                        @change=${(e: Event) => setShowGuides((e.target as HTMLInputElement).checked)}
-                      />
-                      Orientation guides
-                    </label>
+        ${
+          !current
+            ? loading
+              ? html`<div class="loading" role="status">Loading image…</div>`
+              : html`<sw-drop-zone
+                  max-upload-mb=${config.get()?.limits.maxUploadMb ?? 100}
+                ></sw-drop-zone>`
+            : html`
+                <div class="workspace">
+                  <div class="sidebar">
+                    <sw-source-view></sw-source-view>
+                    <sw-device-picker></sw-device-picker>
+                    <sw-drop-zone compact ?disabled=${loading}></sw-drop-zone>
                   </div>
-                  ${targets.length === 0
-                    ? html`<div class="empty muted">Pick one or more devices to see previews.</div>`
-                    : html`<div class="grid">
-                        ${repeat(
-                          targets,
-                          (t) => t.resolved.key,
-                          (t) => html`<sw-target-card target-key=${t.resolved.key}></sw-target-card>`,
-                        )}
-                      </div>`}
-                  <sw-export-bar></sw-export-bar>
-                </section>
-              </div>
-            `}
+                  <section class="previews" aria-label="Previews">
+                    <div class="previews-header">
+                      <h2>Previews</h2>
+                      <label class="toggle">
+                        <input
+                          type="checkbox"
+                          .checked=${showGuides.get()}
+                          @change=${(e: Event) => setShowGuides((e.target as HTMLInputElement).checked)}
+                        />
+                        Orientation guides
+                      </label>
+                    </div>
+                    ${
+                      targets.length === 0
+                        ? html`<div class="empty muted">
+                            Pick one or more devices to see previews.
+                          </div>`
+                        : html`<div class="grid">
+                            ${repeat(
+                              targets,
+                              (t) => t.resolved.key,
+                              (t) =>
+                                html`<sw-target-card
+                                  target-key=${t.resolved.key}
+                                ></sw-target-card>`,
+                            )}
+                          </div>`
+                    }
+                    <sw-export-bar></sw-export-bar>
+                  </section>
+                </div>
+              `
+        }
       </main>
-      ${notice
-        ? html`<div class="toast ${notice.kind}" role=${notice.kind === 'error' ? 'alert' : 'status'}>${notice.message}</div>`
-        : nothing}
+      ${
+        notice
+          ? html`<div
+              class="toast ${notice.kind}"
+              role=${notice.kind === 'error' ? 'alert' : 'status'}
+            >
+              ${notice.message}
+            </div>`
+          : nothing
+      }
     `;
   }
 

@@ -29,7 +29,11 @@ async function main(): Promise<void> {
     info: (message: string) => startupLog.push(() => app.log.info(message)),
     warn: (message: string) => startupLog.push(() => app.log.warn(message)),
   };
-  const detector = await LocalSubjectDetector.create(config.modelsDir, config.maxInputMegapixels, logger);
+  const detector = await LocalSubjectDetector.create(
+    config.modelsDir,
+    config.maxInputMegapixels,
+    logger,
+  );
   const namer = createNameSuggester(config.naming);
 
   const pipeline = new Pipeline({
@@ -58,13 +62,16 @@ async function main(): Promise<void> {
       `AI naming ${namer ? `enabled (${namer.provider})` : 'disabled'}.`,
   );
 
-  const sweep = () =>
-    store
-      .sweep(config.tempTtlMs)
-      .then((removed) => removed > 0 && app.log.info(`Removed ${removed} expired source(s).`))
-      .catch((error: unknown) => app.log.warn(`Sweep failed: ${String(error)}`));
+  const sweep = async () => {
+    try {
+      const removed = await store.sweep(config.tempTtlMs);
+      if (removed > 0) app.log.info(`Removed ${removed} expired source(s).`);
+    } catch (error) {
+      app.log.warn(`Sweep failed: ${String(error)}`);
+    }
+  };
   await sweep();
-  const timer = setInterval(sweep, SWEEP_INTERVAL_MS);
+  const timer = setInterval(() => void sweep(), SWEEP_INTERVAL_MS);
   timer.unref();
 
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {

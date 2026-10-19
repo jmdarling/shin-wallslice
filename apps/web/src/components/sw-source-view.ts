@@ -1,12 +1,7 @@
 import { SignalWatcher } from '@lit-labs/signals';
 import { clamp, LOW_CONFIDENCE_THRESHOLD, type NormRect } from '@shin-wallslice/core';
 import { css, html, LitElement, nothing } from 'lit';
-import {
-  effectiveSubject,
-  source,
-  subjectOverride,
-  subjectStatus,
-} from '../state.js';
+import { effectiveSubject, source, subjectOverride, subjectStatus } from '../state.js';
 import { controls, panel } from '../styles/shared.js';
 
 const METHOD_LABELS = {
@@ -134,47 +129,58 @@ export class SwSourceView extends SignalWatcher(LitElement) {
 
     return html`
       <div class="panel">
-        <div class="stage" style="aspect-ratio: ${aspect}; max-height: 60vh; width: min(100%, calc(60vh * ${current.proxyWidth} / ${current.proxyHeight}))">
+        <div
+          class="stage"
+          style="aspect-ratio: ${aspect}; max-height: 60vh; width: min(100%, calc(60vh * ${current.proxyWidth} / ${current.proxyHeight}))"
+        >
           <img src=${current.proxyUrl} alt="Source wallpaper" draggable="false" />
-          ${subject && this.showOverlay
-            ? html`
-                <div
-                  class="box"
-                  role="slider"
-                  tabindex="0"
-                  aria-label="Subject area. Drag or use arrow keys to move; Shift + arrows to resize."
-                  aria-valuetext=${`x ${Math.round(subject.box.x * 100)}%, y ${Math.round(subject.box.y * 100)}%`}
-                  style=${this.boxStyle(subject.box)}
-                  @pointerdown=${(e: PointerEvent) => this.startDrag(e, 'move')}
-                  @pointermove=${this.onPointerMove}
-                  @pointerup=${this.endDrag}
-                  @pointercancel=${this.endDrag}
-                  @keydown=${this.onKeyDown}
-                >
+          ${
+            subject && this.showOverlay
+              ? html`
                   <div
-                    class="handle"
-                    @pointerdown=${(e: PointerEvent) => this.startDrag(e, 'resize')}
+                    class="box"
+                    role="slider"
+                    tabindex="0"
+                    aria-label="Subject area. Drag or use arrow keys to move; Shift + arrows to resize."
+                    aria-valuetext=${`x ${Math.round(subject.box.x * 100)}%, y ${Math.round(subject.box.y * 100)}%`}
+                    style=${this.boxStyle(subject.box)}
+                    @pointerdown=${(e: PointerEvent) => this.startDrag(e, 'move')}
+                    @pointermove=${this.onPointerMove}
+                    @pointerup=${this.endDrag}
+                    @pointercancel=${this.endDrag}
+                    @keydown=${this.onKeyDown}
+                  >
+                    <div
+                      class="handle"
+                      @pointerdown=${(e: PointerEvent) => this.startDrag(e, 'resize')}
+                    ></div>
+                  </div>
+                  <div
+                    class="focal"
+                    style="left: ${subject.focal.x * 100}%; top: ${subject.focal.y * 100}%"
                   ></div>
-                </div>
-                <div
-                  class="focal"
-                  style="left: ${subject.focal.x * 100}%; top: ${subject.focal.y * 100}%"
-                ></div>
-              `
-            : nothing}
+                `
+              : nothing
+          }
         </div>
         <div class="meta">
           <div class="left">
-            ${status === 'loading'
-              ? html`<span class="badge">Finding the subject…</span>`
-              : subject
-                ? html`<span class="badge ${subject.method === 'manual' ? 'info' : ''}"
-                      >${METHOD_LABELS[subject.method]}</span
-                    >
-                    ${subject.method !== 'manual' && subject.confidence < LOW_CONFIDENCE_THRESHOLD
-                      ? html`<span class="badge warning">Low confidence — check the crops</span>`
-                      : nothing}`
-                : nothing}
+            ${
+              status === 'loading'
+                ? html`<span class="badge">Finding the subject…</span>`
+                : subject
+                  ? html`<span class="badge ${subject.method === 'manual' ? 'info' : ''}"
+                        >${METHOD_LABELS[subject.method]}</span
+                      >
+                      ${
+                        subject.method !== 'manual' && subject.confidence < LOW_CONFIDENCE_THRESHOLD
+                          ? html`<span class="badge warning"
+                              >Low confidence — check the crops</span
+                            >`
+                          : nothing
+                      }`
+                  : nothing
+            }
             <span class="muted">${current.width} × ${current.height}</span>
           </div>
           <div class="left">
@@ -186,11 +192,13 @@ export class SwSourceView extends SignalWatcher(LitElement) {
               />
               Show subject
             </label>
-            ${subjectOverride.get()
-              ? html`<button class="ghost" @click=${() => subjectOverride.set(undefined)}>
-                  Reset to auto
-                </button>`
-              : nothing}
+            ${
+              subjectOverride.get()
+                ? html`<button class="ghost" @click=${() => subjectOverride.set(undefined)}>
+                    Reset to auto
+                  </button>`
+                : nothing
+            }
           </div>
         </div>
       </div>

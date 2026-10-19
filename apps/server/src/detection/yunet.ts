@@ -43,7 +43,12 @@ export class YunetFaces {
     }
 
     const outputs = await this.session.run({
-      [this.session.inputNames[0]!]: new ort.Tensor('float32', input, [1, 3, INPUT_SIZE, INPUT_SIZE]),
+      [this.session.inputNames[0]!]: new ort.Tensor('float32', input, [
+        1,
+        3,
+        INPUT_SIZE,
+        INPUT_SIZE,
+      ]),
     });
 
     const candidates: PixelBox[] = [];

@@ -8,9 +8,6 @@
     "width": 3840,
     "height": 2160
   },
-  "aliases": [
-    "2160p",
-    "uhd"
-  ],
+  "aliases": ["2160p", "uhd"],
   "source": "https://en.wikipedia.org/wiki/Display_resolution_standards"
 }

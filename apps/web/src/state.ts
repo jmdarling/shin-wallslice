@@ -141,7 +141,9 @@ function isTargetSpecArray(value: unknown): value is TargetSpec[] {
       if (typeof item !== 'object' || item === null) return false;
       const spec = item as Record<string, unknown>;
       if (spec.kind === 'device') return typeof spec.deviceId === 'string';
-      return spec.kind === 'custom' && typeof spec.width === 'number' && typeof spec.height === 'number';
+      return (
+        spec.kind === 'custom' && typeof spec.width === 'number' && typeof spec.height === 'number'
+      );
     })
   );
 }

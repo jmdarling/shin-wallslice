@@ -8,9 +8,6 @@
     "width": 3440,
     "height": 1440
   },
-  "aliases": [
-    "uwqhd",
-    "ultrawide"
-  ],
+  "aliases": ["uwqhd", "ultrawide"],
   "source": "https://en.wikipedia.org/wiki/Display_resolution_standards"
 }

@@ -1,6 +1,13 @@
 import type { Size } from './geometry.js';
 
-export const DEVICE_CATEGORIES = ['phone', 'tablet', 'laptop', 'desktop', 'monitor', 'other'] as const;
+export const DEVICE_CATEGORIES = [
+  'phone',
+  'tablet',
+  'laptop',
+  'desktop',
+  'monitor',
+  'other',
+] as const;
 export type DeviceCategory = (typeof DEVICE_CATEGORIES)[number];
 
 /** A device record from the catalog (`devices/*.json`). */

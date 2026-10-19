@@ -12,19 +12,19 @@ Guidance for AI coding agents (and humans) working in this repository. This file
 
 ## Stack (decided, do not swap without discussion)
 
-| Concern | Choice |
-|---|---|
-| Runtime | Node.js 24 LTS, ESM, TypeScript `strict` |
-| Package manager | **pnpm** workspaces (never npm/yarn/bun lockfiles) |
-| Server | **Fastify** (not Express/Hono) |
-| Frontend | **Lit 3** custom elements + **Vite**, state via `@lit-labs/signals` |
-| Styling | Plain CSS + custom properties (design tokens), light/dark via `prefers-color-scheme` + toggle. No CSS frameworks or component libraries |
-| Images | **sharp** |
-| Subject detection | **onnxruntime-node**, ISNet (`isnet-general-use`) saliency + YuNet faces, local only in v1 |
-| ZIP | **yazl** |
-| Persistence | **None.** No database. Device catalog = JSON in repo; ephemeral files under `DATA_DIR`; config = env vars |
-| Packaging | Single Docker image, `node:24-bookworm-slim`, multi-arch amd64 + arm64, PUID/PGID |
-| Quality | ESLint (typescript-eslint) + Prettier, enforced in CI; **Vitest** unit tests for `packages/core` |
+| Concern           | Choice                                                                                                                                  |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime           | Node.js 24 LTS, ESM, TypeScript `strict`                                                                                                |
+| Package manager   | **pnpm** workspaces (never npm/yarn/bun lockfiles)                                                                                      |
+| Server            | **Fastify** (not Express/Hono)                                                                                                          |
+| Frontend          | **Lit 3** custom elements + **Vite**, state via `@lit-labs/signals`                                                                     |
+| Styling           | Plain CSS + custom properties (design tokens), light/dark via `prefers-color-scheme` + toggle. No CSS frameworks or component libraries |
+| Images            | **sharp**                                                                                                                               |
+| Subject detection | **onnxruntime-node**, ISNet (`isnet-general-use`) saliency + YuNet faces, local only in v1                                              |
+| ZIP               | **yazl**                                                                                                                                |
+| Persistence       | **None.** No database. Device catalog = JSON in repo; ephemeral files under `DATA_DIR`; config = env vars                               |
+| Packaging         | Single Docker image, `node:24-bookworm-slim`, multi-arch amd64 + arm64, PUID/PGID                                                       |
+| Quality           | ESLint (typescript-eslint) + Prettier, enforced in CI; **Vitest** unit tests for `packages/core`                                        |
 
 Ask the user before introducing a new runtime dependency that is large, native, or overlaps an existing choice.
 

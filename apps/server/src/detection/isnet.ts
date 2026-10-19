@@ -98,7 +98,14 @@ export function analyseSaliency(map: Float32Array, grid: number): SaliencyResult
   for (let start = 0; start < map.length; start++) {
     if (labels[start] !== -1 || map[start]! < MASK_THRESHOLD) continue;
     const component: Component = {
-      mass: 0, area: 0, minX: grid, minY: grid, maxX: 0, maxY: 0, sumX: 0, sumY: 0,
+      mass: 0,
+      area: 0,
+      minX: grid,
+      minY: grid,
+      maxX: 0,
+      maxY: 0,
+      sumX: 0,
+      sumY: 0,
     };
     const label = components.length;
     labels[start] = label;

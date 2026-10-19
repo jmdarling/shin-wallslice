@@ -33,6 +33,11 @@ function decodeURIComponentSafe(value: string): string {
 }
 
 /** File name for a single-image download. */
-export function singleDownloadName(baseName: string, targetKey: string, width: number, height: number): string {
+export function singleDownloadName(
+  baseName: string,
+  targetKey: string,
+  width: number,
+  height: number,
+): string {
   return `${slugify(baseName)}_${targetKey}_${width}x${height}.png`;
 }

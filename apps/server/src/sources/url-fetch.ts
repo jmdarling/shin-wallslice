@@ -54,7 +54,10 @@ async function assertAllowedHost(url: URL, allowPrivate: boolean): Promise<void>
       });
   for (const entry of addresses) {
     const { address, family } = normalizeAddress(entry.address);
-    if (alwaysBlocked.check(address, family) || (!allowPrivate && privateRanges.check(address, family))) {
+    if (
+      alwaysBlocked.check(address, family) ||
+      (!allowPrivate && privateRanges.check(address, family))
+    ) {
       throw badRequest('url_not_allowed', `Fetching from ${hostname} is not allowed.`);
     }
   }
@@ -65,7 +68,8 @@ async function readLimited(body: ReadableStream<Uint8Array>, maxBytes: number): 
   let total = 0;
   for await (const chunk of body) {
     total += chunk.byteLength;
-    if (total > maxBytes) throw payloadTooLarge(`The image is larger than ${maxBytes / 1024 / 1024} MB.`);
+    if (total > maxBytes)
+      throw payloadTooLarge(`The image is larger than ${maxBytes / 1024 / 1024} MB.`);
     chunks.push(chunk);
   }
   return Buffer.concat(chunks);
@@ -75,7 +79,10 @@ async function readLimited(body: ReadableStream<Uint8Array>, maxBytes: number): 
  * Fetch an image URL with SSRF guards: http(s) only, every redirect hop re-validated,
  * loopback/link-local always refused, size and time limits enforced.
  */
-export async function fetchImageUrl(rawUrl: string, options: UrlFetchOptions): Promise<FetchedImage> {
+export async function fetchImageUrl(
+  rawUrl: string,
+  options: UrlFetchOptions,
+): Promise<FetchedImage> {
   const { maxBytes, allowPrivate, timeoutMs = 30_000, maxRedirects = 5 } = options;
   let url: URL;
   try {
@@ -114,7 +121,8 @@ export async function fetchImageUrl(rawUrl: string, options: UrlFetchOptions): P
     }
   } catch (error) {
     if (signal.aborted) throw badRequest('fetch_timeout', 'Fetching the image timed out.');
-    if (error instanceof TypeError) throw badRequest('fetch_failed', 'Could not download the image.');
+    if (error instanceof TypeError)
+      throw badRequest('fetch_failed', 'Could not download the image.');
     throw error;
   }
   throw badRequest('fetch_failed', 'Too many redirects.');

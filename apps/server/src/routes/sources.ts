@@ -29,14 +29,18 @@ function toResponse(meta: SourceMeta): SourceResponse {
   };
 }
 
-export const sourceRoutes: FastifyPluginAsyncTypebox<{ ctx: AppContext }> = async (app, { ctx }) => {
+export const sourceRoutes: FastifyPluginAsyncTypebox<{ ctx: AppContext }> = async (
+  app,
+  { ctx },
+) => {
   const { pipeline, store, config } = ctx;
 
   app.post(
     '/api/sources',
     { schema: { response: { 201: SourceResponseSchema, ...errorResponses } } },
     async (request, reply) => {
-      if (!request.isMultipart()) throw badRequest('invalid_request', 'Expected a multipart upload.');
+      if (!request.isMultipart())
+        throw badRequest('invalid_request', 'Expected a multipart upload.');
       const file = await request.file({ limits: { fileSize: config.maxUploadBytes, files: 1 } });
       if (!file) throw badRequest('invalid_request', 'No file was uploaded.');
       const buffer = await file.toBuffer();
@@ -47,20 +51,33 @@ export const sourceRoutes: FastifyPluginAsyncTypebox<{ ctx: AppContext }> = asyn
 
   app.post(
     '/api/sources/url',
-    { schema: { body: UrlSourceRequestSchema, response: { 201: SourceResponseSchema, ...errorResponses } } },
+    {
+      schema: {
+        body: UrlSourceRequestSchema,
+        response: { 201: SourceResponseSchema, ...errorResponses },
+      },
+    },
     async (request, reply) => {
       const fetched = await fetchImageUrl(request.body.url, {
         maxBytes: config.maxUploadBytes,
         allowPrivate: config.urlFetchAllowPrivate,
       });
-      const meta = await pipeline.ingest(fetched.buffer, fetched.url.pathname || fetched.url.hostname);
+      const meta = await pipeline.ingest(
+        fetched.buffer,
+        fetched.url.pathname || fetched.url.hostname,
+      );
       return reply.code(201).send(toResponse(meta));
     },
   );
 
   app.get(
     '/api/sources/:id/proxy',
-    { schema: { params: SourceParamsSchema, response: { 200: BinaryResponseSchema, ...errorResponses } } },
+    {
+      schema: {
+        params: SourceParamsSchema,
+        response: { 200: BinaryResponseSchema, ...errorResponses },
+      },
+    },
     async (request, reply) => {
       await store.readMeta(request.params.id);
       return reply
@@ -72,7 +89,12 @@ export const sourceRoutes: FastifyPluginAsyncTypebox<{ ctx: AppContext }> = asyn
 
   app.get(
     '/api/sources/:id/subject',
-    { schema: { params: SourceParamsSchema, response: { 200: SubjectResponseSchema, ...errorResponses } } },
+    {
+      schema: {
+        params: SourceParamsSchema,
+        response: { 200: SubjectResponseSchema, ...errorResponses },
+      },
+    },
     async (request) => pipeline.subject(request.params.id),
   );
 

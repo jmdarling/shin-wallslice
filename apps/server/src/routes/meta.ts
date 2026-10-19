@@ -1,10 +1,6 @@
 import type { FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox';
 import type { AppConfigResponse } from '@shin-wallslice/core';
-import {
-  ConfigResponseSchema,
-  DevicesResponseSchema,
-  HealthResponseSchema,
-} from '../schemas.js';
+import { ConfigResponseSchema, DevicesResponseSchema, HealthResponseSchema } from '../schemas.js';
 import type { AppContext } from '../app.js';
 
 export const metaRoutes: FastifyPluginAsyncTypebox<{ ctx: AppContext }> = async (app, { ctx }) => {

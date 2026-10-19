@@ -13,9 +13,9 @@ It should be **correct the first time**. Manual adjustment is available but shou
 
 shin-wallslice is a ground-up rewrite. It takes ideas from, but shares no code with:
 
-| Project | Takeaways | Departures |
-|---|---|---|
-| `wallslice` (Bun, CLI) | JSON-per-device catalog with a JSON Schema | Bun runtime, CLI-first |
+| Project                                | Takeaways                                                                                                                 | Departures                                                                              |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `wallslice` (Bun, CLI)                 | JSON-per-device catalog with a JSON Schema                                                                                | Bun runtime, CLI-first                                                                  |
 | `wallslice-again` (Node, Express, Vue) | sharp pipeline, square output for rotating tablets, AI naming, Docker/Unraid packaging, `<output>/<device>/<name>` layout | CLI-first, Express, Vue, OpenAI-only naming, sharp `attention` as the only "smart" crop |
 
 shin-wallslice is **GUI-first**. A CLI with "watch" / unattended mode is planned for a later version (§12).
@@ -28,15 +28,15 @@ shin-wallslice is **GUI-first**. A CLI with "watch" / unattended mode is planned
 
 ## 2. Glossary
 
-| Term | Meaning |
-|---|---|
-| **Source** | The single input wallpaper image for the current session. |
-| **Device** | A named target with a native screen resolution and metadata (§5). |
-| **Target** | A device selected for the current session, plus any per-target overrides. |
+| Term            | Meaning                                                                                                              |
+| --------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Source**      | The single input wallpaper image for the current session.                                                            |
+| **Device**      | A named target with a native screen resolution and metadata (§5).                                                    |
+| **Target**      | A device selected for the current session, plus any per-target overrides.                                            |
 | **Output size** | The pixel size actually written for a target. Equals the device resolution, or a square for rotating devices (§5.2). |
-| **Subject** | The visually important region of the source: a bounding box, a weighted focal point, and a confidence score (§6). |
-| **Crop rect** | The rectangle of the source, in source pixel coordinates, that is resized to the output size. |
-| **Export** | Rendering the final images server-side and delivering them (§8). |
+| **Subject**     | The visually important region of the source: a bounding box, a weighted focal point, and a confidence score (§6).    |
+| **Crop rect**   | The rectangle of the source, in source pixel coordinates, that is resized to the output size.                        |
+| **Export**      | Rendering the final images server-side and delivering them (§8).                                                     |
 
 ## 3. Scope summary (v1)
 
@@ -59,11 +59,11 @@ shin-wallslice is **GUI-first**. A CLI with "watch" / unattended mode is planned
 
 ### 4.1 Accepted sources
 
-| Method | Notes |
-|---|---|
-| File picker / drag-and-drop | Anywhere on the page. |
-| Clipboard paste | `Ctrl/Cmd+V` of image data. |
-| Paste URL | The server fetches the URL (§4.3). |
+| Method                      | Notes                              |
+| --------------------------- | ---------------------------------- |
+| File picker / drag-and-drop | Anywhere on the page.              |
+| Clipboard paste             | `Ctrl/Cmd+V` of image data.        |
+| Paste URL                   | The server fetches the URL (§4.3). |
 
 ### 4.2 Formats and limits
 
@@ -91,15 +91,15 @@ shin-wallslice is **GUI-first**. A CLI with "watch" / unattended mode is planned
 ```jsonc
 {
   "$schema": "../schema/device.schema.json",
-  "id": "apple-ipad-pro-11-m5",            // stable slug, unique; used in filenames/folders
+  "id": "apple-ipad-pro-11-m5", // stable slug, unique; used in filenames/folders
   "name": "iPad Pro 11-inch (M5)",
   "brand": "Apple",
-  "category": "tablet",                     // phone | tablet | laptop | desktop | monitor | other
+  "category": "tablet", // phone | tablet | laptop | desktop | monitor | other
   "year": 2025,
-  "resolution": { "width": 1668, "height": 2420 },  // native panel pixels, portrait-natural for phones/tablets
-  "rotates": true,                          // optional; defaults by category (§5.2)
-  "aliases": ["ipad pro 11 m5"],            // optional; search terms
-  "source": "https://www.apple.com/ipad-pro/specs/"  // optional; spec citation
+  "resolution": { "width": 1668, "height": 2420 }, // native panel pixels, portrait-natural for phones/tablets
+  "rotates": true, // optional; defaults by category (§5.2)
+  "aliases": ["ipad pro 11 m5"], // optional; search terms
+  "source": "https://www.apple.com/ipad-pro/specs/", // optional; spec citation
 }
 ```
 
@@ -225,12 +225,12 @@ When detection confidence is low or the fallback was used, flag the affected tar
 
 ### 8.2 Delivery channels
 
-| Channel | Behaviour |
-|---|---|
-| Per-image download | One button per target card. |
-| ZIP download | All targets in one ZIP, streamed. Inside the ZIP: `<device-id>/<name>.png`. |
-| Web Share API | `navigator.share({ files })` where supported (iOS/Android to Photos, AirDrop, etc.). Hidden when unsupported. |
-| Output volume | Writes to the mounted output directory (default `/output`) as `<output>/<device-id>/<name>.png`. Shown only when the directory is configured and writable. **On name collision, the existing file is overwritten**, which makes re-exporting while iterating painless. The UI states this next to the Save button. |
+| Channel            | Behaviour                                                                                                                                                                                                                                                                                                          |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Per-image download | One button per target card.                                                                                                                                                                                                                                                                                        |
+| ZIP download       | All targets in one ZIP, streamed. Inside the ZIP: `<device-id>/<name>.png`.                                                                                                                                                                                                                                        |
+| Web Share API      | `navigator.share({ files })` where supported (iOS/Android to Photos, AirDrop, etc.). Hidden when unsupported.                                                                                                                                                                                                      |
+| Output volume      | Writes to the mounted output directory (default `/output`) as `<output>/<device-id>/<name>.png`. Shown only when the directory is configured and writable. **On name collision, the existing file is overwritten**, which makes re-exporting while iterating painless. The UI states this next to the Save button. |
 
 ### 8.3 Naming
 
@@ -247,7 +247,7 @@ When detection confidence is low or the fallback was used, flag the affected tar
 - **pnpm** workspaces.
 - **Fastify** with JSON-Schema-validated routes (TypeBox schemas shared with the frontend where useful) and `@fastify/multipart`, `@fastify/static`, `@fastify/compress`.
 - **sharp** for decode, resize, and encode. **onnxruntime-node** for detection.
-- ZIP streaming: **`yazl`** (zero-dependency, streaming). PNG entries are *stored*, not re-deflated.
+- ZIP streaming: **`yazl`** (zero-dependency, streaming). PNG entries are _stored_, not re-deflated.
 
 ### 9.2 Persistence: no database
 
@@ -259,21 +259,21 @@ When detection confidence is low or the fallback was used, flag the affected tar
 
 ### 9.3 Configuration (env)
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `PORT` | `3000` | HTTP port |
-| `DATA_DIR` | `/data` | Ephemeral working files |
-| `OUTPUT_DIR` | `/output` | Output volume; the feature is disabled if missing or unwritable |
-| `MAX_UPLOAD_MB` | `100` | Upload limit |
-| `MAX_INPUT_MEGAPIXELS` | `50` | Decode limit |
-| `TEMP_TTL_HOURS` | `24` | Ephemeral file lifetime |
-| `URL_FETCH_ALLOW_PRIVATE` | `true` | Allow fetching from private LAN ranges |
-| `PUID` / `PGID` | `99` / `100` (Unraid defaults) | Run-as user/group (§10) |
-| `NAMING_PROVIDER` | unset | `anthropic` \| `openai` \| `openai-compatible`; unset disables AI naming |
-| `NAMING_MODEL` | provider default | Vision model id |
-| `NAMING_BASE_URL` | unset | For `openai-compatible` (Ollama, LM Studio, etc.) |
-| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `NAMING_API_KEY` | unset | Credentials |
-| `LOG_LEVEL` | `info` | Fastify/pino log level |
+| Variable                                                  | Default                        | Purpose                                                                  |
+| --------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------ |
+| `PORT`                                                    | `3000`                         | HTTP port                                                                |
+| `DATA_DIR`                                                | `/data`                        | Ephemeral working files                                                  |
+| `OUTPUT_DIR`                                              | `/output`                      | Output volume; the feature is disabled if missing or unwritable          |
+| `MAX_UPLOAD_MB`                                           | `100`                          | Upload limit                                                             |
+| `MAX_INPUT_MEGAPIXELS`                                    | `50`                           | Decode limit                                                             |
+| `TEMP_TTL_HOURS`                                          | `24`                           | Ephemeral file lifetime                                                  |
+| `URL_FETCH_ALLOW_PRIVATE`                                 | `true`                         | Allow fetching from private LAN ranges                                   |
+| `PUID` / `PGID`                                           | `99` / `100` (Unraid defaults) | Run-as user/group (§10)                                                  |
+| `NAMING_PROVIDER`                                         | unset                          | `anthropic` \| `openai` \| `openai-compatible`; unset disables AI naming |
+| `NAMING_MODEL`                                            | provider default               | Vision model id                                                          |
+| `NAMING_BASE_URL`                                         | unset                          | For `openai-compatible` (Ollama, LM Studio, etc.)                        |
+| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `NAMING_API_KEY` | unset                          | Credentials                                                              |
+| `LOG_LEVEL`                                               | `info`                         | Fastify/pino log level                                                   |
 
 ### 9.4 AI naming adapter
 
@@ -284,17 +284,17 @@ When detection confidence is low or the fallback was used, flag the affected tar
 
 ### 9.5 API sketch (non-binding)
 
-| Method & path | Purpose |
-|---|---|
-| `GET /api/health` | Liveness and readiness (models loaded) |
-| `GET /api/config` | Feature flags for the UI (output volume available, naming enabled, limits) |
-| `GET /api/devices` | Device catalog |
-| `POST /api/sources` | Upload (multipart) **or** `{ url }`. Returns `sourceId`, dimensions, proxy URL |
-| `GET /api/sources/:id/proxy` | Downscaled preview image |
-| `GET /api/sources/:id/subject` | Detection result (`box`, `focal`, `confidence`, `method`) |
-| `POST /api/sources/:id/name-suggestion` | AI name (when enabled) |
-| `POST /api/sources/:id/render` | `{ targets[], name }` → single PNG or ZIP stream |
-| `POST /api/sources/:id/save` | `{ targets[], name }` → write to the output volume, returns paths |
+| Method & path                           | Purpose                                                                        |
+| --------------------------------------- | ------------------------------------------------------------------------------ |
+| `GET /api/health`                       | Liveness and readiness (models loaded)                                         |
+| `GET /api/config`                       | Feature flags for the UI (output volume available, naming enabled, limits)     |
+| `GET /api/devices`                      | Device catalog                                                                 |
+| `POST /api/sources`                     | Upload (multipart) **or** `{ url }`. Returns `sourceId`, dimensions, proxy URL |
+| `GET /api/sources/:id/proxy`            | Downscaled preview image                                                       |
+| `GET /api/sources/:id/subject`          | Detection result (`box`, `focal`, `confidence`, `method`)                      |
+| `POST /api/sources/:id/name-suggestion` | AI name (when enabled)                                                         |
+| `POST /api/sources/:id/render`          | `{ targets[], name }` → single PNG or ZIP stream                               |
+| `POST /api/sources/:id/save`            | `{ targets[], name }` → write to the output volume, returns paths              |
 
 `targets[]` carries the device id or custom size plus any overrides. **The server recomputes the crop rects with the shared crop package**: client-supplied rects are treated as overrides, not as trusted geometry.
 
@@ -343,29 +343,29 @@ shin-wallslice/
 
 ## 12. Future roadmap (not v1, but design for it)
 
-| Item | Design hook in v1 |
-|---|---|
-| **CLI + watch / unattended mode**: watch a folder, auto-generate for preset devices | Core pipeline (detect → crop → render) is UI-agnostic and lives in importable modules, not in route handlers |
-| **Hybrid subject detection**: local + optional cloud vision model | `SubjectDetector` interface; provider adapter pattern from naming |
-| **AI outpainting** for subjects that don't fit | Crop computation reports "subject clipped" per target |
-| Batch (multiple sources) | Source-id–scoped state; nothing global per "current image" on the server |
-| More output formats (JPEG, WebP, AVIF; HEIC) | Format is a setting, not hard-coded |
-| HEIC/HEIF input | Input decoding is isolated behind one function |
-| Safe zones / UI overlays (clock, Dynamic Island, dock, menu bar) | Device schema is versioned and extensible |
-| Parallax / zoom margins | Same |
-| Saved presets / custom devices persisted | Would require minimal JSON persistence in `/data` |
-| AI super-resolution for upscaled targets | Upscale step isolated |
-| Optional basic auth | Fastify hook point |
-| Large-image (100 MP+) tiled processing | Limits are configurable |
-| Broader tests: server and API tests, Playwright E2E, golden-image crop fixtures (also useful for a future model bake-off) | Pure core package; `SubjectDetector` interface |
+| Item                                                                                                                      | Design hook in v1                                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| **CLI + watch / unattended mode**: watch a folder, auto-generate for preset devices                                       | Core pipeline (detect → crop → render) is UI-agnostic and lives in importable modules, not in route handlers |
+| **Hybrid subject detection**: local + optional cloud vision model                                                         | `SubjectDetector` interface; provider adapter pattern from naming                                            |
+| **AI outpainting** for subjects that don't fit                                                                            | Crop computation reports "subject clipped" per target                                                        |
+| Batch (multiple sources)                                                                                                  | Source-id–scoped state; nothing global per "current image" on the server                                     |
+| More output formats (JPEG, WebP, AVIF; HEIC)                                                                              | Format is a setting, not hard-coded                                                                          |
+| HEIC/HEIF input                                                                                                           | Input decoding is isolated behind one function                                                               |
+| Safe zones / UI overlays (clock, Dynamic Island, dock, menu bar)                                                          | Device schema is versioned and extensible                                                                    |
+| Parallax / zoom margins                                                                                                   | Same                                                                                                         |
+| Saved presets / custom devices persisted                                                                                  | Would require minimal JSON persistence in `/data`                                                            |
+| AI super-resolution for upscaled targets                                                                                  | Upscale step isolated                                                                                        |
+| Optional basic auth                                                                                                       | Fastify hook point                                                                                           |
+| Large-image (100 MP+) tiled processing                                                                                    | Limits are configurable                                                                                      |
+| Broader tests: server and API tests, Playwright E2E, golden-image crop fixtures (also useful for a future model bake-off) | Pure core package; `SubjectDetector` interface                                                               |
 
 ## 13. Decision log (formerly open questions)
 
-| # | Question | Decision |
-|---|---|---|
-| 1 | iPhone 18 Pro Max resolution and the launch catalog | 1320×2868 (Apple spec page). Catalog = carried-over devices + current Apple lineup + generic monitors + popular Android (§5.1) |
-| 2 | Detection models | ISNet `isnet-general-use` + YuNet, no bake-off. ISNet weight license caveat noted (§6.2) |
-| 3 | Output-volume collision policy | Overwrite |
-| 4 | Tests in v1 | Vitest unit tests for `packages/core` only |
-| 5 | ZIP library | `yazl` |
-| 6 | Default port | 3000 |
+| #   | Question                                            | Decision                                                                                                                       |
+| --- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | iPhone 18 Pro Max resolution and the launch catalog | 1320×2868 (Apple spec page). Catalog = carried-over devices + current Apple lineup + generic monitors + popular Android (§5.1) |
+| 2   | Detection models                                    | ISNet `isnet-general-use` + YuNet, no bake-off. ISNet weight license caveat noted (§6.2)                                       |
+| 3   | Output-volume collision policy                      | Overwrite                                                                                                                      |
+| 4   | Tests in v1                                         | Vitest unit tests for `packages/core` only                                                                                     |
+| 5   | ZIP library                                         | `yazl`                                                                                                                         |
+| 6   | Default port                                        | 3000                                                                                                                           |

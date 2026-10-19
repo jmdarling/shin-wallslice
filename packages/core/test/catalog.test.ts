@@ -48,13 +48,17 @@ describe('validateCatalog', () => {
   it('rejects schema violations', async () => {
     const schema = await loadSchema();
     expect(() =>
-      validateCatalog(schema, [{ fileName: 'acme-phone.json', data: { ...valid, category: 'toaster' } }]),
+      validateCatalog(schema, [
+        { fileName: 'acme-phone.json', data: { ...valid, category: 'toaster' } },
+      ]),
     ).toThrow(CatalogValidationError);
   });
 
   it('rejects mismatched file names and duplicate ids', async () => {
     const schema = await loadSchema();
-    expect(() => validateCatalog(schema, [{ fileName: 'other.json', data: valid }])).toThrow(/must match id/);
+    expect(() => validateCatalog(schema, [{ fileName: 'other.json', data: valid }])).toThrow(
+      /must match id/,
+    );
     expect(() =>
       validateCatalog(schema, [
         { fileName: 'acme-phone.json', data: valid },
@@ -67,7 +71,10 @@ describe('validateCatalog', () => {
     const schema = await loadSchema();
     expect(() =>
       validateCatalog(schema, [
-        { fileName: 'acme-phone.json', data: { ...valid, resolution: { width: 2000, height: 1000 } } },
+        {
+          fileName: 'acme-phone.json',
+          data: { ...valid, resolution: { width: 2000, height: 1000 } },
+        },
       ]),
     ).toThrow(/portrait/);
   });

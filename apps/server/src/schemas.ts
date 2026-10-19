@@ -12,7 +12,13 @@ function StringEnum<T extends string>(values: readonly T[]) {
   return Type.Unsafe<T>({ type: 'string', enum: [...values] });
 }
 
-const DETECTION_METHODS: readonly DetectionMethod[] = ['saliency', 'faces', 'attention', 'center', 'manual'];
+const DETECTION_METHODS: readonly DetectionMethod[] = [
+  'saliency',
+  'faces',
+  'attention',
+  'center',
+  'manual',
+];
 
 /** Binary responses (PNG, ZIP, JPEG) are sent as buffers/streams and bypass serialization. */
 export const BinaryResponseSchema = Type.Unknown({ description: 'binary body' });

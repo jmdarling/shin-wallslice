@@ -57,7 +57,9 @@ export function validateCatalog(schema: object, files: DeviceFile[]): Device[] {
       (device.category === 'phone' || device.category === 'tablet') &&
       device.resolution.width > device.resolution.height
     ) {
-      problems.push(`${file.fileName}: phones and tablets must be listed portrait (width <= height)`);
+      problems.push(
+        `${file.fileName}: phones and tablets must be listed portrait (width <= height)`,
+      );
     }
     devices.push(device);
   }

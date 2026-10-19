@@ -42,7 +42,9 @@ export class SwDropZone extends LitElement {
         border-radius: var(--sw-radius-lg);
         background: var(--sw-surface);
         text-align: center;
-        transition: border-color 120ms, background 120ms;
+        transition:
+          border-color 120ms,
+          background 120ms;
       }
       :host([compact]) .zone {
         min-height: 0;
@@ -98,12 +100,21 @@ export class SwDropZone extends LitElement {
       >
         <h2>${this.compact ? 'Replace the image' : 'Drop a wallpaper here'}</h2>
         <div class="row">
-          <button class="primary" ?disabled=${this.disabled} @click=${this.pick}>Choose a file</button>
+          <button class="primary" ?disabled=${this.disabled} @click=${this.pick}>
+            Choose a file
+          </button>
           <span class="muted">or paste with <kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>V</kbd></span>
         </div>
         <form @submit=${this.onUrlSubmit}>
           <label class="visually-hidden" for="url">Image URL</label>
-          <input id="url" name="url" type="url" placeholder="…or paste an image URL" required ?disabled=${this.disabled} />
+          <input
+            id="url"
+            name="url"
+            type="url"
+            placeholder="…or paste an image URL"
+            required
+            ?disabled=${this.disabled}
+          />
           <button type="submit" ?disabled=${this.disabled}>Fetch</button>
         </form>
         <p class="muted">JPEG, PNG, WebP or AVIF · up to ${this.maxUploadMb} MB</p>
@@ -124,7 +135,9 @@ export class SwDropZone extends LitElement {
   }
 
   private emitFile(file: File) {
-    this.dispatchEvent(new CustomEvent('sw-file', { detail: { file }, bubbles: true, composed: true }));
+    this.dispatchEvent(
+      new CustomEvent('sw-file', { detail: { file }, bubbles: true, composed: true }),
+    );
   }
 
   private onFileChange(event: Event) {
@@ -154,8 +167,12 @@ export class SwDropZone extends LitElement {
       this.emitFile(file);
       return;
     }
-    const url = event.dataTransfer?.getData('text/uri-list') || event.dataTransfer?.getData('text/plain');
-    if (url) this.dispatchEvent(new CustomEvent('sw-url', { detail: { url }, bubbles: true, composed: true }));
+    const url =
+      event.dataTransfer?.getData('text/uri-list') || event.dataTransfer?.getData('text/plain');
+    if (url)
+      this.dispatchEvent(
+        new CustomEvent('sw-url', { detail: { url }, bubbles: true, composed: true }),
+      );
   }
 
   private onUrlSubmit(event: SubmitEvent) {
@@ -163,7 +180,9 @@ export class SwDropZone extends LitElement {
     const form = event.target as HTMLFormElement;
     const url = new FormData(form).get('url');
     if (typeof url === 'string' && url.trim()) {
-      this.dispatchEvent(new CustomEvent('sw-url', { detail: { url: url.trim() }, bubbles: true, composed: true }));
+      this.dispatchEvent(
+        new CustomEvent('sw-url', { detail: { url: url.trim() }, bubbles: true, composed: true }),
+      );
       form.reset();
     }
   }

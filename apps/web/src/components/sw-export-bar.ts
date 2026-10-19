@@ -2,7 +2,15 @@ import { SignalWatcher } from '@lit-labs/signals';
 import { slugify } from '@shin-wallslice/core';
 import { css, html, LitElement, nothing } from 'lit';
 import { canShareFiles, downloadAll, saveToOutput, shareAll, suggestName } from '../actions.js';
-import { baseName, busy, config, effectiveSubject, nameStatus, selectedTargets, source } from '../state.js';
+import {
+  baseName,
+  busy,
+  config,
+  effectiveSubject,
+  nameStatus,
+  selectedTargets,
+  source,
+} from '../state.js';
 import { controls, panel } from '../styles/shared.js';
 
 /** Name field (with optional AI suggestion) and the export actions. */
@@ -69,35 +77,48 @@ export class SwExportBar extends SignalWatcher(LitElement) {
             placeholder=${current?.baseName ?? 'wallpaper'}
             @input=${(e: Event) => baseName.set((e.target as HTMLInputElement).value)}
           />
-          ${appConfig?.namingEnabled
-            ? html`<button
-                ?disabled=${!current || nameStatus.get() === 'loading'}
-                @click=${() => suggestName()}
-                title="Ask the configured AI model for a descriptive name"
-              >
-                ${nameStatus.get() === 'loading' ? 'Suggesting…' : 'Suggest'}
-              </button>`
-            : nothing}
+          ${
+            appConfig?.namingEnabled
+              ? html`<button
+                  ?disabled=${!current || nameStatus.get() === 'loading'}
+                  @click=${() => suggestName()}
+                  title="Ask the configured AI model for a descriptive name"
+                >
+                  ${nameStatus.get() === 'loading' ? 'Suggesting…' : 'Suggest'}
+                </button>`
+              : nothing
+          }
         </div>
         <div class="actions">
           <button class="primary" ?disabled=${disabled} @click=${() => downloadAll()}>
             ${count > 1 ? `Download ZIP (${count})` : 'Download'}
           </button>
-          ${appConfig?.outputVolumeAvailable
-            ? html`<button ?disabled=${disabled} @click=${() => saveToOutput()}>Save to output folder</button>`
-            : nothing}
-          ${this.shareSupported
-            ? html`<button ?disabled=${disabled} @click=${() => shareAll()}>Share…</button>`
-            : nothing}
+          ${
+            appConfig?.outputVolumeAvailable
+              ? html`<button ?disabled=${disabled} @click=${() => saveToOutput()}>
+                  Save to output folder
+                </button>`
+              : nothing
+          }
+          ${
+            this.shareSupported
+              ? html`<button ?disabled=${disabled} @click=${() => shareAll()}>Share…</button>`
+              : nothing
+          }
         </div>
         <span class="hint muted" aria-live="polite">
-          ${working
-            ? working
-            : count === 0
-              ? 'Select at least one device.'
-              : html`Files are named <code>${fileName}.png</code> inside a folder per device${appConfig?.outputVolumeAvailable
-                  ? '; saving overwrites files with the same name'
-                  : ''}.`}
+          ${
+            working
+              ? working
+              : count === 0
+                ? 'Select at least one device.'
+                : html`Files are named <code>${fileName}.png</code> inside a folder per
+                    device${
+                      appConfig?.outputVolumeAvailable
+                        ? '; saving overwrites files with the same name'
+                        : ''
+                    }.`
+          }
         </span>
       </div>
     `;

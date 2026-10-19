@@ -149,7 +149,10 @@ export function saveToOutput(): Promise<void> {
   if (!current || targets.length === 0) return Promise.resolve();
   return withBusy('Saving…', async () => {
     const { files } = await api.save(current.id, renderRequest(targets));
-    notify('info', `Saved ${files.length} wallpaper${files.length === 1 ? '' : 's'} to the output folder.`);
+    notify(
+      'info',
+      `Saved ${files.length} wallpaper${files.length === 1 ? '' : 's'} to the output folder.`,
+    );
   });
 }
 

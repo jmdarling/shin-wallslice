@@ -10,11 +10,25 @@ export function createNameSuggester(config: NamingConfig | undefined): NameSugge
   if (!config) return undefined;
   switch (config.provider) {
     case 'anthropic':
-      return new AnthropicNameSuggester(config.model ?? DEFAULT_ANTHROPIC_MODEL, config.apiKey, config.baseUrl);
+      return new AnthropicNameSuggester(
+        config.model ?? DEFAULT_ANTHROPIC_MODEL,
+        config.apiKey,
+        config.baseUrl,
+      );
     case 'openai':
-      return new OpenAiNameSuggester('openai', config.model ?? DEFAULT_OPENAI_MODEL, config.apiKey, config.baseUrl);
+      return new OpenAiNameSuggester(
+        'openai',
+        config.model ?? DEFAULT_OPENAI_MODEL,
+        config.apiKey,
+        config.baseUrl,
+      );
     case 'openai-compatible':
       // config.ts guarantees model and baseUrl for this provider.
-      return new OpenAiNameSuggester('openai-compatible', config.model!, config.apiKey, config.baseUrl);
+      return new OpenAiNameSuggester(
+        'openai-compatible',
+        config.model!,
+        config.apiKey,
+        config.baseUrl,
+      );
   }
 }

@@ -53,7 +53,9 @@ function namingConfig(env: NodeJS.ProcessEnv): NamingConfig | undefined {
   const provider = env.NAMING_PROVIDER?.trim();
   if (!provider) return undefined;
   if (provider !== 'anthropic' && provider !== 'openai' && provider !== 'openai-compatible') {
-    throw new Error(`NAMING_PROVIDER must be anthropic, openai or openai-compatible (got "${provider}")`);
+    throw new Error(
+      `NAMING_PROVIDER must be anthropic, openai or openai-compatible (got "${provider}")`,
+    );
   }
   const model = env.NAMING_MODEL?.trim() || undefined;
   const baseUrl = env.NAMING_BASE_URL?.trim() || undefined;
@@ -63,7 +65,8 @@ function namingConfig(env: NodeJS.ProcessEnv): NamingConfig | undefined {
     undefined;
 
   if (provider === 'openai-compatible') {
-    if (!baseUrl) throw new Error('NAMING_BASE_URL is required when NAMING_PROVIDER=openai-compatible');
+    if (!baseUrl)
+      throw new Error('NAMING_BASE_URL is required when NAMING_PROVIDER=openai-compatible');
     if (!model) throw new Error('NAMING_MODEL is required when NAMING_PROVIDER=openai-compatible');
   }
   return { provider, model, baseUrl, apiKey };

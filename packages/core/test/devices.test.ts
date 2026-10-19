@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  deviceOutputSize,
-  deviceRotates,
-  resolveTarget,
-  type Device,
-} from '../src/index.js';
+import { deviceOutputSize, deviceRotates, resolveTarget, type Device } from '../src/index.js';
 
 const ipad: Device = {
   id: 'apple-ipad-pro-11-m5',
@@ -57,8 +52,15 @@ describe('resolveTarget', () => {
       outputSize: { width: 1000, height: 500 },
     });
     expect(
-      resolveTarget({ kind: 'custom', width: 800, height: 1200, rotates: true, label: 'Kiosk' }, devices),
-    ).toMatchObject({ key: 'custom-800x1200-square', label: 'Kiosk', outputSize: { width: 1200, height: 1200 } });
+      resolveTarget(
+        { kind: 'custom', width: 800, height: 1200, rotates: true, label: 'Kiosk' },
+        devices,
+      ),
+    ).toMatchObject({
+      key: 'custom-800x1200-square',
+      label: 'Kiosk',
+      outputSize: { width: 1200, height: 1200 },
+    });
   });
 
   it('rejects invalid custom sizes', () => {

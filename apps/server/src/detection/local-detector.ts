@@ -5,7 +5,7 @@ import { openImage } from '../image/sharp-io.js';
 import { fuseSubject } from './fuse.js';
 import { IsnetSaliency } from './isnet.js';
 import { loadModel } from './onnx.js';
-import type { Face, SaliencyResult, SubjectDetector } from './types.js';
+import type { SubjectDetector } from './types.js';
 import { YunetFaces } from './yunet.js';
 
 export const ISNET_FILE = 'isnet-general-use.onnx';
@@ -42,7 +42,8 @@ export class LocalSubjectDetector implements SubjectDetector {
       loadModel(join(modelsDir, ISNET_FILE)),
       loadModel(join(modelsDir, YUNET_FILE)),
     ]);
-    if ('error' in isnet) logger.warn(`Saliency model unavailable (${isnet.error}); using fallback.`);
+    if ('error' in isnet)
+      logger.warn(`Saliency model unavailable (${isnet.error}); using fallback.`);
     if ('error' in yunet) logger.warn(`Face model unavailable (${yunet.error}); faces disabled.`);
     return new LocalSubjectDetector(
       'session' in isnet ? new IsnetSaliency(isnet.session) : undefined,
@@ -63,13 +64,18 @@ export class LocalSubjectDetector implements SubjectDetector {
       this.runSafely('saliency', () => this.saliency?.run(working)),
       this.runSafely('faces', () => this.faces?.run(working, size)),
     ]);
-    const fused = fuseSubject(saliency as SaliencyResult | undefined, (faces as Face[] | undefined) ?? []);
+    const fused = fuseSubject(saliency, faces ?? []);
     if (fused) return fused;
 
-    return (await this.runSafely('attention', () => attentionSubject(working, size))) ?? CENTER_SUBJECT;
+    return (
+      (await this.runSafely('attention', () => attentionSubject(working, size))) ?? CENTER_SUBJECT
+    );
   }
 
-  private async runSafely<T>(label: string, task: () => Promise<T> | undefined): Promise<T | undefined> {
+  private async runSafely<T>(
+    label: string,
+    task: () => Promise<T> | undefined,
+  ): Promise<T | undefined> {
     try {
       return await task();
     } catch (error) {
@@ -98,8 +104,14 @@ async function attentionSubject(image: Sharp, size: Size): Promise<Subject> {
     height: height / size.height,
   });
   const focal = {
-    x: horizontal.attentionX !== undefined ? horizontal.attentionX / size.width : box.x + box.width / 2,
-    y: vertical.attentionY !== undefined ? vertical.attentionY / size.height : box.y + box.height / 2,
+    x:
+      horizontal.attentionX !== undefined
+        ? horizontal.attentionX / size.width
+        : box.x + box.width / 2,
+    y:
+      vertical.attentionY !== undefined
+        ? vertical.attentionY / size.height
+        : box.y + box.height / 2,
   };
   return { box, focal, confidence: 0.3, method: 'attention' };
 }

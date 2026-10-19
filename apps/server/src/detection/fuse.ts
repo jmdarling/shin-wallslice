@@ -33,7 +33,10 @@ function expand(box: NormRect, factor: number): NormRect {
  * Faces are always included in the subject box and bias the focal point toward them.
  * Returns undefined when neither signal found anything.
  */
-export function fuseSubject(saliency: SaliencyResult | undefined, faces: Face[]): Subject | undefined {
+export function fuseSubject(
+  saliency: SaliencyResult | undefined,
+  faces: Face[],
+): Subject | undefined {
   if (faces.length === 0) {
     return saliency ? { ...saliency, method: 'saliency' } : undefined;
   }
@@ -42,8 +45,12 @@ export function fuseSubject(saliency: SaliencyResult | undefined, faces: Face[])
   const faceUnion = faceBoxes.reduce(union);
   const totalArea = faces.reduce((sum, face) => sum + face.box.width * face.box.height, 0);
   const faceFocal = {
-    x: faces.reduce((sum, f) => sum + (f.box.x + f.box.width / 2) * f.box.width * f.box.height, 0) / totalArea,
-    y: faces.reduce((sum, f) => sum + (f.box.y + f.box.height / 2) * f.box.width * f.box.height, 0) / totalArea,
+    x:
+      faces.reduce((sum, f) => sum + (f.box.x + f.box.width / 2) * f.box.width * f.box.height, 0) /
+      totalArea,
+    y:
+      faces.reduce((sum, f) => sum + (f.box.y + f.box.height / 2) * f.box.width * f.box.height, 0) /
+      totalArea,
   };
   const bestFace = Math.max(...faces.map((face) => face.score));
 

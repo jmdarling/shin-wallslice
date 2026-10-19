@@ -1,6 +1,6 @@
 # shin-wallslice — Requirements
 
-> Status: **v1 requirements, all open questions resolved** (see §13). Captured 2026-10-19. Nothing is implemented yet.
+> Status: **v1 requirements, all open questions resolved** (see §13). Captured 2026-10-19. v1 implementation in progress (see §14).
 > Items marked **[FUTURE]** are out of scope for v1 but must not be designed out.
 
 ## 1. Vision
@@ -111,6 +111,7 @@ shin-wallslice is **GUI-first**. A CLI with "watch" / unattended mode is planned
   - **Generic monitors**: FHD 1920×1080, QHD 2560×1440, 4K 3840×2160, 5K 5120×2880, 6K 6016×3384, 8K 7680×4320, ultrawide 3440×1440, super-ultrawide 5120×1440.
   - **Popular Android**: current Google Pixel and Samsung Galaxy S flagships, plus current Galaxy Z Fold (both displays as separate devices; the inner display has `rotates: true`).
 - Device files gain an optional `source` (URL) field for the spec citation.
+- **Shipped launch catalog (30 devices).** Omitted until reliable specs are found (sources disagreed or none were found): Galaxy Z Fold 8 (cover + inner), Pixel 11 Pro Fold, base Pixel 11, iPhone 17e, MacBook (A18 Pro / "Neo"), iMac 24". Apple and Samsung spec pages could not be fetched directly from the build environment, so some `source` fields cite reputable third-party spec listings (Macworld, Engadget, DPReview, Wikipedia, iosref). **Re-verify these against manufacturer pages and update the `source` URLs.**
 
 ### 5.2 Rotating devices → square output
 
@@ -150,7 +151,7 @@ Detection runs server-side on a downscaled working copy (e.g. longest side 1024 
 - **Licensing constraint**: only use models whose licenses permit redistribution in an MIT project (e.g. Apache-2.0, MIT). Avoid non-commercial weights (e.g. many InsightFace models).
   - **YuNet**: MIT (OpenCV Zoo: "All files in this directory are licensed under MIT License"). ✅
   - **ISNet**: the DIS code is Apache-2.0, but the repo **does not state a license for the pretrained weights**, which were trained on DIS5K (a dataset with its own terms of use). That is acceptable for this personal self-hosted tool. ⚠️ **Before publishing the image publicly on GHCR**, confirm redistribution terms with the authors, or download the weights at first container start instead of baking them into the image. Record this in `models/`.
-  - ISNet adds about 170 MB to the image. CPU inference at the 1024 px working size is expected to stay within the §9.6 detection budget; measure this early.
+  - ISNet adds about 170 MB to the image. Measured: ~2.2–2.4 s per image for ISNet + YuNet on CPU (24 MP-class source), within the §9.6 budget.
   - Swapping models later (e.g. U²-Netp for size, BiRefNet for quality) is a `SubjectDetector` change only.
 - Code is organized behind a `SubjectDetector` interface so detectors can be swapped or combined. This is how [FUTURE] hybrid cloud-vision detection plugs in.
 
@@ -274,27 +275,34 @@ When detection confidence is low or the fallback was used, flag the affected tar
 | `NAMING_BASE_URL`                                         | unset                          | For `openai-compatible` (Ollama, LM Studio, etc.)                        |
 | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `NAMING_API_KEY` | unset                          | Credentials                                                              |
 | `LOG_LEVEL`                                               | `info`                         | Fastify/pino log level                                                   |
+| `HOST`                                                    | `0.0.0.0`                      | Bind address                                                             |
+| `UMASK`                                                   | `022`                          | File creation mask (container entrypoint)                                |
+| `WORK_CONCURRENCY`                                        | `2`                            | Concurrent sharp/ONNX jobs                                               |
+| `MODELS_DIR` / `DEVICES_DIR` / `WEB_DIST_DIR`             | image paths                    | Locations of bundled models, catalog and web build                       |
 
 ### 9.4 AI naming adapter
 
 - A `NameSuggester` interface with implementations for **Anthropic**, **OpenAI**, and **OpenAI-compatible** endpoints (covering local Ollama / LM Studio).
 - It receives a small downscaled JPEG (e.g. ≤ 768 px), never the full original.
 - 15 s timeout. Failure is non-fatal and falls back to the default name.
+- Default models when `NAMING_MODEL` is unset: Anthropic `claude-opus-5-5` (low effort, server-side refusal fallback enabled); OpenAI `gpt-5-mini`. `openai-compatible` requires `NAMING_MODEL`.
+- When enabled, a name is suggested automatically after each upload and can be re-requested with the "Suggest" button; the user can always edit it.
 - The same adapter pattern will host the [FUTURE] cloud subject detector.
 
-### 9.5 API sketch (non-binding)
+### 9.5 API
 
-| Method & path                           | Purpose                                                                        |
-| --------------------------------------- | ------------------------------------------------------------------------------ |
-| `GET /api/health`                       | Liveness and readiness (models loaded)                                         |
-| `GET /api/config`                       | Feature flags for the UI (output volume available, naming enabled, limits)     |
-| `GET /api/devices`                      | Device catalog                                                                 |
-| `POST /api/sources`                     | Upload (multipart) **or** `{ url }`. Returns `sourceId`, dimensions, proxy URL |
-| `GET /api/sources/:id/proxy`            | Downscaled preview image                                                       |
-| `GET /api/sources/:id/subject`          | Detection result (`box`, `focal`, `confidence`, `method`)                      |
-| `POST /api/sources/:id/name-suggestion` | AI name (when enabled)                                                         |
-| `POST /api/sources/:id/render`          | `{ targets[], name }` → single PNG or ZIP stream                               |
-| `POST /api/sources/:id/save`            | `{ targets[], name }` → write to the output volume, returns paths              |
+| Method & path                           | Purpose                                                                          |
+| --------------------------------------- | -------------------------------------------------------------------------------- |
+| `GET /api/health`                       | Liveness and readiness (models loaded)                                           |
+| `GET /api/config`                       | Feature flags for the UI (output volume available, naming enabled, limits)       |
+| `GET /api/devices`                      | Device catalog                                                                   |
+| `POST /api/sources`                     | Upload (multipart, field `file`). Returns `id`, dimensions, proxy URL, base name |
+| `POST /api/sources/url`                 | `{ url }`: server fetches the image (§4.3). Same response as above               |
+| `GET /api/sources/:id/proxy`            | Downscaled preview image                                                         |
+| `GET /api/sources/:id/subject`          | Detection result (`box`, `focal`, `confidence`, `method`)                        |
+| `POST /api/sources/:id/name-suggestion` | AI name (when enabled)                                                           |
+| `POST /api/sources/:id/render`          | `{ targets[], name }` → single PNG or ZIP stream                                 |
+| `POST /api/sources/:id/save`            | `{ targets[], name }` → write to the output volume, returns paths                |
 
 `targets[]` carries the device id or custom size plus any overrides. **The server recomputes the crop rects with the shared crop package**: client-supplied rects are treated as overrides, not as trusted geometry.
 
@@ -315,7 +323,8 @@ When detection confidence is low or the fallback was used, flag the affected tar
 - Volumes: `/data` (ephemeral, optional to persist) and `/output` (optional).
 - `HEALTHCHECK` hits `/api/health`.
 - Ship an **Unraid Community Applications template** (XML) and a `docker-compose.yml` example.
-- Target image size: aim for **under 600 MB** with models.
+- Target image size: aim for **under 600 MB** with models. Measured: ~283 MB compressed / ~600 MB unpacked (amd64). Native binaries for other platforms (onnxruntime, musl sharp) are pruned at build time.
+- The base image is a build arg (`NODE_IMAGE`, default `node:24-bookworm-slim`) so a Docker Hub mirror can be used when rate-limited.
 
 ## 11. Engineering standards
 
@@ -369,3 +378,15 @@ shin-wallslice/
 | 4   | Tests in v1                                         | Vitest unit tests for `packages/core` only                                                                                     |
 | 5   | ZIP library                                         | `yazl`                                                                                                                         |
 | 6   | Default port                                        | 3000                                                                                                                           |
+
+## 14. Implementation status
+
+| Area                                                                                                                                                                                                        | Status                                                      |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `packages/core` (crop math, devices, naming, catalog validation) + Vitest                                                                                                                                   | ✅ Done                                                     |
+| Device catalog (30 devices)                                                                                                                                                                                 | ✅ Done (see §5.1 for omissions and source re-verification) |
+| Server: ingest (upload / URL with SSRF guards), proxy, detection (ISNet + YuNet + attention fallback), render, ZIP, save, AI naming adapters                                                                | ✅ Done                                                     |
+| Web UI: drop / paste / URL, subject overlay with manual box, device picker + custom sizes, live canvas previews with pan / zoom / orientation guides, warnings, download / ZIP / save / share, light / dark | ✅ Done                                                     |
+| Docker image (PUID/PGID, health check), compose example, Unraid template, CI (lint, format, typecheck, test, build, multi-arch GHCR publish)                                                                | ✅ Done; multi-arch publish runs in GitHub Actions          |
+| Re-verify device spec sources against manufacturer pages; add omitted devices                                                                                                                               | ⏳ Follow-up                                                |
+| ISNet weight redistribution terms (before publishing the image publicly)                                                                                                                                    | ⏳ Follow-up (§6.2)                                         |

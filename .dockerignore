@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+.git
+.github
+.data
+.output
+docs
+*.md
+!README.md
+**/*.tsbuildinfo
+models/*.download

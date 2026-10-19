@@ -1,0 +1,21 @@
+# Example: docker compose up -d   →  http://localhost:3000
+services:
+  shin-wallslice:
+    image: ghcr.io/jmdarling/shin-wallslice:latest
+    # build: .
+    container_name: shin-wallslice
+    ports:
+      - '3000:3000'
+    environment:
+      PUID: '1000'
+      PGID: '1000'
+      # Optional AI naming (any one provider):
+      # NAMING_PROVIDER: anthropic
+      # ANTHROPIC_API_KEY: sk-ant-...
+      # NAMING_PROVIDER: openai-compatible
+      # NAMING_BASE_URL: http://ollama:11434/v1
+      # NAMING_MODEL: llava
+    volumes:
+      - ./output:/output # generated wallpapers (optional)
+      - ./data:/data # temporary working files (optional; safe to delete)
+    restart: unless-stopped

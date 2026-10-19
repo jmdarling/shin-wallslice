@@ -7,7 +7,7 @@ Guidance for AI coding agents (and humans) working in this repository. This file
 **shin-wallslice** form-fits wallpapers to devices. A user drops in one image and picks target devices. The app detects the subject locally and outputs one wallpaper per device at the exact resolution, with the subject centered. It is a GUI-first, single-user, self-hosted tool that ships as one Docker container.
 
 - **The source of truth for scope and behaviour is [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md).** Read it before making non-trivial changes. If a change conflicts with it, update the requirements in the same PR (or ask), and never silently diverge.
-- Status: v1 requirements finalized (all open questions resolved, see §13 of the requirements). Implementation not started.
+- Status: v1 implemented (see §14 of the requirements for what's done and open follow-ups).
 - `wallslice` and `wallslice-again` are older sibling projects, kept for **reference only**. Do not copy code from them wholesale or add dependencies on them.
 
 ## Stack (decided, do not swap without discussion)
@@ -28,7 +28,7 @@ Guidance for AI coding agents (and humans) working in this repository. This file
 
 Ask the user before introducing a new runtime dependency that is large, native, or overlaps an existing choice.
 
-## Layout (planned)
+## Layout
 
 ```text
 apps/server     Fastify API, detection, rendering, serves the built web app
@@ -40,20 +40,28 @@ docker/         Entrypoint, Unraid template
 docs/           REQUIREMENTS.md, ADRs (docs/adr/NNNN-title.md)
 ```
 
-## Commands (once scaffolded)
+## Commands
 
 ```sh
 pnpm install
-pnpm dev          # server + web in watch mode
+pnpm models       # download + checksum-verify ONNX models into ./models (git-ignored)
+pnpm dev          # core (watch) + API on :3000 + Vite UI on :5173 (proxies /api)
 pnpm lint         # eslint
 pnpm format       # prettier --write
 pnpm typecheck    # tsc --noEmit across workspaces
 pnpm test         # vitest (packages/core)
 pnpm build
+pnpm check        # everything CI runs: lint, format check, typecheck, test, build
 docker build -t shin-wallslice .
 ```
 
-Before declaring work done, run `pnpm lint && pnpm typecheck && pnpm test && pnpm build` and make sure they pass.
+Before declaring work done, run `pnpm check` and make sure it passes.
+
+Gotchas:
+
+- `@shin-wallslice/core` is consumed from its `dist/` build. The root `typecheck`, `lint` and `dev` scripts build it first; run `pnpm build:core` if an editor shows stale core types.
+- `.npmrc` sets `onnxruntime-node-install=skip` (CPU binaries ship in the package; the default postinstall tries to download CUDA builds).
+- Docker Hub rate limits: `docker build --build-arg NODE_IMAGE=mirror.gcr.io/library/node:24-bookworm-slim .`
 
 ## Architecture rules
 

@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>shin-wallslice</Name>
+  <Repository>ghcr.io/jmdarling/shin-wallslice:latest</Repository>
+  <Registry>https://github.com/jmdarling/shin-wallslice/pkgs/container/shin-wallslice</Registry>
+  <Network>bridge</Network>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/jmdarling/shin-wallslice/issues</Support>
+  <Project>https://github.com/jmdarling/shin-wallslice</Project>
+  <Overview>Form-fit any wallpaper to all your devices. Drop in an image, pick your phones, tablets, laptops and monitors, and get a correctly sized wallpaper for each with the subject kept centered. Subject detection runs locally; no cloud services required.</Overview>
+  <Category>MediaApp:Photos Tools:</Category>
+  <WebUI>http://[IP]:[PORT:3000]/</WebUI>
+  <Icon>https://raw.githubusercontent.com/jmdarling/shin-wallslice/main/apps/web/public/favicon.svg</Icon>
+  <Config Name="Web UI port" Target="3000" Default="3000" Mode="tcp" Description="Port for the web interface." Type="Port" Display="always" Required="true" Mask="false">3000</Config>
+  <Config Name="Output folder" Target="/output" Default="/mnt/user/wallpapers" Mode="rw" Description="Where 'Save to output folder' writes wallpapers (one sub-folder per device). Existing files with the same name are overwritten." Type="Path" Display="always" Required="false" Mask="false">/mnt/user/wallpapers</Config>
+  <Config Name="Working data" Target="/data" Default="/mnt/user/appdata/shin-wallslice" Mode="rw" Description="Temporary uploads and previews. Safe to delete; expires automatically." Type="Path" Display="advanced" Required="false" Mask="false">/mnt/user/appdata/shin-wallslice</Config>
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User id that owns written files." Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group id that owns written files." Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
+  <Config Name="UMASK" Target="UMASK" Default="022" Mode="" Description="File creation mask." Type="Variable" Display="advanced" Required="false" Mask="false">022</Config>
+  <Config Name="Naming provider" Target="NAMING_PROVIDER" Default="" Mode="" Description="Optional AI file naming: anthropic, openai or openai-compatible. Leave empty to disable." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Naming API key" Target="NAMING_API_KEY" Default="" Mode="" Description="API key for the naming provider." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="Naming model" Target="NAMING_MODEL" Default="" Mode="" Description="Model id (optional for anthropic/openai; required for openai-compatible)." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Naming base URL" Target="NAMING_BASE_URL" Default="" Mode="" Description="For openai-compatible servers, e.g. http://192.168.1.10:11434/v1 (Ollama)." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Max upload (MB)" Target="MAX_UPLOAD_MB" Default="100" Mode="" Description="Largest accepted upload." Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
+  <Config Name="Max input megapixels" Target="MAX_INPUT_MEGAPIXELS" Default="50" Mode="" Description="Largest accepted image resolution." Type="Variable" Display="advanced" Required="false" Mask="false">50</Config>
+</Container>

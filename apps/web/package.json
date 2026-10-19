@@ -1,0 +1,20 @@
+{
+  "name": "@shin-wallslice/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo \"no web tests in v1\""
+  },
+  "dependencies": {
+    "@lit-labs/signals": "^0.3.0",
+    "@shin-wallslice/core": "workspace:*",
+    "lit": "^3.3.3"
+  },
+  "devDependencies": {
+    "vite": "^8.3.4"
+  }
+}

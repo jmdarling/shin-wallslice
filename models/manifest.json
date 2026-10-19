@@ -1,0 +1,23 @@
+{
+  "$comment": "Model weights fetched by scripts/fetch-models.mjs (pnpm models). Binaries are git-ignored.",
+  "models": [
+    {
+      "file": "isnet-general-use.onnx",
+      "purpose": "Salient-object segmentation (subject mask)",
+      "upstream": "https://github.com/xuebinqin/DIS",
+      "url": "https://github.com/danielgatis/rembg/releases/download/v0.0.0/isnet-general-use.onnx",
+      "sha256": "60920e99c45464f2ba57bee2ad08c919a52bbf852739e96947fbb4358c0d964a",
+      "bytes": 178648008,
+      "license": "Code: Apache-2.0. Pretrained weights: no license stated upstream (trained on DIS5K, which has its own terms of use). See docs/REQUIREMENTS.md §6.2 before publishing images publicly."
+    },
+    {
+      "file": "face_detection_yunet_2023mar.onnx",
+      "purpose": "Face detection",
+      "upstream": "https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet",
+      "url": "https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx",
+      "sha256": "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4",
+      "bytes": 232589,
+      "license": "MIT"
+    }
+  ]
+}

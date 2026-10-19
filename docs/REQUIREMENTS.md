@@ -1,7 +1,7 @@
 # shin-wallslice — Requirements
 
-> Status: **Draft v1 requirements**. Captured 2026-10-19. Nothing is implemented yet.
-> Items marked **[OPEN]** still need a decision. Items marked **[FUTURE]** are out of scope for v1 but must not be designed out.
+> Status: **v1 requirements, all open questions resolved** (see §13). Captured 2026-10-19. Nothing is implemented yet.
+> Items marked **[FUTURE]** are out of scope for v1 but must not be designed out.
 
 ## 1. Vision
 
@@ -98,12 +98,19 @@ shin-wallslice is **GUI-first**. A CLI with "watch" / unattended mode is planned
   "year": 2025,
   "resolution": { "width": 1668, "height": 2420 },  // native panel pixels, portrait-natural for phones/tablets
   "rotates": true,                          // optional; defaults by category (§5.2)
-  "aliases": ["ipad pro 11 m5"]             // optional; search terms
+  "aliases": ["ipad pro 11 m5"],            // optional; search terms
+  "source": "https://www.apple.com/ipad-pro/specs/"  // optional; spec citation
 }
 ```
 
 - The UI groups devices by **category**, then **brand**. It supports search by name, brand, year, and alias.
-- Initial catalog (minimum): every device already in `wallslice` / `wallslice-again` (MacBook Air M1 2020, iPhone 16 Pro, iPad Pro 11" M5, iPad Pro 12.9" 3rd gen, generic FHD, WQHD, and 4K), plus the devices named in the vision (iPhone 18 Pro Max). **[OPEN]** Verify the iPhone 18 Pro Max native resolution from an authoritative source before adding it, and agree on the rest of the launch catalog.
+- **Launch catalog** (each resolution must be taken from the manufacturer's official spec page, and that source URL recorded in a `source` field in the device file):
+  - **Carried over**: MacBook Air M1 2020 (2560×1600), iPhone 16 Pro (1206×2622), iPad Pro 11" M5 (1668×2420), iPad Pro 12.9" 3rd gen, and generic FHD / WQHD / 4K.
+  - **iPhone 18 Pro Max: 1320×2868** (6.9", 460 ppi, per Apple's spec page).
+  - **Current Apple lineup**: all current iPhone, iPad, MacBook Air, MacBook Pro, iMac, and Studio Display models.
+  - **Generic monitors**: FHD 1920×1080, QHD 2560×1440, 4K 3840×2160, 5K 5120×2880, 6K 6016×3384, 8K 7680×4320, ultrawide 3440×1440, super-ultrawide 5120×1440.
+  - **Popular Android**: current Google Pixel and Samsung Galaxy S flagships, plus current Galaxy Z Fold (both displays as separate devices; the inner display has `rotates: true`).
+- Device files gain an optional `source` (URL) field for the spec citation.
 
 ### 5.2 Rotating devices → square output
 
@@ -131,8 +138,8 @@ Devices used in **both orientations** (tablets) get a **square** output size of 
 
 Detection runs server-side on a downscaled working copy (e.g. longest side 1024 px):
 
-1. **Salient-object segmentation (ONNX)**: a small salient-object / dichotomous-segmentation model (candidates: U²-Net-small / U²-Netp, ISNet/DIS) produces a saliency mask.
-2. **Face detection (ONNX)**: a lightweight face detector (candidate: YuNet). Faces raise the weight of their region and must be included in the subject box when present.
+1. **Salient-object segmentation (ONNX)**: a small salient-object / dichotomous-segmentation model **decided: ISNet `isnet-general-use`** from the DIS project produces a saliency mask.
+2. **Face detection (ONNX)**: **decided: YuNet** from OpenCV Zoo. Faces raise the weight of their region and must be included in the subject box when present.
 3. **Fusion**: threshold the mask, take the dominant connected component(s), and combine with face boxes. The output is:
    - `box`: subject bounding box (normalized 0–1 coordinates),
    - `focal`: saliency-weighted centroid (normalized), biased toward faces,
@@ -140,7 +147,11 @@ Detection runs server-side on a downscaled working copy (e.g. longest side 1024 
 4. **Fallback**: if the models fail or confidence is below a threshold, fall back to sharp's `attention` strategy, then to image center. The method used is reported.
 
 - Runtime: `onnxruntime-node` (CPU). Model files are **bundled into the image at build time**, with pinned versions and checksums. No network access is needed at runtime.
-- **Licensing constraint**: only use models whose licenses permit redistribution in an MIT project (e.g. Apache-2.0, MIT). Avoid non-commercial weights (e.g. many InsightFace models). **[OPEN]** Final model selection after a quick bake-off on a fixture set.
+- **Licensing constraint**: only use models whose licenses permit redistribution in an MIT project (e.g. Apache-2.0, MIT). Avoid non-commercial weights (e.g. many InsightFace models).
+  - **YuNet**: MIT (OpenCV Zoo: "All files in this directory are licensed under MIT License"). ✅
+  - **ISNet**: the DIS code is Apache-2.0, but the repo **does not state a license for the pretrained weights**, which were trained on DIS5K (a dataset with its own terms of use). That is acceptable for this personal self-hosted tool. ⚠️ **Before publishing the image publicly on GHCR**, confirm redistribution terms with the authors, or download the weights at first container start instead of baking them into the image. Record this in `models/`.
+  - ISNet adds about 170 MB to the image. CPU inference at the 1024 px working size is expected to stay within the §9.6 detection budget; measure this early.
+  - Swapping models later (e.g. U²-Netp for size, BiRefNet for quality) is a `SubjectDetector` change only.
 - Code is organized behind a `SubjectDetector` interface so detectors can be swapped or combined. This is how [FUTURE] hybrid cloud-vision detection plugs in.
 
 ### 6.3 Crop computation (pure function)
@@ -219,7 +230,7 @@ When detection confidence is low or the fallback was used, flag the affected tar
 | Per-image download | One button per target card. |
 | ZIP download | All targets in one ZIP, streamed. Inside the ZIP: `<device-id>/<name>.png`. |
 | Web Share API | `navigator.share({ files })` where supported (iOS/Android to Photos, AirDrop, etc.). Hidden when unsupported. |
-| Output volume | Writes to the mounted output directory (default `/output`) as `<output>/<device-id>/<name>.png`. Shown only when the directory is configured and writable. **[OPEN]** Overwrite policy on name collision: suffix `-2`, `-3`… (proposed default) vs. overwrite. |
+| Output volume | Writes to the mounted output directory (default `/output`) as `<output>/<device-id>/<name>.png`. Shown only when the directory is configured and writable. **On name collision, the existing file is overwritten**, which makes re-exporting while iterating painless. The UI states this next to the Save button. |
 
 ### 8.3 Naming
 
@@ -236,7 +247,7 @@ When detection confidence is low or the fallback was used, flag the affected tar
 - **pnpm** workspaces.
 - **Fastify** with JSON-Schema-validated routes (TypeBox schemas shared with the frontend where useful) and `@fastify/multipart`, `@fastify/static`, `@fastify/compress`.
 - **sharp** for decode, resize, and encode. **onnxruntime-node** for detection.
-- ZIP streaming: a streaming zip library (e.g. `archiver` or `yazl`). **[OPEN]** Pick during implementation.
+- ZIP streaming: **`yazl`** (zero-dependency, streaming). PNG entries are *stored*, not re-deflated.
 
 ### 9.2 Persistence: no database
 
@@ -311,7 +322,7 @@ When detection confidence is low or the fallback was used, flag the affected tar
 - TypeScript `strict` everywhere (plus `noUncheckedIndexedAccess`).
 - **ESLint** (typescript-eslint, with lit and wc plugins for the UI) and **Prettier**, enforced in CI on every PR.
 - CI (GitHub Actions): install, lint, typecheck, build, and Docker build (both arches on main/tags).
-- **[OPEN]** Automated tests are not required for v1 per current decision. Recommendation: at least unit tests for the pure crop-math package and catalog schema validation, since they are cheap and guard the core promise. Revisit.
+- **Unit tests for `packages/core` only, with Vitest**: crop math (cover fit, subject centering, clamping, zoom), the rotating→square rule, upscale-factor detection, and validation of the device catalog schema (every file in `devices/`). These run in CI. Server and UI tests are not required in v1.
 - Conventional Commits.
 - Repository layout (proposed):
 
@@ -346,13 +357,15 @@ shin-wallslice/
 | AI super-resolution for upscaled targets | Upscale step isolated |
 | Optional basic auth | Fastify hook point |
 | Large-image (100 MP+) tiled processing | Limits are configurable |
-| Automated test suites (unit, E2E, golden-image crop fixtures) | Pure core package |
+| Broader tests: server and API tests, Playwright E2E, golden-image crop fixtures (also useful for a future model bake-off) | Pure core package; `SubjectDetector` interface |
 
-## 13. Open questions
+## 13. Decision log (formerly open questions)
 
-1. iPhone 18 Pro Max native resolution (verify) and the full launch device list.
-2. Final ONNX saliency and face model choice (license + bake-off).
-3. Output-volume name-collision policy (suffix vs. overwrite).
-4. Whether to add minimal unit tests for crop math in v1 (§11).
-5. ZIP library choice.
-6. Default `PORT` (3000 proposed, matching `wallslice-again`).
+| # | Question | Decision |
+|---|---|---|
+| 1 | iPhone 18 Pro Max resolution and the launch catalog | 1320×2868 (Apple spec page). Catalog = carried-over devices + current Apple lineup + generic monitors + popular Android (§5.1) |
+| 2 | Detection models | ISNet `isnet-general-use` + YuNet, no bake-off. ISNet weight license caveat noted (§6.2) |
+| 3 | Output-volume collision policy | Overwrite |
+| 4 | Tests in v1 | Vitest unit tests for `packages/core` only |
+| 5 | ZIP library | `yazl` |
+| 6 | Default port | 3000 |

@@ -7,7 +7,7 @@ Guidance for AI coding agents (and humans) working in this repository. This file
 **shin-wallslice** form-fits wallpapers to devices. A user drops in one image and picks target devices. The app detects the subject locally and outputs one wallpaper per device at the exact resolution, with the subject centered. It is a GUI-first, single-user, self-hosted tool that ships as one Docker container.
 
 - **The source of truth for scope and behaviour is [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md).** Read it before making non-trivial changes. If a change conflicts with it, update the requirements in the same PR (or ask), and never silently diverge.
-- Status: requirements captured, implementation not started.
+- Status: v1 requirements finalized (all open questions resolved, see §13 of the requirements). Implementation not started.
 - `wallslice` and `wallslice-again` are older sibling projects, kept for **reference only**. Do not copy code from them wholesale or add dependencies on them.
 
 ## Stack (decided, do not swap without discussion)
@@ -20,10 +20,11 @@ Guidance for AI coding agents (and humans) working in this repository. This file
 | Frontend | **Lit 3** custom elements + **Vite**, state via `@lit-labs/signals` |
 | Styling | Plain CSS + custom properties (design tokens), light/dark via `prefers-color-scheme` + toggle. No CSS frameworks or component libraries |
 | Images | **sharp** |
-| Subject detection | **onnxruntime-node** with bundled models, local only in v1 |
+| Subject detection | **onnxruntime-node**, ISNet (`isnet-general-use`) saliency + YuNet faces, local only in v1 |
+| ZIP | **yazl** |
 | Persistence | **None.** No database. Device catalog = JSON in repo; ephemeral files under `DATA_DIR`; config = env vars |
 | Packaging | Single Docker image, `node:24-bookworm-slim`, multi-arch amd64 + arm64, PUID/PGID |
-| Quality | ESLint (typescript-eslint) + Prettier, enforced in CI |
+| Quality | ESLint (typescript-eslint) + Prettier, enforced in CI; **Vitest** unit tests for `packages/core` |
 
 Ask the user before introducing a new runtime dependency that is large, native, or overlaps an existing choice.
 
@@ -47,11 +48,12 @@ pnpm dev          # server + web in watch mode
 pnpm lint         # eslint
 pnpm format       # prettier --write
 pnpm typecheck    # tsc --noEmit across workspaces
+pnpm test         # vitest (packages/core)
 pnpm build
 docker build -t shin-wallslice .
 ```
 
-Before declaring work done, run `pnpm lint && pnpm typecheck && pnpm build` and make sure they pass.
+Before declaring work done, run `pnpm lint && pnpm typecheck && pnpm test && pnpm build` and make sure they pass.
 
 ## Architecture rules
 
@@ -60,8 +62,8 @@ Before declaring work done, run `pnpm lint && pnpm typecheck && pnpm build` and 
 3. **Pluggable providers.** Subject detection sits behind a `SubjectDetector` interface and AI naming behind a `NameSuggester` interface (Anthropic / OpenAI / OpenAI-compatible). Never call a vendor SDK outside its adapter.
 4. **Local-first.** v1 must work fully offline. Cloud calls (naming only) are optional, env-gated, time-limited, and non-fatal.
 5. **No hidden state.** Nothing user-specific is persisted server-side. Browser `localStorage` is for UI conveniences only.
-6. **Device data is validated.** Every file in `devices/` must pass the JSON Schema. The server refuses to start on an invalid catalog. Tablets (`rotates: true`) output a square of `max(w, h)`.
-7. **Model licensing.** Only bundle model weights whose licenses allow redistribution in an MIT project. Record each model's source, version, license, and checksum in `models/`.
+6. **Device data is validated.** Every file in `devices/` must pass the JSON Schema, and resolutions come from the manufacturer's official spec page (cite it in `source`). The server refuses to start on an invalid catalog. Tablets (`rotates: true`) output a square of `max(w, h)`.
+7. **Model licensing.** Only bundle model weights whose licenses allow redistribution in an MIT project. Record each model's source, version, license, and checksum in `models/`. ISNet's weight license is unstated upstream: see §6.2 of the requirements before publishing images publicly.
 
 ## Conventions
 

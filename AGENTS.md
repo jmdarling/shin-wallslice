@@ -73,3 +73,5 @@ shin-wallslice is built with the [web awesome](https://webawesome.com) design sy
 ## Developer preferences
 
 - When an agent needs an answer to a question, use the agent's "question and answer" interface to do so rather than expecting a plain text response.
+  - Ask one question at a time
+  - Use a select or radio wherever possible with a recommended option

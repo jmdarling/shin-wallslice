@@ -1,3 +1,4 @@
+import { registerWorkflow } from './workflow.js';
 import Fastify from 'fastify';
 import fastifyStatic from '@fastify/static';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +10,9 @@ export function buildApp(
 ) {
   const app = Fastify({ logger: { level: config.logLevel } });
   app.get('/api/health', async () => ({ status: 'ok' }));
+  app.register(async (instance) => {
+    await registerWorkflow(instance, config);
+  });
   app.register(fastifyStatic, { root: clientRoot });
   return app;
 }

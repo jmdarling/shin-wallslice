@@ -5,6 +5,7 @@ import { join } from 'node:path';
 
 const image = process.argv[2] ?? 'shin-wallslice:local';
 const engine = process.argv[3] ?? 'docker';
+const configurationOnly = process.argv[4] === '--configuration-only';
 const directory = mkdtempSync(join(tmpdir(), 'wallslice-smoke-'));
 // Docker's non-root user must be able to traverse and read the fixture.
 chmodSync(directory, 0o755);
@@ -27,7 +28,16 @@ async function check(configPath, port) {
         `type=bind,src=${configPath},dst=/config/config.json,readonly`,
       ]
     : [];
-  const id = docker('run', '-d', '-p', `127.0.0.1::${port}`, ...mount, image);
+  const id = docker(
+    'run',
+    '-d',
+    '--memory',
+    '4g',
+    '-p',
+    `127.0.0.1::${port}`,
+    ...mount,
+    image,
+  );
   containers.add(id);
   const binding = docker('port', id, `${port}/tcp`).split('\n')[0];
   const base = `http://${binding}`;
@@ -51,7 +61,8 @@ async function check(configPath, port) {
     if (!response.ok) throw new Error('HTML failed');
     return response.text();
   });
-  if (!html.includes('<shin-app>')) throw new Error('Placeholder is missing');
+  if (!html.includes('<shin-app>'))
+    throw new Error('Application element is missing');
   const assets = [
     ...html.matchAll(/(?:src|href)="([^"\s]+\.(?:js|css))"/g),
   ].map((match) => match[1]);
@@ -63,6 +74,28 @@ async function check(configPath, port) {
   }
   if (docker('exec', id, 'id', '-u') === '0')
     throw new Error('Application runs as root');
+  if (!configurationOnly) {
+    const script = await import('node:fs/promises').then((fs) =>
+      fs.readFile(new URL('./container-workflow.mjs', import.meta.url), 'utf8'),
+    );
+    const result = spawnSync(
+      engine,
+      [
+        'exec',
+        id,
+        'node',
+        '--input-type=module',
+        '-e',
+        script.replaceAll('../packages/server', './packages/server'),
+      ],
+      { encoding: 'utf8', timeout: 600000 },
+    );
+    if (result.status !== 0)
+      throw new Error(
+        `Wallpaper workflow failed: ${result.stdout} ${result.stderr}`,
+      );
+    console.log(result.stdout);
+  }
   docker('rm', '-f', id);
   containers.delete(id);
 }
@@ -72,7 +105,18 @@ try {
   const replacement = join(directory, 'config.json');
   writeFileSync(
     replacement,
-    JSON.stringify({ host: '0.0.0.0', port: 3456, logLevel: 'warn' }),
+    JSON.stringify({
+      ...JSON.parse(
+        await import('node:fs/promises').then((fs) =>
+          fs.readFile(
+            new URL('../config/docker.json', import.meta.url),
+            'utf8',
+          ),
+        ),
+      ),
+      port: 3456,
+      logLevel: 'warn',
+    }),
     { mode: 0o644 },
   );
   await check(replacement, 3456);
@@ -90,8 +134,24 @@ try {
     );
     containers.add(id);
     docker('start', id);
-    const status = docker('wait', id);
-    if (status === '0' || !logs(id).includes('Configuration error'))
+    // Podman remote `wait` can report the exit code and then hang under emulation.
+    // Poll explicit state instead, with a bounded startup-failure deadline.
+    let state = '';
+    for (let attempt = 0; attempt < 100; attempt++) {
+      state = docker(
+        'inspect',
+        '--format',
+        '{{.State.Running}} {{.State.ExitCode}}',
+        id,
+      );
+      if (state.startsWith('false ')) break;
+      await pause();
+    }
+    if (
+      !state.startsWith('false ') ||
+      state === 'false 0' ||
+      !logs(id).includes('Configuration error')
+    )
       throw new Error(`${name} config did not fail clearly`);
     docker('rm', id);
     containers.delete(id);

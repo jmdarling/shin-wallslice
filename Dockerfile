@@ -25,7 +25,7 @@ COPY --from=production-dependencies /app/packages/server/node_modules ./packages
 COPY packages/server/package.json ./packages/server/package.json
 COPY --from=build /app/packages/server/dist ./packages/server/dist
 COPY --from=build /app/packages/client/dist ./packages/client/dist
-COPY config/default.json ./config/default.json
+COPY config/docker.json ./config/default.json
 RUN mkdir -p /config /data && chown node:node /config /data
 USER node
 EXPOSE 3000

@@ -6,3 +6,8 @@ node_modules
 ui.excalidraw
 specs
 coverage
+
+data
+tmp
+**/data
+**/tmp

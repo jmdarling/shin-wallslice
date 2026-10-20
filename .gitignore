@@ -152,3 +152,7 @@ vite.config.ts.timestamp-*
 dist/
 coverage/
 .DS_Store
+
+# Local wallpaper state
+data/
+tmp/

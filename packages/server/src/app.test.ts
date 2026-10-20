@@ -5,7 +5,13 @@ import { afterEach, expect, test } from 'vitest';
 import { buildApp } from './app.js';
 import { loadConfig, validateConfig } from './config.js';
 
-const config = { host: '127.0.0.1', port: 3000, logLevel: 'silent' } as const;
+import defaults from '../../../config/default.json' with { type: 'json' };
+const config = {
+  ...defaults,
+  host: '127.0.0.1',
+  port: 3000,
+  logLevel: 'silent',
+} as const;
 const cleanup: (() => Promise<unknown>)[] = [];
 afterEach(async () => {
   await Promise.all(cleanup.splice(0).map((fn) => fn()));
@@ -18,7 +24,12 @@ async function temporaryDirectory() {
 }
 
 test('health endpoint reports the running server', async () => {
-  const app = buildApp(config);
+  const runtime = {
+    ...config,
+    temporaryDirectory: await temporaryDirectory(),
+    dataDirectory: await temporaryDirectory(),
+  };
+  const app = buildApp(runtime);
   cleanup.push(() => app.close());
   const response = await app.inject({ method: 'GET', url: '/api/health' });
   expect(response.statusCode).toBe(200);
@@ -32,7 +43,12 @@ test('Fastify serves HTML and assets on the API listener', async () => {
     '<shin-app></shin-app><script src="/app.js"></script>',
   );
   await writeFile(join(root, 'app.js'), 'console.log("shin-wallslice")');
-  const app = buildApp(config, root);
+  const runtime = {
+    ...config,
+    temporaryDirectory: await temporaryDirectory(),
+    dataDirectory: await temporaryDirectory(),
+  };
+  const app = buildApp(runtime, root);
   cleanup.push(() => app.close());
   const html = await app.inject('/');
   expect(html.statusCode).toBe(200);
@@ -85,6 +101,12 @@ test.each([
   [{ ...config, host: '' }, 'host'],
   [{ ...config, logLevel: 'noisy' }, 'logLevel'],
   [{ ...config, extra: true }, 'unknown setting'],
+  [{ ...config, memoryBudgetMiB: 512 }, 'memoryBudgetMiB'],
+  [{ ...config, temporaryStorageMiB: -1 }, 'temporaryStorageMiB'],
+  [{ ...config, jobTtlMinutes: 0 }, 'jobTtlMinutes'],
+  [{ ...config, maxJobs: 1.5 }, 'maxJobs'],
+  [{ ...config, dataDirectory: '' }, 'dataDirectory'],
+  [{ ...config, temporaryDirectory: null }, 'temporaryDirectory'],
 ])('rejects invalid configuration %j', (value, message) => {
   expect(() => validateConfig(value)).toThrow(message);
 });

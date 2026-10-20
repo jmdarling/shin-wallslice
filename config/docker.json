@@ -1,0 +1,11 @@
+{
+  "host": "0.0.0.0",
+  "port": 3000,
+  "logLevel": "info",
+  "dataDirectory": "/data",
+  "temporaryDirectory": "/tmp/shin-wallslice",
+  "memoryBudgetMiB": 2048,
+  "temporaryStorageMiB": 4096,
+  "jobTtlMinutes": 30,
+  "maxJobs": 4
+}

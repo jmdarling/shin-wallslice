@@ -11,3 +11,8 @@ data
 tmp
 **/data
 **/tmp
+
+# Private runtime configuration
+config/local.json
+**/.env
+**/.env.*

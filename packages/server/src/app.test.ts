@@ -72,14 +72,14 @@ test('missing mount uses the bundled JSON defaults', async () => {
   );
 });
 
-test('a replacement config is used in full, including the port', async () => {
+test('complete and partial override configurations are supported', async () => {
   const path = join(await temporaryDirectory(), 'config.json');
   const replacement = { ...config, port: 3456 };
   await writeFile(path, JSON.stringify(replacement));
   expect(await loadConfig(undefined, path)).toEqual(replacement);
   expect(await loadConfig(path)).toEqual(replacement);
   await writeFile(path, JSON.stringify({ port: 3456 }));
-  await expect(loadConfig(path)).rejects.toThrow('host');
+  expect(await loadConfig(path)).toEqual({ ...defaults, port: 3456 });
 });
 
 test('malformed configuration and unreadable explicit files have clear diagnostics', async () => {

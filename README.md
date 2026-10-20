@@ -44,7 +44,7 @@ For production locally, run `pnpm build` then `pnpm start`, and open [localhost:
 
 ## Runtime configuration
 
-All runtime settings come from static JSON. The local `config/default.json` is:
+Runtime settings load from bundled JSON defaults, one optional partial JSON override, then application-specific environment variables. The local `config/default.json` is:
 
 ```json
 {
@@ -61,7 +61,13 @@ All runtime settings come from static JSON. The local `config/default.json` is:
 }
 ```
 
-Docker bundles `config/docker.json` as its defaults, with `dataDirectory` set to `/data` and `temporaryDirectory` set to `/tmp/shin-wallslice`; other defaults are identical. `/config/config.json`, when present, **replaces the complete defaults**. Include every required setting; `ai` is optional for compatibility with existing files. Unknown keys, missing settings, invalid values, malformed JSON, unreadable files, and startup failures produce clear errors and a nonzero exit. Restart to apply changes. Environment variables do not configure the application.
+Docker bundles `config/docker.json` as its defaults, with `dataDirectory` set to `/data` and `temporaryDirectory` set to `/tmp/shin-wallslice`; other defaults are identical.
+
+Select exactly one override file in this order: explicit `--config`, `/config/config.json`, then repository-root `config/local.json`. Automatic discovery is independent of the server working directory for both `pnpm dev` and `pnpm start`. Missing automatic files fall back to the next source or defaults; a missing explicit file fails. An unreadable or malformed selected file fails without fallback. Alternative files are never combined.
+
+JSON files now **partially override** defaults. Existing complete files still work; when migrating, remove unchanged fields if desired. Nested `ai` fields merge individually, so a JSON token alone preserves default AI enablement and a configured endpoint/model. Unknown settings and invalid supplied values fail startup even if an environment override would replace them. AI endpoint/model requirements are checked on the effective configuration. Diagnostics omit supplied values and credentials.
+
+Copy `config/local.example.json` to `config/local.json`, choose your endpoint/model, and enter a private token. The local file is ignored by Git and excluded from Docker context/images. Existing `.env` files are also excluded; dotenv files are **not automatically loaded**. Configuration files are read-only to the application. Relative configured paths still resolve against the process working directory. Restart to apply changes; there is no settings editor or configuration persistence.
 
 | Setting               | Meaning and validation                                                                                                                                            |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -83,6 +89,28 @@ pnpm --filter @shin-wallslice/server start --config /absolute/path/config.json
 
 The explicit file takes precedence and must exist. Relative paths in JSON resolve against the process working directory.
 
+### Environment variables
+
+Only the following `SHIN_WALLSLICE_` variables configure the application. Each supplied variable overrides its JSON field and preserves sibling fields. Unset variables preserve lower-priority values.
+
+| Setting               | Environment variable                   | Parsing                                                                     |
+| --------------------- | -------------------------------------- | --------------------------------------------------------------------------- |
+| `host`                | `SHIN_WALLSLICE_HOST`                  | Nonempty string                                                             |
+| `port`                | `SHIN_WALLSLICE_PORT`                  | Integer 1–65535                                                             |
+| `logLevel`            | `SHIN_WALLSLICE_LOG_LEVEL`             | Exact lowercase level listed above                                          |
+| `dataDirectory`       | `SHIN_WALLSLICE_DATA_DIRECTORY`        | Nonempty path                                                               |
+| `temporaryDirectory`  | `SHIN_WALLSLICE_TEMPORARY_DIRECTORY`   | Nonempty path                                                               |
+| `memoryBudgetMiB`     | `SHIN_WALLSLICE_MEMORY_BUDGET_MIB`     | Integer 1024–3072                                                           |
+| `temporaryStorageMiB` | `SHIN_WALLSLICE_TEMPORARY_STORAGE_MIB` | Integer 1024–65536                                                          |
+| `jobTtlMinutes`       | `SHIN_WALLSLICE_JOB_TTL_MINUTES`       | Integer 1–1440                                                              |
+| `maxJobs`             | `SHIN_WALLSLICE_MAX_JOBS`              | Integer 1–16                                                                |
+| `ai.enabled`          | `SHIN_WALLSLICE_AI_ENABLED`            | Exactly `true` or `false`                                                   |
+| `ai.baseUrl`          | `SHIN_WALLSLICE_AI_BASE_URL`           | HTTP(S) URL without credentials, query, fragment, or surrounding whitespace |
+| `ai.model`            | `SHIN_WALLSLICE_AI_MODEL`              | Nonempty string                                                             |
+| `ai.token`            | `SHIN_WALLSLICE_AI_TOKEN`              | String without line breaks; empty clears the optional bearer token          |
+
+Integers accept only unsigned decimal digits with no whitespace, sign, leading zeros (except `0`), exponent, fraction, or hex notation, and must satisfy their ranges. Strings are used as supplied; whitespace-only strings are invalid except for the token. Empty values are invalid for every type except `ai.token`. Boolean values are case-sensitive. Invalid input fails startup with a nonzero exit. Environment `SHIN_WALLSLICE_AI_ENABLED=false` prevents AI requests even when JSON enables AI. Local and container starts share these rules. Unrelated environment variables have no effect.
+
 ### Memory and temporary storage
 
 The default decoded limit is **55,924,053 pixels** (about 56 MP), allowing both 7680×4320 and 8192×4320 sources with all six devices. Orientation is normalized once before calculating crop coordinates. Only still JPEG, PNG, and WebP are accepted; animated images are rejected.
@@ -102,18 +130,34 @@ docker run --rm --name shin-wallslice --memory=4g -p 8080:3000 \
   shin-wallslice:local
 ```
 
-Open [localhost:8080](http://localhost:8080). The single image uses Node.js 24 LTS and the non-root `node` user (UID/GID **1000**), with one exposed port. The built-in health check reads the effective JSON configuration. `/data` contains persistent flat-file preferences; mount a volume or a NAS share there to retain preferences across container replacement. Bind-mounted directories must be writable and traversable by UID/GID 1000 (for example, set ownership to `1000:1000` on the dedicated directory). Preference read/write failures appear in the interface with a retry action. Temporary storage must also be writable; `/tmp/shin-wallslice` is ephemeral by default. Budget at least 4 GiB of free temporary disk with the defaults.
+Open [localhost:8080](http://localhost:8080). The single image uses Node.js 24 LTS and the non-root `node` user (UID/GID **1000**), with one exposed port. The built-in health check reads the effective environment-aware configuration. `/data` contains persistent flat-file preferences; mount a volume or a NAS share there to retain preferences across container replacement. Bind-mounted directories must be writable and traversable by UID/GID 1000 (for example, set ownership to `1000:1000` on the dedicated directory). Preference read/write failures appear in the interface with a retry action. Temporary storage must also be writable; `/tmp/shin-wallslice` is ephemeral by default. Budget at least 4 GiB of free temporary disk with the defaults.
 
-To replace configuration, copy `config/docker.json` to `config.local.json`, edit it, then mount it read-only:
+To override configuration, copy `config/local.example.json` to ignored `config/local.json`, edit the needed fields, then mount it read-only:
 
 ```sh
 docker run --rm --name shin-wallslice --memory=4g -p 8080:3000 \
   --mount type=volume,src=shin-wallslice-data,dst=/data \
-  --mount type=bind,src="$(pwd)/config.local.json",dst=/config/config.json,readonly \
+  --mount type=bind,src="$(pwd)/config/local.json",dst=/config/config.json,readonly \
   shin-wallslice:local
 ```
 
-The config must be readable by UID 1000 (for example mode 0644) and parent directories traversable. The application never writes to `/config`. If you change the configured port, update the container port mapping accordingly. `EXPOSE 3000` is metadata and does not override JSON.
+The config must be readable by UID 1000 (for example mode 0644) and parent directories traversable. The application never writes to `/config`. If you change the configured port, update the container port mapping accordingly. `EXPOSE 3000` is metadata and does not override effective configuration.
+
+For Docker or NAS container settings, configure AI entirely through environment variables (placeholder credentials below). Map the effective container port and restart after changing settings:
+
+```sh
+docker run --rm --name shin-wallslice --memory=4g -p 8080:3456 \
+  --mount type=volume,src=shin-wallslice-data,dst=/data \
+  -e SHIN_WALLSLICE_HOST=0.0.0.0 \
+  -e SHIN_WALLSLICE_PORT=3456 \
+  -e SHIN_WALLSLICE_AI_ENABLED=true \
+  -e SHIN_WALLSLICE_AI_BASE_URL=https://api.openai.com/v1 \
+  -e SHIN_WALLSLICE_AI_MODEL=your-vision-capable-model \
+  -e SHIN_WALLSLICE_AI_TOKEN=replace-with-your-private-token \
+  shin-wallslice:local
+```
+
+In Unraid or another NAS UI, add these names as container environment variables and enter the corresponding values. An environment token can also accompany a JSON endpoint/model. Environment variables keep keys out of tracked configuration, but users with access to container configuration can read them; they are not a secret vault. Avoid putting real credentials in shared command history. The server never writes credentials to preferences or other managed persistent data, client assets, API/health responses, logs, or diagnostics.
 
 Build and exercise both supported architectures using Docker Buildx with emulation available:
 
@@ -124,7 +168,7 @@ docker buildx build --platform linux/arm64 --load -t shin-wallslice:arm64 .
 pnpm docker:smoke shin-wallslice:arm64
 ```
 
-The smoke script runs memory-limited containers, checks HTML/assets, non-root identity, health, configuration replacement and invalid configuration. It completes both 8K workflows with all six presets and OLEDify, verifies exact PNG sizes, cutoff pixels, matching ZIP entries, job disposal, and flat-file preferences. It cleans up containers and fixtures. Temporary fixture paths must be shared with the container engine. To rerun only startup, assets, non-root identity, and configuration checks after a harness or deployment change, append `--configuration-only` after the engine argument (for example, `pnpm docker:smoke shin-wallslice:amd64 podman --configuration-only`). The default smoke run always includes both full 8K workflows.
+The smoke script runs memory-limited containers, checks HTML/assets, non-root identity, health, partial JSON overrides, environment-only AI authentication, overridden-port health and invalid configuration. It completes both 8K workflows with all six presets and OLEDify, verifies exact PNG sizes, cutoff pixels, matching ZIP entries, job disposal, and flat-file preferences. It cleans up containers and fixtures. Temporary fixture paths must be shared with the container engine. To rerun only startup, assets, non-root identity, and configuration checks after a harness or deployment change, append `--configuration-only` after the engine argument (for example, `pnpm docker:smoke shin-wallslice:amd64 podman --configuration-only`). The default smoke run always includes both full 8K workflows.
 
 Podman is also supported; on macOS start your Podman machine first and put `/opt/podman/bin` on PATH:
 
@@ -145,7 +189,7 @@ pnpm docker:smoke shin-wallslice:amd64 podman
 
 AI is disabled by default (`"ai": { "enabled": false }`). Older complete JSON
 configurations without `ai` remain valid and make no AI requests. To enable it,
-add this object to your complete runtime JSON configuration:
+add this object to your private partial runtime JSON configuration:
 
 ```json
 "ai": {
@@ -162,7 +206,7 @@ HTTP is supported for local self-hosted services. URLs cannot contain credential
 query strings, or fragments. `model` must identify a model that accepts image input
 through Chat Completions; compatibility with that API does not imply support for
 provider-specific APIs. `token` is optional for services without authentication;
-when supplied it is used as a server-side bearer token. Use the complete JSON file
+when supplied it is used as a server-side bearer token. Use the partial JSON file
 mounted read-only at `/config/config.json` in Docker as described above, then
 restart to apply changes. No credentials or connection settings are sent to the
 browser. Service availability is checked only when naming, so an unavailable

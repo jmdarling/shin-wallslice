@@ -5,7 +5,8 @@ import sharp from 'sharp';
 import { afterEach, expect, test, vi } from 'vitest';
 import { AiConnection, AI_RESPONSE_BYTES, AI_TIMEOUT_MS } from './ai.js';
 import { namingPrompt, normalizeSuggestion } from './naming.js';
-import { validateConfig } from './config.js';
+import { loadConfig, validateConfig } from './config.js';
+import { createServer } from 'node:http';
 import type { AiConfig } from './config.js';
 import { buildApp } from './app.js';
 import type { Job } from './protocol.js';
@@ -59,6 +60,79 @@ async function upload(app: Awaited<ReturnType<typeof buildApp>>) {
   expect(result.statusCode).toBe(200);
   return result.json<Job>();
 }
+test('environment-only configuration authenticates to a controlled provider and disabling AI prevents requests', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'wallslice-env-ai-'));
+  cleanups.push(() => rm(root, { recursive: true, force: true }));
+  const secret = 'environment-only-sentinel';
+  let requests = 0;
+  const provider = createServer((request, reply) => {
+    requests++;
+    expect(request.headers.authorization).toBe(`Bearer ${secret}`);
+    expect(request.url).toBe('/v1/chat/completions');
+    request.resume();
+    reply.setHeader('content-type', 'application/json');
+    reply.end(
+      JSON.stringify({
+        choices: [
+          {
+            finish_reason: 'stop',
+            message: { content: 'Moonlit Mountain Lake' },
+          },
+        ],
+      }),
+    );
+  });
+  await new Promise<void>((resolve) =>
+    provider.listen(0, '127.0.0.1', resolve),
+  );
+  cleanups.push(
+    () =>
+      new Promise<void>((resolve, reject) =>
+        provider.close((error) => (error ? reject(error) : resolve())),
+      ),
+  );
+  const address = provider.address() as { port: number };
+  const environment = {
+    SHIN_WALLSLICE_AI_ENABLED: 'true',
+    SHIN_WALLSLICE_AI_BASE_URL: `http://127.0.0.1:${address.port}/v1`,
+    SHIN_WALLSLICE_AI_MODEL: 'vision',
+    SHIN_WALLSLICE_AI_TOKEN: secret,
+  };
+  const config = await loadConfig(
+    undefined,
+    join(root, 'no-mount'),
+    join(root, 'no-local'),
+    environment,
+  );
+  const app = await setup(config.ai);
+  const job = await upload(app);
+  await vi.waitFor(async () =>
+    expect((await app.inject(`/api/jobs/${job.id}/naming`)).json()).toEqual({
+      state: 'succeeded',
+      name: 'moonlit-mountain-lake',
+    }),
+  );
+  expect(requests).toBe(1);
+  for (const path of [
+    '/api/health',
+    '/api/catalog',
+    `/api/jobs/${job.id}/naming`,
+  ]) {
+    const result = await app.inject(path);
+    expect(result.body).not.toContain(secret);
+    expect(result.body).not.toContain(config.ai!.baseUrl);
+  }
+  const disabled = await loadConfig(
+    undefined,
+    join(root, 'no-mount'),
+    join(root, 'no-local'),
+    { ...environment, SHIN_WALLSLICE_AI_ENABLED: 'false' },
+  );
+  expect((await upload(await setup(disabled.ai))).naming).toEqual({
+    state: 'disabled',
+  });
+  expect(requests).toBe(1);
+});
 test('old configs remain valid; invalid AI settings and malformed JSON never disclose tokens', () => {
   const old: Partial<typeof defaults> = { ...defaults };
   delete old.ai;

@@ -21,7 +21,7 @@ const logs = (id) => {
 const containers = new Set();
 const pause = () => new Promise((resolve) => setTimeout(resolve, 300));
 
-async function check(configPath, port) {
+async function check(configPath, port, environment = []) {
   const mount = configPath
     ? [
         '--mount',
@@ -36,6 +36,7 @@ async function check(configPath, port) {
     '-p',
     `127.0.0.1::${port}`,
     ...mount,
+    ...environment.flatMap((entry) => ['--env', entry]),
     image,
   );
   containers.add(id);
@@ -69,11 +70,53 @@ async function check(configPath, port) {
   if (assets.length < 2) throw new Error('Expected built JavaScript and CSS');
   for (const asset of assets) {
     const response = await fetch(new URL(asset, base));
-    if (!response.ok || !(await response.text()).length)
+    const contents = await response.text();
+    if (!response.ok || !contents.length)
       throw new Error(`Asset failed: ${asset}`);
+    if (contents.includes('smoke-private-sentinel'))
+      throw new Error('Credential leaked into client assets');
   }
   if (docker('exec', id, 'id', '-u') === '0')
     throw new Error('Application runs as root');
+  // Exercise the exact image health check with the same environment as the app.
+  const health = JSON.parse(
+    docker('inspect', '--format', '{{json .Config.Healthcheck.Test}}', id),
+  );
+  docker('exec', id, ...health.slice(1));
+  if (environment.length) {
+    const providerCheck = `
+      import { createServer } from 'node:http';
+      import { createRequire } from 'node:module';
+      const sharp = createRequire(new URL('./packages/server/package.json', import.meta.url))('sharp');
+      const secret = process.env.SHIN_WALLSLICE_AI_TOKEN;
+      let authenticated = false;
+      const provider = createServer((req, res) => {
+        authenticated = req.headers.authorization === 'Bearer ' + secret && req.url === '/v1/chat/completions';
+        req.resume();
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({choices:[{finish_reason:'stop',message:{content:'Moonlit Mountain Lake'}}]}));
+      });
+      await new Promise(resolve => provider.listen(4567, '127.0.0.1', resolve));
+      try {
+        const image = await sharp({create:{width:1800,height:600,channels:3,background:'#123456'}}).png().toBuffer();
+        const base = 'http://127.0.0.1:' + process.env.SHIN_WALLSLICE_PORT;
+        const upload = await fetch(base + '/api/jobs', {method:'POST',headers:{'content-type':'application/octet-stream'},body:image});
+        if (!upload.ok) throw new Error('Upload failed');
+        const job = await upload.json();
+        let succeeded = false;
+        for (let i = 0; i < 100; i++) {
+          const result = await fetch(base + '/api/jobs/' + job.id + '/naming').then(r => r.json());
+          if (result.state === 'succeeded') { succeeded = true; break; }
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+        if (!authenticated || !succeeded) throw new Error('Environment authentication failed');
+        await fetch(base + '/api/jobs/' + job.id, {method:'DELETE'});
+      } finally { await new Promise(resolve => provider.close(resolve)); }
+    `;
+    docker('exec', id, 'node', '--input-type=module', '-e', providerCheck);
+    if (logs(id).includes('smoke-private-sentinel'))
+      throw new Error('Credential leaked into logs');
+  }
   if (!configurationOnly) {
     const script = await import('node:fs/promises').then((fs) =>
       fs.readFile(new URL('./container-workflow.mjs', import.meta.url), 'utf8'),
@@ -120,9 +163,25 @@ try {
     { mode: 0o644 },
   );
   await check(replacement, 3456);
-  for (const [name, contents] of [
-    ['malformed', '{broken'],
+  await check(undefined, 3457, [
+    'SHIN_WALLSLICE_HOST=0.0.0.0',
+    'SHIN_WALLSLICE_PORT=3457',
+    'SHIN_WALLSLICE_AI_ENABLED=true',
+    'SHIN_WALLSLICE_AI_BASE_URL=http://127.0.0.1:4567/v1',
+    'SHIN_WALLSLICE_AI_MODEL=controlled-vision',
+    'SHIN_WALLSLICE_AI_TOKEN=smoke-private-sentinel',
+  ]);
+  for (const [name, contents, environment = []] of [
+    ['malformed', '{"ai":{"token":"smoke-private-sentinel"}, BROKEN'],
     ['invalid', JSON.stringify({ host: '0.0.0.0', port: 0, logLevel: 'info' })],
+    [
+      'environment',
+      '{}',
+      [
+        'SHIN_WALLSLICE_AI_ENABLED=smoke-private-sentinel',
+        'SHIN_WALLSLICE_AI_TOKEN=smoke-private-sentinel',
+      ],
+    ],
   ]) {
     const path = join(directory, `${name}.json`);
     writeFileSync(path, contents, { mode: 0o644 });
@@ -130,6 +189,7 @@ try {
       'create',
       '--mount',
       `type=bind,src=${path},dst=/config/config.json,readonly`,
+      ...environment.flatMap((entry) => ['--env', entry]),
       image,
     );
     containers.add(id);
@@ -150,14 +210,15 @@ try {
     if (
       !state.startsWith('false ') ||
       state === 'false 0' ||
-      !logs(id).includes('Configuration error')
+      !logs(id).includes('Configuration error') ||
+      logs(id).includes('smoke-private-sentinel')
     )
       throw new Error(`${name} config did not fail clearly`);
     docker('rm', id);
     containers.delete(id);
   }
   console.log(
-    'Container smoke check passed: HTML, assets, health, non-root user, replacement port, and invalid configuration.',
+    'Container smoke check passed: HTML, assets, health, non-root user, JSON overrides, environment-only AI authentication, overridden-port health, and invalid configuration.',
   );
 } finally {
   for (const id of containers) docker('rm', '-f', id);

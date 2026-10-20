@@ -52,9 +52,9 @@ Use ESLint with typescript-eslint for linting and Prettier for formatting. Provi
 
 ### Configuration
 
-All application runtime configuration should be managed via static JSON files. Development and build tools may use their native configuration formats.
+Manage runtime configuration through static JSON defaults, one optional partial JSON override, and application-specific environment variables. Development and build tools may use their native configuration formats.
 
-Ship documented default runtime configuration. Allow a read-only JSON file mounted at `/config/config.json` to replace the defaults in Docker. Validate runtime configuration at startup and report clear errors for invalid configuration.
+Ship documented default runtime configuration. Select one override in order: explicit `--config`, `/config/config.json`, then private repository-root `config/local.json`. Merge nested AI fields individually, then apply `SHIN_WALLSLICE_` environment overrides. Keep local configuration ignored by Git and excluded from Docker images; support read-only mounted JSON. Validate supplied values and effective configuration at startup, reporting clear errors without credentials.
 
 ### Data persistence
 

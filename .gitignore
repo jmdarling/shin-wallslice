@@ -156,3 +156,6 @@ coverage/
 # Local wallpaper state
 data/
 tmp/
+
+# Private runtime configuration
+config/local.json

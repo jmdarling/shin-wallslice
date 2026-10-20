@@ -1,0 +1,8 @@
+{
+  "ai": {
+    "enabled": true,
+    "baseUrl": "https://api.openai.com/v1",
+    "model": "your-vision-capable-model",
+    "token": "replace-with-your-private-token"
+  }
+}

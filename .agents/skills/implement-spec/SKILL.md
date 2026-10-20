@@ -28,6 +28,15 @@ Use the developer-supplied spec file as the source of implementation requirement
 - Run checks appropriate to the changes and verify the acceptance criteria through meaningful automated checks or direct inspection and exercise of the behavior. Report any verification that cannot be performed.
 - Check off a criterion only when its behavior has been verified. Reassess existing checked items when resuming work or when changes could affect them; checkboxes alone are not proof.
 - Keep status `ready` while implementation or verification remains incomplete. Retain verified checkmarks to support resuming partial work, and report remaining work or blockers clearly.
-- Set status to `implemented` only when all features and criteria are implemented and verified and applicable required checks pass. Do not weaken criteria merely to claim completion. An already implemented spec calls for checking current behavior and addressing gaps, not rebuilding working features.
+- Set status to `implemented` only when all features and criteria are implemented and verified, applicable required checks pass, and the developer has explicitly signed off after trying the running application. Do not weaken criteria merely to claim completion. An already implemented spec calls for checking current behavior and addressing gaps, not rebuilding working features.
 - Update only the supplied spec's status and checklist as part of tracking this work; preserve previous specs unless the developer requests changes to them.
 - Finish with the spec path, what changed, verification performed, and any incomplete criteria or material limitations. Do not claim completion while required work remains.
+
+## Run the application and obtain sign-off
+
+- After implementation and required checks, start the application using the repository's documented development command, or reuse an existing instance after confirming it serves the updated code. Confirm the application is reachable and leave it running for the developer's verification.
+- Give the developer the application URL and concise steps to exercise the changed behavior, including the expected results tied to the spec's acceptance criteria. Summarize automated verification and any limitations before requesting sign-off.
+- Use the question-and-answer interface to ask one question: whether the developer has verified the behavior and signs off. Offer select or radio options for signing off or requesting changes, with signing off recommended only when verification supports it. Explain that this approval is required by this skill's sign-off step and link to this `SKILL.md`.
+- Keep the spec `ready` while awaiting sign-off, even when automated checks pass. Report that implementation is awaiting developer verification; silence or elapsed time does not count as approval. If the application cannot be run, report the blocker and resolve it before requesting sign-off.
+- If the developer requests changes, address the feedback within the agreed scope, rerun affected checks, and provide the updated running application for another verification and sign-off prompt. Record agreed scope changes in the supplied spec.
+- After explicit sign-off, record it in the supplied spec and set status to `implemented` only when the other completion requirements are also satisfied.

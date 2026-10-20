@@ -411,3 +411,119 @@ test('rapid OLED changes never commit an older render response or enable stale d
   expect(a.manifest!.revision).not.toBe('old');
   expect(renderBodies.at(-1)!.threshold).toBe(42);
 });
+
+function threshold(a: ShinApp, value: number) {
+  const slider = a.shadowRoot!.querySelector('#threshold') as HTMLInputElement;
+  slider.value = String(value);
+  slider.dispatchEvent(new Event('input'));
+}
+
+test('threshold toast spans debounce and successive renders, preserves crops and commits only the latest previews and outputs', async () => {
+  const a = await app();
+  picker(a, [file()]);
+  await processed(a);
+  const original = fetch;
+  const pending: ((r: Response) => void)[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (path: string, init?: RequestInit) => {
+      if (path.endsWith('/render')) {
+        renderBodies.push(JSON.parse(init!.body as string));
+        return new Promise<Response>((resolve) => pending.push(resolve));
+      }
+      return original(path, init);
+    }),
+  );
+  const toast = () => a.shadowRoot!.querySelector('.oled-toast');
+  checked(a, 'Turn near-black colors into true black');
+  await vi.waitFor(() => expect(pending).toHaveLength(1));
+  expect(toast()).toBeNull();
+  const crops = structuredClone(a.crops);
+  const manifest = a.manifest;
+  threshold(a, 42);
+  await a.updateComplete;
+  expect(toast()?.textContent).toContain('OLEDify processing');
+  expect(toast()?.getAttribute('role')).toBe('status');
+  expect(toast()?.querySelector('wa-spinner')).not.toBeNull();
+  expect(getComputedStyle(toast()!).pointerEvents).toBe('none');
+  const bounds = toast()!.getBoundingClientRect();
+  expect(bounds.left).toBeGreaterThanOrEqual(0);
+  expect(bounds.right).toBeLessThanOrEqual(window.innerWidth);
+  expect(bounds.bottom).toBeLessThanOrEqual(window.innerHeight);
+  pending[0]!(Response.json({ revision: 'old', source: pixel, outputs: {} }));
+  await vi.waitFor(() => expect(pending).toHaveLength(2));
+  expect(a.manifest).toBe(manifest);
+  expect(toast()).not.toBeNull();
+  threshold(a, 99);
+  await a.updateComplete;
+  pending[1]!(Response.json({ revision: 'older', source: pixel, outputs: {} }));
+  await vi.waitFor(() => expect(pending).toHaveLength(3));
+  expect(a.shadowRoot!.querySelectorAll('.oled-toast')).toHaveLength(1);
+  expect(a.manifest).toBe(manifest);
+  expect(renderBodies.at(-1)).toEqual({ crops, oled: true, threshold: 99 });
+  const latest = {
+    revision: 'latest',
+    source: `${pixel}#latest`,
+    outputs: { phone: `${pixel}#phone`, tablet: `${pixel}#tablet` },
+  };
+  pending[2]!(Response.json(latest));
+  await vi.waitFor(() => expect(a.dirty).toBe(false));
+  await a.updateComplete;
+  expect(toast()).toBeNull();
+  expect(a.crops).toEqual(crops);
+  expect(a.manifest).toEqual(latest);
+  expect(a.shadowRoot!.querySelector<HTMLImageElement>('.source')!.src).toBe(
+    latest.source,
+  );
+  for (const editor of a.shadowRoot!.querySelectorAll<CropEditor>(
+    'crop-editor',
+  )) {
+    expect(editor.source).toBe(latest.source);
+  }
+  await page.getByRole('button', { name: 'Next: Download' }).click();
+  expect(
+    [...a.shadowRoot!.querySelectorAll<HTMLImageElement>('.output')].map(
+      (img) => img.src,
+    ),
+  ).toEqual(Object.values(latest.outputs));
+});
+
+test('latest threshold failure clears the toast and exposes error and working Retry', async () => {
+  preferences.oled = true;
+  const a = await app();
+  picker(a, [file()]);
+  await processed(a);
+  const original = fetch;
+  let resolve: ((r: Response) => void) | undefined;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (path: string, init?: RequestInit) => {
+      if (path.endsWith('/render') && !resolve)
+        return new Promise<Response>((r) => {
+          resolve = r;
+        });
+      return original(path, init);
+    }),
+  );
+  threshold(a, 80);
+  await a.updateComplete;
+  expect(a.shadowRoot!.querySelector('.oled-toast')).not.toBeNull();
+  await vi.waitFor(() => expect(resolve).toBeDefined());
+  resolve!(
+    Response.json(
+      { message: 'Processing failed. Please retry.' },
+      { status: 500 },
+    ),
+  );
+  await vi.waitFor(() => expect(a.error).toContain('Processing failed'));
+  await a.updateComplete;
+  expect(a.shadowRoot!.querySelector('.oled-toast')).toBeNull();
+  expect(a.dirty).toBe(true);
+  await expect
+    .element(page.getByRole('alert'))
+    .toHaveTextContent('Processing failed');
+  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await vi.waitFor(() => expect(a.dirty).toBe(false));
+  expect(a.error).toBe('');
+  expect(renderBodies.at(-1)!.threshold).toBe(80);
+});

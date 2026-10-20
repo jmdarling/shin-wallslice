@@ -30,6 +30,7 @@ export class ShinApp extends LitElement {
     busy: { state: true },
     dirty: { state: true },
     ready: { state: true },
+    oledProcessing: { state: true },
   };
   page: 'input' | 'processing' | 'download' = 'input';
   devices: Device[] = [];
@@ -50,6 +51,7 @@ export class ShinApp extends LitElement {
   busy = '';
   dirty = false;
   ready = false;
+  oledProcessing = false;
   private generation = 0;
   private rendering = false;
   private timer?: ReturnType<typeof setTimeout>;
@@ -191,6 +193,7 @@ export class ShinApp extends LitElement {
   }
   private async renderPreviews() {
     if (this.rendering || !this.job || this.page === 'input') return;
+    clearTimeout(this.timer);
     this.rendering = true;
     this.busy = 'Generating previews and PNG downloads…';
     const version = this.generation;
@@ -215,6 +218,8 @@ export class ShinApp extends LitElement {
     } finally {
       this.rendering = false;
       this.busy = '';
+      if (version === this.generation && this.job?.id === id)
+        this.oledProcessing = false;
       if (version !== this.generation && this.job?.id === id)
         void this.renderPreviews();
     }
@@ -232,6 +237,7 @@ export class ShinApp extends LitElement {
       this.error = '';
       this.page = 'input';
       this.dirty = false;
+      this.oledProcessing = false;
     } catch (e) {
       this.error = (e as Error).message;
     }
@@ -456,6 +462,25 @@ export class ShinApp extends LitElement {
     .download-actions {
       margin-bottom: 1.5rem;
     }
+    .oled-toast {
+      position: fixed;
+      inset: auto 1rem max(1rem, env(safe-area-inset-bottom)) auto;
+      z-index: 10;
+      box-sizing: border-box;
+      max-width: calc(100vw - 2rem);
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      padding: 1rem;
+      border: 1px solid #789c82;
+      border-radius: 0.6rem;
+      background: #deebdf;
+      box-shadow: 0 4px 18px #19392d26;
+      pointer-events: none;
+    }
+    .oled-toast wa-spinner {
+      flex-shrink: 0;
+    }
     .actions {
       display: flex;
       gap: 0.8rem;
@@ -533,7 +558,7 @@ export class ShinApp extends LitElement {
       <main class=${this.page === 'input' ? 'input' : ''}>
         ${this.error ? html`<div class="message" role="alert">${this.error} <wa-button size="s" @click=${() => (this.job ? this.renderPreviews() : this.load())}>Retry</wa-button></div>` : nothing}
         ${this.preferenceError ? html`<div class="message" role="alert">${this.preferenceError}<wa-button size="s" @click=${() => this.save()}>Retry saving preferences</wa-button></div>` : nothing}
-        ${this.busy ? html`<div class="progress" role="status"><wa-spinner></wa-spinner>${this.busy}</div>` : nothing}
+        ${this.busy && !this.oledProcessing ? html`<div class="progress" role="status"><wa-spinner></wa-spinner>${this.busy}</div>` : nothing}
         ${
           this.page === 'input'
             ? html`<div class="eyebrow">A home for every screen</div>
@@ -683,11 +708,14 @@ export class ShinApp extends LitElement {
                         .value=${String(this.prefs.threshold)}
                         ?disabled=${!this.prefs.oled}
                         @input=${(e: Event) => {
+                          const threshold = Number(
+                            (e.target as HTMLInputElement).value,
+                          );
+                          if (threshold === this.prefs.threshold) return;
+                          if (this.prefs.oled) this.oledProcessing = true;
                           this.prefs = {
                             ...this.prefs,
-                            threshold: Number(
-                              (e.target as HTMLInputElement).value,
-                            ),
+                            threshold,
                           };
                           this.save();
                           this.schedule();
@@ -821,7 +849,15 @@ export class ShinApp extends LitElement {
                 </div>`
             : nothing
         }
-      </main>`;
+      </main>
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        class=${this.oledProcessing ? 'oled-toast' : ''}
+      >
+        ${this.oledProcessing ? html`<wa-spinner aria-hidden="true"></wa-spinner><span>OLEDify processing… Updating previews and downloads.</span>` : nothing}
+      </div>`;
   }
 }
 customElements.define('shin-app', ShinApp);

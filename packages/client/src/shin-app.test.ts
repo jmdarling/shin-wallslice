@@ -214,9 +214,184 @@ test('global anchors reset positions, manual edits remain independent, reset aff
   reset.click();
   expect(a.crops.phone!.left).toBe(500);
   expect(a.crops.tablet!.left).toBe(400);
-  checked(a, 'Smart (entropy)');
+  await page.getByRole('radio', { name: 'Smart', exact: true }).click();
   expect(a.crops.phone!.left).toBe(250);
 });
+test('spatial crop radios expose names, select every anchor directly, and support native keyboard navigation', async () => {
+  const a = await app();
+  picker(a, [file()]);
+  await processed(a);
+  const names = [
+    'Smart',
+    'top left',
+    'top right',
+    'center',
+    'bottom left',
+    'bottom right',
+  ];
+  const radios = () => [
+    ...a.shadowRoot!.querySelectorAll<HTMLInputElement>('input[name=method]'),
+  ];
+  expect(radios()).toHaveLength(6);
+  await expect
+    .element(page.getByRole('radio', { name: 'Smart', exact: true }))
+    .toBeChecked();
+  for (const [index, name] of names.entries()) {
+    const radio = page.getByRole('radio', { name, exact: true });
+    await radio.click();
+    await a.updateComplete;
+    await expect.element(radio).toBeChecked();
+    expect(radios().filter((r) => r.checked)).toEqual([radios()[index]]);
+    const horizontal = name.includes('left')
+      ? 0
+      : name.includes('right')
+        ? 1
+        : 0.5;
+    expect(a.crops.phone).toEqual(
+      name === 'Smart'
+        ? smart.phone
+        : { ...smart.phone, left: 500 * horizontal },
+    );
+    expect(a.crops.tablet).toEqual(
+      name === 'Smart'
+        ? smart.tablet
+        : { ...smart.tablet, left: 400 * horizontal },
+    );
+  }
+  await page.getByRole('radio', { name: 'Smart', exact: true }).click();
+  expect(a.prefs.anchor).toBe('bottom-right');
+  expect(radios().filter((r) => r.checked)).toEqual([radios()[0]]);
+  radios()[0]!.focus();
+  for (const name of [...names.slice(1), 'Smart']) {
+    await userEvent.keyboard('{ArrowRight}');
+    await a.updateComplete;
+    await expect
+      .element(page.getByRole('radio', { name, exact: true }))
+      .toBeChecked();
+    expect(radios().filter((r) => r.checked)).toHaveLength(1);
+    const focused = a.shadowRoot!.activeElement as HTMLInputElement;
+    expect(focused.checked).toBe(true);
+    expect(getComputedStyle(focused.closest('label')!).outlineStyle).toBe(
+      'solid',
+    );
+  }
+  expect(a.crops).toEqual({ phone: smart.phone, tablet: smart.tablet });
+  // Newly selected devices also use the current global choice.
+  await page.getByRole('radio', { name: 'bottom right', exact: true }).click();
+  checked(a, 'Laptop');
+  await vi.waitFor(() => expect(a.dirty).toBe(false));
+  expect(a.crops.laptop).toEqual({ ...smart.laptop, left: 200 });
+  expect(renderBodies.at(-1)!.crops).toEqual(a.crops);
+});
+
+for (const choice of [
+  'smart',
+  'top-left',
+  'top-right',
+  'center',
+  'bottom-left',
+  'bottom-right',
+]) {
+  test(`restores ${choice} crop preference across navigation, Start over, new uploads and reload`, async () => {
+    preferences.method = choice === 'smart' ? 'smart' : 'anchor';
+    preferences.anchor = choice === 'smart' ? 'bottom-right' : choice;
+    let a = await app();
+    const verify = async () => {
+      await a.updateComplete;
+      const selected = page.getByRole('radio', {
+        name: choice === 'smart' ? 'Smart' : choice.replace('-', ' '),
+        exact: true,
+      });
+      await expect.element(selected).toBeChecked();
+      expect(
+        a.shadowRoot!.querySelectorAll('input[name=method]:checked'),
+      ).toHaveLength(1);
+    };
+    picker(a, [file()]);
+    await processed(a);
+    await verify();
+    await page.getByRole('button', { name: 'Next:' }).click();
+    await page.getByRole('button', { name: 'Back to Processing' }).click();
+    await verify();
+    await page.getByRole('button', { name: 'Start over', exact: true }).click();
+    await vi.waitFor(() => expect(a.page).toBe('input'));
+    picker(a, [file('another.png')]);
+    await processed(a);
+    await verify();
+    a.remove();
+    a = await app();
+    picker(a, [file()]);
+    await processed(a);
+    await verify();
+  });
+}
+
+for (const theme of ['light', 'dark']) {
+  for (const width of [280, 390, 680, 1280]) {
+    test(`crop targets fit at ${width}px in ${theme} mode with non-color selection cues`, async () => {
+      await page.viewport(width, 900);
+      document.documentElement.classList.add(`wa-${theme}`);
+      try {
+        const a = await app();
+        picker(a, [file()]);
+        await processed(a);
+        const root = a.shadowRoot!;
+        const panel = root.querySelector('.panel')!.getBoundingClientRect();
+        const labels = [...root.querySelectorAll<HTMLElement>('.crop-choice')];
+        const smartRect = root
+          .querySelector('.smart-choice')!
+          .getBoundingClientRect();
+        const anchorsRect = root
+          .querySelector('.anchors')!
+          .getBoundingClientRect();
+        expect(smartRect.width).toBe(anchorsRect.width);
+        expect(smartRect.height).toBe(anchorsRect.height);
+        const subtitle = root.querySelector('.smart-label small')!;
+        expect(subtitle.textContent).toBe('(entropy)');
+        expect(subtitle.getBoundingClientRect().top).toBeGreaterThan(
+          smartRect.top,
+        );
+
+        if (width === 280) {
+          expect(smartRect.left).toBe(anchorsRect.left);
+          expect(smartRect.bottom).toBeLessThan(anchorsRect.top);
+        } else {
+          expect(smartRect.top).toBe(anchorsRect.top);
+          expect(anchorsRect.left - smartRect.right).toBeGreaterThanOrEqual(46);
+        }
+
+        for (const label of labels) {
+          const rect = label.getBoundingClientRect();
+          expect(rect.width).toBeGreaterThanOrEqual(44);
+          expect(rect.height).toBeGreaterThanOrEqual(44);
+          expect(rect.left).toBeGreaterThanOrEqual(panel.left);
+          expect(rect.right).toBeLessThanOrEqual(panel.right);
+          for (const other of labels.filter((l) => l !== label)) {
+            const b = other.getBoundingClientRect();
+            expect(
+              rect.right <= b.left ||
+                rect.left >= b.right ||
+                rect.bottom <= b.top ||
+                rect.top >= b.bottom,
+            ).toBe(true);
+          }
+        }
+        expect(document.documentElement.scrollWidth).toBe(width);
+        const smartLabel = root.querySelector('.smart-choice')!;
+        expect(getComputedStyle(smartLabel, '::after').content).toBe('"✓"');
+        await page.getByRole('radio', { name: 'center', exact: true }).click();
+        await a.updateComplete;
+        expect(getComputedStyle(smartLabel, '::after').content).toBe('none');
+        expect(
+          getComputedStyle(root.querySelector('.center')!, '::after').content,
+        ).toBe('"✓"');
+      } finally {
+        await page.viewport(1280, 900);
+      }
+    });
+  }
+}
+
 test('selection gates Download; Back preserves name and positions; Start over retains preferences and a new element begins at Input', async () => {
   const a = await app();
   picker(a, [file()]);

@@ -466,7 +466,7 @@ export class ShinApp extends LitElement {
     }
     .layout {
       display: grid;
-      grid-template-columns: 260px minmax(0, 1fr);
+      grid-template-columns: 360px minmax(0, 1fr);
       gap: 2rem;
     }
     .panel,
@@ -477,6 +477,7 @@ export class ShinApp extends LitElement {
       padding: 1.1rem;
     }
     .panel {
+      container-type: inline-size;
       align-self: start;
     }
     .options {
@@ -488,21 +489,145 @@ export class ShinApp extends LitElement {
       gap: 0.6rem;
       align-items: start;
     }
-    .anchors {
+    .crop-method {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 0.4rem;
-      margin: 0.7rem 0;
+      grid-template-columns: 134px 14px 134px;
+      justify-content: center;
+      align-items: center;
+      gap: 0.5rem 1rem;
     }
-    .anchors label {
-      border: 1px solid var(--app-anchor-border);
+    .crop-choice {
+      position: relative;
+      display: grid;
+      place-items: center;
+      box-sizing: border-box;
+      width: 44px;
+      height: 44px;
+      cursor: pointer;
+      border: 1px solid transparent;
       border-radius: 0.4rem;
-      padding: 0.3rem;
-      font-size: 0.85rem;
+      color: var(--app-text);
     }
-    .anchors label:has(:checked) {
+    .crop-choice input {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .crop-choice:has(:checked) {
       background: var(--app-selected);
       border-color: var(--app-accent);
+      box-shadow: inset 0 0 0 1px var(--app-accent);
+    }
+    .crop-choice:has(:checked)::after {
+      content: '✓';
+      position: absolute;
+      right: 2px;
+      bottom: 0;
+      font-size: 0.75rem;
+      font-weight: 750;
+      line-height: 1;
+      pointer-events: none;
+    }
+    .crop-choice:has(:focus-visible) {
+      outline: 3px solid var(--app-focus);
+      outline-offset: 2px;
+      z-index: 1;
+    }
+    .crop-choice:hover {
+      background: var(--app-selected);
+    }
+    .smart-choice {
+      width: 134px;
+      height: 134px;
+      flex-shrink: 0;
+      align-content: center;
+      gap: 0.35rem;
+      border-color: var(--app-control-border);
+      background: var(--app-control);
+      font-size: 0.85rem;
+      border-radius: 0.7rem;
+    }
+    .smart-label {
+      display: grid;
+      gap: 0.15rem;
+      text-align: center;
+    }
+    .smart-label small {
+      font-size: 0.75rem;
+      color: var(--app-muted);
+    }
+    .smart-choice wa-icon {
+      font-size: 1.7rem;
+      color: var(--app-accent);
+    }
+    .crop-or {
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--app-muted);
+    }
+    .anchors {
+      display: grid;
+      grid-template: repeat(3, 44px) / repeat(3, 44px);
+      border: 1px solid var(--app-control-border);
+      border-radius: 0.7rem;
+      background: var(--app-control);
+      flex-shrink: 0;
+    }
+    .top-left {
+      grid-area: 1 / 1;
+    }
+    .top-right {
+      grid-area: 1 / 3;
+    }
+    .center {
+      grid-area: 2 / 2;
+    }
+    .bottom-left {
+      grid-area: 3 / 1;
+    }
+    .bottom-right {
+      grid-area: 3 / 3;
+    }
+    .anchor-mark {
+      width: 13px;
+      height: 13px;
+      box-sizing: border-box;
+      border: 2px solid currentColor;
+      pointer-events: none;
+    }
+    .top-left .anchor-mark {
+      border-width: 2px 0 0 2px;
+    }
+    .top-right .anchor-mark {
+      border-width: 2px 2px 0 0;
+    }
+    .bottom-left .anchor-mark {
+      border-width: 0 0 2px 2px;
+    }
+    .bottom-right .anchor-mark {
+      border-width: 0 2px 2px 0;
+    }
+    .center .anchor-mark {
+      border-radius: 50%;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    @container (max-width: 313px) {
+      .crop-method {
+        grid-template-columns: 134px;
+      }
     }
     .cards {
       display: grid;
@@ -610,11 +735,6 @@ export class ShinApp extends LitElement {
     fieldset > label {
       display: block;
       margin: 0.4rem 0;
-    }
-    .anchors label {
-      display: flex;
-      align-items: center;
-      gap: 0.2rem;
     }
     legend {
       font-weight: 650;
@@ -749,47 +869,64 @@ export class ShinApp extends LitElement {
                     </fieldset>
                     <fieldset>
                       <legend>Crop method</legend>
-                      <label
-                        ><input
-                          type="radio"
-                          name="method"
-                          .checked=${this.prefs.method === 'smart'}
-                          @change=${() => {
-                            this.prefs = { ...this.prefs, method: 'smart' };
-                            this.save();
-                            this.resetAll();
-                          }}
-                        />
-                        Smart (entropy)</label
-                      >
-                      <div class="anchors">
-                        ${(
-                          [
-                            'top-left',
-                            'top-right',
-                            'center',
-                            'bottom-left',
-                            'bottom-right',
-                          ] as Anchor[]
-                        ).map(
-                          (a) =>
-                            html`<label
-                              ><input
-                                type="radio"
-                                name="method"
-                                .checked=${this.prefs.method === 'anchor' && this.prefs.anchor === a}
-                                @change=${() => {
-                                  this.prefs = {
-                                    ...this.prefs,
-                                    method: 'anchor',
-                                    anchor: a,
-                                  };
-                                  this.save();
-                                  this.resetAll();
-                                }}
-                              />${a.replace('-', ' ')}</label
-                            >`,
-                        )}
+                      <div class="crop-method">
+                        <label class="crop-choice smart-choice">
+                          <input
+                            type="radio"
+                            name="method"
+                            aria-label="Smart"
+                            .checked=${this.prefs.method === 'smart'}
+                            @change=${() => {
+                              this.prefs = { ...this.prefs, method: 'smart' };
+                              this.save();
+                              this.resetAll();
+                            }}
+                          />
+                          <wa-icon
+                            src=${aiSparkles}
+                            aria-hidden="true"
+                          ></wa-icon>
+                          <span class="smart-label"
+                            >Smart<small>(entropy)</small></span
+                          ></label
+                        >
+                        <span class="crop-or" aria-hidden="true">or</span>
+                        <div class="anchors">
+                          ${(
+                            [
+                              'top-left',
+                              'top-right',
+                              'center',
+                              'bottom-left',
+                              'bottom-right',
+                            ] as Anchor[]
+                          ).map(
+                            (a) =>
+                              html`<label class="crop-choice ${a}">
+                                <input
+                                  type="radio"
+                                  name="method"
+                                  aria-label=${a.replace('-', ' ')}
+                                  .checked=${this.prefs.method === 'anchor' && this.prefs.anchor === a}
+                                  @change=${() => {
+                                    this.prefs = {
+                                      ...this.prefs,
+                                      method: 'anchor',
+                                      anchor: a,
+                                    };
+                                    this.save();
+                                    this.resetAll();
+                                  }}
+                                /><span
+                                  class="anchor-mark"
+                                  aria-hidden="true"
+                                ></span>
+                                <span class="sr-only"
+                                  >${a.replace('-', ' ')}</span
+                                ></label
+                              >`,
+                          )}
+                        </div>
                       </div>
                     </fieldset>
                     <fieldset>

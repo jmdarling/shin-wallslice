@@ -62,7 +62,14 @@ test('Fastify serves HTML and assets on the API listener', async () => {
 
 test('missing mount uses the bundled JSON defaults', async () => {
   const root = await temporaryDirectory();
-  expect(await loadConfig(undefined, join(root, 'missing.json'))).toEqual(
+  expect(
+    await loadConfig(
+      undefined,
+      join(root, 'missing-mount.json'),
+      join(root, 'missing-local.json'),
+      {},
+    ),
+  ).toEqual(
     JSON.parse(
       await readFile(
         new URL('../../../config/default.json', import.meta.url),

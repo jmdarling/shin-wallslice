@@ -25,6 +25,7 @@ export interface Job {
   width: number;
   height: number;
   smart: Record<string, Crop>;
+  naming?: NamingStatus;
 }
 export interface RenderSettings {
   crops: Record<string, Crop>;
@@ -36,3 +37,8 @@ export interface Manifest {
   source: string;
   outputs: Record<string, string>;
 }
+
+export type NamingStatus =
+  | { state: 'disabled' | 'pending' }
+  | { state: 'succeeded'; name: string }
+  | { state: 'failed'; message: string };

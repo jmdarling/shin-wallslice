@@ -23,6 +23,9 @@ import type {
   RenderSettings,
 } from './protocol.js';
 import { cropSize, renderImage, safeName, smartCrop } from './imaging.js';
+import { AiConnection } from './ai.js';
+import { suggestName } from './naming.js';
+import type { NamingStatus } from './protocol.js';
 
 export const devices: Device[] = catalog;
 for (const d of devices) {
@@ -83,6 +86,9 @@ function preferences(value: unknown): Preferences {
   };
 }
 interface StoredJob extends Job {
+  naming: NamingStatus;
+  namingImage?: Buffer;
+  namingController?: AbortController;
   directory: string;
   touched: number;
   manifest?: Manifest;
@@ -91,6 +97,34 @@ export async function registerWorkflow(
   app: FastifyInstance,
   config: RuntimeConfig,
 ) {
+  const connection = config.ai?.enabled
+    ? new AiConnection(config.ai)
+    : undefined;
+  const namingFailure =
+    'AI naming is unavailable. Check the service, credentials, and vision model, then retry. You can keep your current name and download now.';
+  const startNaming = (job: StoredJob) => {
+    if (!connection || job.namingController || job.naming.state === 'succeeded')
+      return;
+    if (!job.namingImage) {
+      job.naming = { state: 'failed', message: namingFailure };
+      return;
+    }
+    const controller = new AbortController();
+    job.namingController = controller;
+    job.naming = { state: 'pending' };
+    void suggestName(connection, job.namingImage, controller.signal)
+      .then((name) => {
+        if (!controller.signal.aborted)
+          job.naming = { state: 'succeeded', name };
+      })
+      .catch(() => {
+        if (!controller.signal.aborted)
+          job.naming = { state: 'failed', message: namingFailure };
+      })
+      .finally(() => {
+        delete job.namingController;
+      });
+  };
   const MiB = 1024 * 1024;
   const maxPixels = Math.floor(((config.memoryBudgetMiB - 768) * MiB) / 24);
   const uploadLimit = Math.floor((config.memoryBudgetMiB * MiB) / 4);
@@ -135,6 +169,7 @@ export async function registerWorkflow(
   const discard = async (id: string) => {
     const j = jobs.get(id);
     if (j) {
+      j.namingController?.abort();
       jobs.delete(id);
       await rm(j.directory, { recursive: true, force: true });
     }
@@ -151,15 +186,18 @@ export async function registerWorkflow(
   timer.unref();
   app.addHook('onClose', async () => {
     clearInterval(timer);
+    for (const job of jobs.values()) job.namingController?.abort();
     await rm(root, { recursive: true, force: true });
   });
   const getJob = (id: string) => {
     const j = jobs.get(id);
-    if (!j || Date.now() - j.touched > config.jobTtlMinutes * 60000)
+    if (!j || Date.now() - j.touched > config.jobTtlMinutes * 60000) {
+      j?.namingController?.abort();
       fail(
         'This temporary wallpaper expired. Start over and choose the image again.',
         404,
       );
+    }
     j.touched = Date.now();
     return j;
   };
@@ -174,6 +212,7 @@ export async function registerWorkflow(
   }
   app.get('/api/catalog', async () => ({
     devices,
+    aiEnabled: !!connection,
     preferences: saved,
     preferenceError,
     limits: { maxPixels, uploadBytes: uploadLimit },
@@ -303,6 +342,7 @@ export async function registerWorkflow(
           const job: StoredJob = {
             id,
             directory,
+            naming: { state: connection ? 'pending' : 'disabled' },
             width: normalized.width!,
             height: normalized.height!,
             smart: {},
@@ -310,13 +350,48 @@ export async function registerWorkflow(
           };
           for (const d of devices)
             job.smart[d.id] = await smartCrop(source, job.width, job.height, d);
+          if (connection) {
+            try {
+              // Full oriented source, bounded to 1024x1024, before cropping or OLEDify.
+              const image = await sharp(source, { limitInputPixels: maxPixels })
+                .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
+                .flatten({ background: '#ffffff' })
+                .jpeg({ quality: 80 })
+                .toBuffer();
+              if (image.length <= 2 * MiB) job.namingImage = image;
+            } catch {
+              /* Naming preparation must never reject a valid local upload. */
+            }
+          }
           jobs.set(id, job);
-          return { id, width: job.width, height: job.height, smart: job.smart };
+          startNaming(job);
+          return {
+            id,
+            width: job.width,
+            height: job.height,
+            smart: job.smart,
+            naming: job.naming,
+          };
         } catch (error) {
           await rm(directory, { recursive: true, force: true });
           throw error;
         }
       }, request.id),
+  );
+  app.get<{ Params: { id: string } }>(
+    '/api/jobs/:id/naming',
+    async (request, reply) => {
+      reply.header('Cache-Control', 'no-store');
+      return getJob(request.params.id).naming;
+    },
+  );
+  app.post<{ Params: { id: string } }>(
+    '/api/jobs/:id/naming',
+    async (request) => {
+      const job = getJob(request.params.id);
+      if (job.naming.state === 'failed') startNaming(job);
+      return job.naming;
+    },
   );
   app.delete<{ Params: { id: string } }>('/api/jobs/:id', async (request) =>
     exclusive(async () => {

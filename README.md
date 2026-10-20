@@ -56,11 +56,12 @@ All runtime settings come from static JSON. The local `config/default.json` is:
   "memoryBudgetMiB": 2048,
   "temporaryStorageMiB": 4096,
   "jobTtlMinutes": 30,
-  "maxJobs": 4
+  "maxJobs": 4,
+  "ai": { "enabled": false }
 }
 ```
 
-Docker bundles `config/docker.json` as its defaults, with `dataDirectory` set to `/data` and `temporaryDirectory` set to `/tmp/shin-wallslice`; other defaults are identical. `/config/config.json`, when present, **replaces the complete defaults**. Include every setting. Unknown keys, missing settings, invalid values, malformed JSON, unreadable files, and startup failures produce clear errors and a nonzero exit. Restart to apply changes. Environment variables do not configure the application.
+Docker bundles `config/docker.json` as its defaults, with `dataDirectory` set to `/data` and `temporaryDirectory` set to `/tmp/shin-wallslice`; other defaults are identical. `/config/config.json`, when present, **replaces the complete defaults**. Include every required setting; `ai` is optional for compatibility with existing files. Unknown keys, missing settings, invalid values, malformed JSON, unreadable files, and startup failures produce clear errors and a nonzero exit. Restart to apply changes. Environment variables do not configure the application.
 
 | Setting               | Meaning and validation                                                                                                                                            |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -139,3 +140,55 @@ pnpm docker:smoke shin-wallslice:amd64 podman
 ## Bundled device catalog
 
 `packages/server/src/devices.json` defines stable IDs, display names, and pixel dimensions. The initial six match `specs/v0.2.0.md`; tablet outputs are square. Add a unique lowercase hyphenated ID, name, and positive integer dimensions, then rebuild/release. The same selection, crop, preview, naming and export logic handles every preset. Individual dimensions are capped at 16384 pixels; the catalog must also fit the configured processing/storage budgets. The catalog is repository-managed and cannot be overridden by runtime configuration.
+
+## Optional AI wallpaper naming
+
+AI is disabled by default (`"ai": { "enabled": false }`). Older complete JSON
+configurations without `ai` remain valid and make no AI requests. To enable it,
+add this object to your complete runtime JSON configuration:
+
+```json
+"ai": {
+  "enabled": true,
+  "baseUrl": "https://api.openai.com/v1",
+  "model": "your-vision-capable-model",
+  "token": "your-api-token"
+}
+```
+
+`baseUrl` is the API root: the server appends `/chat/completions` (for example,
+`http://nas-host:1234/v1` becomes `http://nas-host:1234/v1/chat/completions`).
+HTTP is supported for local self-hosted services. URLs cannot contain credentials,
+query strings, or fragments. `model` must identify a model that accepts image input
+through Chat Completions; compatibility with that API does not imply support for
+provider-specific APIs. `token` is optional for services without authentication;
+when supplied it is used as a server-side bearer token. Use the complete JSON file
+mounted read-only at `/config/config.json` in Docker as described above, then
+restart to apply changes. No credentials or connection settings are sent to the
+browser. Service availability is checked only when naming, so an unavailable
+service never prevents startup or local processing.
+
+**Enabling AI automatically sends an image representation to your configured
+service after every accepted upload**, including drag-and-drop and clipboard
+images. Naming uses the full oriented source before crops or OLEDify, resized
+without enlargement to fit 1024 × 1024 pixels, flattened onto white, and encoded as
+JPEG at quality 80 (at most 2 MiB). Preparation runs within the existing exclusive
+image-processing stage and decoded-pixel limit; only this small representation is
+retained in each temporary job for Retry. Image text is treated as content rather
+than instructions. Naming aims for about three meaningful words and includes a
+recognizable show/game title only when identifiable; recognition is best effort.
+
+Requests have a 30-second total timeout and a 64 KiB response limit. Redirects
+are rejected to avoid forwarding credentials to another endpoint. There are no
+automatic retries. Pending or failed naming never blocks local processing, name
+editing, navigation, or downloads. Retry starts another request only after failure,
+with at most one naming request per job. A suggestion replaces the filename default
+(or clipboard `wallpaper` fallback) only if the name field has never been edited,
+even if an edit cleared it or restored its original value. Download uses the name
+current when clicked. Failed naming retains the current name and offers Retry;
+upstream error details and credentials are not exposed.
+
+Start over, expiry, and shutdown cancel outstanding AI work. Abandoned requests
+are bounded by the timeout and existing job capacity; reload starts a fresh workflow
+and cannot apply an old result. Suggestions and representations are temporary,
+share the job lifecycle, and are never persisted or restored after reload/restart.

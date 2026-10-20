@@ -2,6 +2,8 @@ import { LitElement, css, html, nothing } from 'lit';
 import '@awesome.me/webawesome/dist/components/button/button.js';
 import '@awesome.me/webawesome/dist/components/spinner/spinner.js';
 import './crop-editor.js';
+import '@awesome.me/webawesome/dist/components/icon/icon.js';
+import aiSparkles from './assets/ai-sparkles.svg';
 import type {
   Anchor,
   Crop,
@@ -9,15 +11,20 @@ import type {
   Job,
   Manifest,
   Preferences,
+  NamingStatus,
 } from '../../server/src/protocol.js';
 
 type Catalog = {
+  aiEnabled?: boolean;
   devices: Device[];
   preferences: Preferences;
   preferenceError: string;
 };
 export class ShinApp extends LitElement {
   static properties = {
+    naming: { state: true },
+    aiEnabled: { state: true },
+    nameEdited: { state: true },
     page: { state: true },
     devices: { state: true },
     prefs: { state: true },
@@ -45,6 +52,10 @@ export class ShinApp extends LitElement {
   job: Job | undefined;
   crops: Record<string, Crop> = {};
   manifest: Manifest | undefined;
+  naming: NamingStatus = { state: 'disabled' };
+  aiEnabled = false;
+  nameEdited = false;
+  private namingController?: AbortController;
   name = '';
   error = '';
   preferenceError = '';
@@ -71,6 +82,7 @@ export class ShinApp extends LitElement {
     super.disconnectedCallback();
     document.removeEventListener('paste', this.paste);
     clearTimeout(this.timer);
+    this.namingController?.abort();
   }
   private async api<T>(path: string, init?: RequestInit): Promise<T> {
     const r = await fetch(path, init);
@@ -88,6 +100,7 @@ export class ShinApp extends LitElement {
   private async load() {
     try {
       const catalog = await this.api<Catalog>('/api/catalog');
+      this.aiEnabled = catalog.aiEnabled ?? false;
       this.devices = catalog.devices;
       this.prefs = catalog.preferences;
       this.preferenceError = catalog.preferenceError;
@@ -141,6 +154,9 @@ export class ShinApp extends LitElement {
         file.name && !(clipboard && file.name === 'image.png')
           ? file.name.replace(/\.[^.]+$/, '')
           : 'wallpaper';
+      this.nameEdited = false;
+      this.naming = this.job.naming ?? { state: 'disabled' };
+      void this.watchNaming(this.job.id);
       this.page = 'processing';
       this.resetAll();
     } catch (e) {
@@ -148,6 +164,48 @@ export class ShinApp extends LitElement {
     } finally {
       this.busy = '';
       if (this.job) this.schedule();
+    }
+  }
+  private async watchNaming(id: string, retry = false) {
+    this.namingController?.abort();
+    const controller = new AbortController();
+    this.namingController = controller;
+    const current = () => !controller.signal.aborted && this.job?.id === id;
+    try {
+      if (retry) {
+        this.naming = { state: 'pending' };
+        const status = await this.api<NamingStatus>(`/api/jobs/${id}/naming`, {
+          method: 'POST',
+          signal: controller.signal,
+        });
+        if (!current()) return;
+        this.naming = status;
+      }
+      while (current() && this.naming.state === 'pending') {
+        const status = await this.api<NamingStatus>(`/api/jobs/${id}/naming`, {
+          signal: controller.signal,
+        });
+        if (!current()) return;
+        this.naming = status;
+        if (status.state === 'pending')
+          await new Promise<void>((resolve) => {
+            const done = () => {
+              clearTimeout(timer);
+              controller.signal.removeEventListener('abort', done);
+              resolve();
+            };
+            const timer = setTimeout(done, 750);
+            controller.signal.addEventListener('abort', done, { once: true });
+          });
+      }
+      if (current() && this.naming.state === 'succeeded' && !this.nameEdited)
+        this.name = this.naming.name;
+    } catch {
+      if (current())
+        this.naming = {
+          state: 'failed',
+          message: 'AI naming is unavailable. Keep your current name or retry.',
+        };
     }
   }
   private position(d: Device): Crop {
@@ -229,6 +287,9 @@ export class ShinApp extends LitElement {
     try {
       if (this.job)
         await this.api(`/api/jobs/${this.job.id}`, { method: 'DELETE' });
+      this.namingController?.abort();
+      this.naming = { state: 'disabled' };
+      this.nameEdited = false;
       this.generation++;
       this.job = undefined;
       this.manifest = undefined;
@@ -527,6 +588,12 @@ export class ShinApp extends LitElement {
       font-size: 0.8rem;
       color: var(--app-subtle);
     }
+    .ai-indicator {
+      color: var(--app-accent);
+      font-size: 1rem;
+      vertical-align: -0.125em;
+      margin-inline-start: 0.35rem;
+    }
     .name {
       max-width: 36rem;
       display: block;
@@ -595,6 +662,14 @@ export class ShinApp extends LitElement {
         ${this.preferenceError ? html`<div class="message" role="alert">${this.preferenceError}<wa-button size="s" @click=${() => this.save()}>Retry saving preferences</wa-button></div>` : nothing}
         ${this.busy && !this.oledProcessing ? html`<div class="progress" role="status"><wa-spinner></wa-spinner>${this.busy}</div>` : nothing}
         ${
+          this.page !== 'input' &&
+          (this.naming.state === 'pending' || this.naming.state === 'failed')
+            ? html`<div class="message" role="status" aria-live="polite">
+                ${this.naming.state === 'pending' ? 'AI is suggesting a wallpaper name… You can continue and download now.' : this.naming.state === 'failed' ? html`${this.naming.message} <wa-button size="s" @click=${() => this.job && this.watchNaming(this.job.id, true)}>Retry AI naming</wa-button>` : nothing}
+              </div>`
+            : nothing
+        }
+        ${
           this.page === 'input'
             ? html`<div class="eyebrow">A home for every screen</div>
                 <h1>One wallpaper.<br />Every device.</h1>
@@ -624,6 +699,7 @@ export class ShinApp extends LitElement {
                       }}
                   /></label>
                   <p>JPEG, PNG, or WebP · processed locally on your server</p>
+                  ${this.aiEnabled ? html`<p>AI naming is enabled. After upload, an image representation is automatically sent to the configured AI service.</p>` : nothing}
                 </div>`
             : nothing
         }
@@ -828,10 +904,12 @@ export class ShinApp extends LitElement {
             ? html`<div class="eyebrow">03 / Take it with you</div>
                 <h1>Ready for your screens.</h1>
                 <label class="name"
-                  >Wallpaper name<input
+                  >Wallpaper
+                  name${this.naming.state === 'succeeded' && !this.nameEdited ? html`<wa-icon class="ai-indicator" src=${aiSparkles} label="AI Powered" title="AI Powered"></wa-icon>` : nothing}<input
                     type="text"
                     .value=${this.name}
                     @input=${(e: Event) => {
+                      this.nameEdited = true;
                       this.name = (e.target as HTMLInputElement).value;
                     }}
                 /></label>

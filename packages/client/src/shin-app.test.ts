@@ -5,7 +5,8 @@ import '@awesome.me/webawesome/dist/styles/webawesome.css';
 import './style.css';
 import { followBrowserTheme } from './theme.js';
 import { CropEditor } from './crop-editor.js';
-import type { Crop } from '../../server/src/protocol.js';
+import type { NamingStatus, Crop } from '../../server/src/protocol.js';
+const nativeFetch = globalThis.fetch;
 const pixel =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jz1kAAAAASUVORK5CYII=';
 const devices = [
@@ -19,6 +20,9 @@ const smart = {
   laptop: { left: 100, top: 0, width: 400, height: 200 },
 };
 let stopTheme: (() => void) | undefined;
+let namingEnabled = false;
+let namingResponse: () => Promise<Response> = async () =>
+  Response.json({ state: 'disabled' });
 let failUpload = false;
 let renderCount = 0;
 let preferences = {
@@ -35,6 +39,8 @@ let renderBodies: {
   threshold: number;
 }[] = [];
 beforeEach(() => {
+  namingEnabled = false;
+  namingResponse = async () => Response.json({ state: 'disabled' });
   failUpload = false;
   renderCount = 0;
   renderBodies = [];
@@ -49,8 +55,15 @@ beforeEach(() => {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: string, init?: RequestInit) => {
+      if (input.endsWith('.svg') || input.startsWith('data:image/svg+xml'))
+        return nativeFetch(input, init);
       if (input === '/api/catalog')
-        return Response.json({ devices, preferences, preferenceError: '' });
+        return Response.json({
+          devices,
+          preferences,
+          preferenceError: '',
+          aiEnabled: namingEnabled,
+        });
       if (input === '/api/preferences') {
         preferences = JSON.parse(init!.body as string);
         return Response.json(preferences);
@@ -61,8 +74,15 @@ beforeEach(() => {
             { message: 'Corrupt image. Choose another image.' },
             { status: 400 },
           );
-        return Response.json({ id: 'job', width: 600, height: 200, smart });
+        return Response.json({
+          id: 'job',
+          width: 600,
+          height: 200,
+          smart,
+          naming: { state: namingEnabled ? 'pending' : 'disabled' },
+        });
       }
+      if (input.endsWith('/naming')) return namingResponse();
       if (input.endsWith('/render')) {
         renderCount++;
         const body = JSON.parse(init!.body as string);
@@ -746,3 +766,195 @@ for (const dark of [false, true]) {
     expect(themeContrast('accent', 'progress')).toBeGreaterThanOrEqual(3);
   });
 }
+
+function delayedNaming() {
+  namingEnabled = true;
+  let resolve!: (response: Response) => void;
+  namingResponse = () =>
+    new Promise<Response>((r) => {
+      resolve = r;
+    });
+  return (status: NamingStatus) => resolve(Response.json(status));
+}
+function editName(a: ShinApp, value: string) {
+  const input = a.shadowRoot!.querySelector('.name input') as HTMLInputElement;
+  input.value = value;
+  input.dispatchEvent(new Event('input'));
+}
+test('disabled naming never polls and enabled naming is disclosed before upload', async () => {
+  const a = await app();
+  picker(a, [file()]);
+  await processed(a);
+  expect(
+    vi
+      .mocked(fetch)
+      .mock.calls.some(([path]) => String(path).endsWith('/naming')),
+  ).toBe(false);
+  a.remove();
+  namingEnabled = true;
+  const b = await app();
+  await b.updateComplete;
+  expect(b.shadowRoot!.textContent).toContain(
+    'automatically sent to the configured AI service',
+  );
+});
+test('pending naming permits navigation and download, success defaults name and preserves it through settings and both ZIP layouts', async () => {
+  const finish = delayedNaming();
+  const anchor = vi
+    .spyOn(HTMLAnchorElement.prototype, 'click')
+    .mockImplementation(() => {});
+  try {
+    const a = await app();
+    picker(a, [file()]);
+    await processed(a);
+    expect(a.naming.state).toBe('pending');
+    await page.getByRole('button', { name: 'Next: Download' }).click();
+    await page.getByRole('button', { name: 'Download all:' }).click();
+    await vi.waitFor(() => expect(a.busy).toBe(''));
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('name=view&organizeIntoDeviceFolders=false'),
+    );
+    finish({ state: 'succeeded', name: 'moonlit-forest-view' });
+    await vi.waitFor(() => expect(a.name).toBe('moonlit-forest-view'));
+    await a.updateComplete;
+    await expect
+      .element(page.getByRole('img', { name: 'AI Powered', exact: true }))
+      .toBeVisible();
+    await vi.waitFor(() =>
+      expect(
+        a
+          .shadowRoot!.querySelector('wa-icon')!
+          .shadowRoot!.querySelector('svg'),
+      ).not.toBeNull(),
+    );
+    expect(a.shadowRoot!.textContent).toContain(
+      'moonlit-forest-view-phone.png',
+    );
+    await page
+      .getByRole('checkbox', { name: 'Organize into device folders' })
+      .click();
+    await page.getByRole('button', { name: 'Download all:' }).click();
+    await vi.waitFor(() => expect(a.busy).toBe(''));
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'name=moonlit-forest-view&organizeIntoDeviceFolders=true',
+      ),
+    );
+    await page.getByRole('button', { name: 'Back to Processing' }).click();
+    checked(a, 'Turn near-black colors into true black');
+    await vi.waitFor(() => expect(a.dirty).toBe(false));
+    expect(a.name).toBe('moonlit-forest-view');
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(([path]) => String(path).endsWith('/naming')),
+    ).toHaveLength(1);
+  } finally {
+    anchor.mockRestore();
+  }
+});
+test.each(['edited-view', '', 'view'])(
+  'late suggestion preserves any user edit including %j',
+  async (value) => {
+    const finish = delayedNaming();
+    const a = await app();
+    picker(a, [file()]);
+    await processed(a);
+    await page.getByRole('button', { name: 'Next: Download' }).click();
+    editName(a, 'temporary');
+    editName(a, value);
+    finish({ state: 'succeeded', name: 'moonlit-forest-view' });
+    await vi.waitFor(() => expect(a.naming.state).toBe('succeeded'));
+    expect(a.name).toBe(value);
+    await a.updateComplete;
+    expect(
+      a.shadowRoot!.querySelector('wa-icon[label="AI Powered"]'),
+    ).toBeNull();
+  },
+);
+test('failure provides explicit Retry, retains cleared name and does not block downloads', async () => {
+  const finish = delayedNaming();
+  const a = await app();
+  picker(a, [file()]);
+  await processed(a);
+  finish({
+    state: 'failed',
+    message: 'AI service unavailable. Retry or keep your name.',
+  });
+  await vi.waitFor(() => expect(a.naming.state).toBe('failed'));
+  await page.getByRole('button', { name: 'Next: Download' }).click();
+  editName(a, '');
+  let complete!: (response: Response) => void;
+  namingResponse = () =>
+    new Promise<Response>((resolve) => {
+      complete = resolve;
+    });
+  await page.getByRole('button', { name: 'Retry AI naming' }).click();
+  await vi.waitFor(() => expect(a.naming.state).toBe('pending'));
+  await expect
+    .element(page.getByRole('button', { name: 'Download all:' }))
+    .toBeEnabled();
+  complete(Response.json({ state: 'succeeded', name: 'new-ai-name' }));
+  await vi.waitFor(() => expect(a.naming.state).toBe('succeeded'));
+  expect(a.name).toBe('');
+  const posts = vi
+    .mocked(fetch)
+    .mock.calls.filter(
+      ([path, init]) =>
+        String(path).endsWith('/naming') && init?.method === 'POST',
+    );
+  expect(posts).toHaveLength(1);
+});
+test('Start over and a new image ignore old AI results even if job ids match; disconnect discards results', async () => {
+  const oldFinish = delayedNaming();
+  const a = await app();
+  picker(a, [file()]);
+  await processed(a);
+  await page.getByRole('button', { name: 'Start over', exact: true }).click();
+  await vi.waitFor(() => expect(a.page).toBe('input'));
+  await a.updateComplete;
+  const newFinish = delayedNaming();
+  picker(a, [file('new.png')]);
+  await processed(a);
+  oldFinish({ state: 'succeeded', name: 'stale-name' });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(a.name).toBe('new');
+  expect(a.naming.state).toBe('pending');
+  a.remove();
+  newFinish({ state: 'succeeded', name: 'also-stale-name' });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(a.name).toBe('new');
+  const b = await app();
+  expect(b.naming.state).toBe('disabled');
+  expect(b.page).toBe('input');
+});
+test('clipboard default is replaced by a suggestion; rejected uploads never request naming', async () => {
+  const finish = delayedNaming();
+  const a = await app();
+  failUpload = true;
+  picker(a, [file()]);
+  await vi.waitFor(() => expect(a.busy).toBe(''));
+  expect(
+    vi
+      .mocked(fetch)
+      .mock.calls.some(([path]) => String(path).endsWith('/naming')),
+  ).toBe(false);
+  failUpload = false;
+  const transfer = new DataTransfer();
+  transfer.items.add(file('image.png'));
+  document.dispatchEvent(
+    new ClipboardEvent('paste', { clipboardData: transfer, cancelable: true }),
+  );
+  await processed(a);
+  expect(a.name).toBe('wallpaper');
+  finish({ state: 'succeeded', name: 'quiet-mountain-lake' });
+  await vi.waitFor(() => expect(a.name).toBe('quiet-mountain-lake'));
+  await a.updateComplete;
+  expect(a.shadowRoot!.textContent).not.toContain('AI suggested');
+  expect(a.shadowRoot!.querySelector('.message[role=status]')).toBeNull();
+  await page.getByRole('button', { name: 'Next: Download' }).click();
+  await a.updateComplete;
+  await expect
+    .element(page.getByRole('img', { name: 'AI Powered', exact: true }))
+    .toBeVisible();
+});

@@ -1,7 +1,15 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
+export interface AiConfig {
+  enabled: boolean;
+  baseUrl?: string;
+  model?: string;
+  token?: string;
+}
+
 export interface RuntimeConfig {
+  ai?: AiConfig;
   dataDirectory: string;
   temporaryDirectory: string;
   memoryBudgetMiB: number;
@@ -24,6 +32,7 @@ export function validateConfig(value: unknown): RuntimeConfig {
   const unknown = Object.keys(config).filter(
     (key) =>
       ![
+        'ai',
         'host',
         'port',
         'logLevel',
@@ -67,6 +76,52 @@ export function validateConfig(value: unknown): RuntimeConfig {
     )
       throw new Error(`${key} must be an integer between ${min} and ${max}`);
   }
+  if (config.ai !== undefined) {
+    const ai = config.ai as Record<string, unknown> | null;
+    if (
+      !ai ||
+      typeof ai !== 'object' ||
+      Array.isArray(ai) ||
+      Object.keys(ai).some(
+        (key) => !['enabled', 'baseUrl', 'model', 'token'].includes(key),
+      ) ||
+      typeof ai.enabled !== 'boolean'
+    )
+      throw new Error(
+        'ai must contain enabled (boolean) and only baseUrl, model, token settings',
+      );
+    if (
+      ai.token !== undefined &&
+      (typeof ai.token !== 'string' || /[\r\n]/.test(ai.token))
+    )
+      throw new Error('ai.token must be a string without line breaks');
+    if (
+      ai.model !== undefined &&
+      (typeof ai.model !== 'string' || !ai.model.trim())
+    )
+      throw new Error('ai.model must be a nonempty string');
+    if (ai.baseUrl !== undefined) {
+      try {
+        if (typeof ai.baseUrl !== 'string' || ai.baseUrl !== ai.baseUrl.trim())
+          throw new Error();
+        const url = new URL(ai.baseUrl);
+        if (
+          !['http:', 'https:'].includes(url.protocol) ||
+          url.username ||
+          url.password ||
+          url.search ||
+          url.hash
+        )
+          throw new Error();
+      } catch {
+        throw new Error(
+          'ai.baseUrl must be an HTTP(S) API base URL without credentials, query, or fragment',
+        );
+      }
+    }
+    if (ai.enabled && (!ai.baseUrl || !ai.model))
+      throw new Error('enabled ai requires ai.baseUrl and a nonempty ai.model');
+  }
   return config as unknown as RuntimeConfig;
 }
 
@@ -89,7 +144,13 @@ export async function loadConfig(
     }
   }
   try {
-    return validateConfig(JSON.parse(raw) as unknown);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw) as unknown;
+    } catch {
+      throw new Error('invalid JSON');
+    }
+    return validateConfig(parsed);
   } catch (error) {
     throw new Error(
       `Configuration error in ${path}: ${(error as Error).message}`,

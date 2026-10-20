@@ -7,5 +7,8 @@
   "memoryBudgetMiB": 2048,
   "temporaryStorageMiB": 4096,
   "jobTtlMinutes": 30,
-  "maxJobs": 4
+  "maxJobs": 4,
+  "ai": {
+    "enabled": false
+  }
 }

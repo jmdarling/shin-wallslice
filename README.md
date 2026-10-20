@@ -9,6 +9,8 @@ One wallpaper for all your screens. Version 0.2.0 accepts a JPEG, PNG, or WebP, 
 3. Optionally enable OLEDify: a pixel becomes true black when **all three RGB channels are at or below** the integer threshold. Other pixels retain their RGB values. The cutoff is applied after resizing, including in exported PNGs. Previews update automatically; progress appears while outputs are generated.
 4. Continue to Download, edit the base name, and download individual PNGs or the ZIP. Names are normalized into safe basenames. The ZIP defaults to `<name>-<device-id>.png` files at its root. Check “Organize into device folders” to use `<device-id>/<name>.png` instead; individual downloads always retain `<name>-<device-id>.png` names. Back preserves the current work; Start over discards it.
 
+The interface follows your browser’s light or dark color-scheme preference, including changes while the application is open. Browsers without a preference use light mode. Theme changes preserve the current workflow and image colors; there is no manual theme setting or saved theme preference.
+
 Only preferences (device selections, global method/anchor, OLEDify enable/threshold, and device folder organization) survive reload or restart. They are shared by this single-user installation and stored in `preferences.json` under the configured data directory (`/data` in Docker). Existing preferences without a folder organization choice default to unchecked. Sources, crop positions, output files, and edited wallpaper names are temporary and never restored. Browser reload begins at Input. Abandoned jobs expire automatically.
 
 ## Development and verification

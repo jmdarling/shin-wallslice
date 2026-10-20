@@ -4,6 +4,23 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#eff5ef" />
+    <!-- Paint the canvas before the application and its styles finish loading. -->
+    <style>
+      :root {
+        background: #eff5ef;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not(.wa-light) {
+          background: #101d17;
+          color-scheme: dark;
+        }
+      }
+      :root.wa-dark {
+        background: #101d17;
+        color-scheme: dark;
+      }
+    </style>
+    <script type="module" src="/src/theme.ts"></script>
     <title>shin-wallslice</title>
   </head>
   <body>

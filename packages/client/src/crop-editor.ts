@@ -34,7 +34,9 @@ export class CropEditor extends LitElement {
       position: absolute;
       box-sizing: border-box;
       border: 2px solid white;
-      box-shadow: 0 0 0 2000px #0007;
+      box-shadow:
+        inset 0 0 0 1px black,
+        0 0 0 2000px #0007;
       cursor: move;
       touch-action: none;
       background: transparent;
@@ -44,6 +46,9 @@ export class CropEditor extends LitElement {
     .crop:focus-visible {
       outline: 4px solid #e7ba59;
       outline-offset: -6px;
+      box-shadow:
+        inset 0 0 0 8px black,
+        0 0 0 2000px #0007;
     }
     span {
       position: absolute;

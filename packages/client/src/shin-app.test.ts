@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import { ShinApp } from './shin-app.js';
+import '@awesome.me/webawesome/dist/styles/webawesome.css';
+import './style.css';
+import { followBrowserTheme } from './theme.js';
 import { CropEditor } from './crop-editor.js';
 import type { Crop } from '../../server/src/protocol.js';
 const pixel =
@@ -15,6 +18,7 @@ const smart = {
   tablet: { left: 200, top: 0, width: 200, height: 200 },
   laptop: { left: 100, top: 0, width: 400, height: 200 },
 };
+let stopTheme: (() => void) | undefined;
 let failUpload = false;
 let renderCount = 0;
 let preferences = {
@@ -77,6 +81,8 @@ beforeEach(() => {
   );
 });
 afterEach(() => {
+  stopTheme?.();
+  document.documentElement.classList.remove('wa-dark', 'wa-light');
   document.body.replaceChildren();
   vi.unstubAllGlobals();
 });
@@ -527,3 +533,216 @@ test('latest threshold failure clears the toast and exposes error and working Re
   expect(a.error).toBe('');
   expect(renderBodies.at(-1)!.threshold).toBe(80);
 });
+
+function browserTheme(dark: boolean) {
+  const preference = new EventTarget();
+  Object.assign(preference, {
+    matches: dark,
+    media: '(prefers-color-scheme: dark)',
+  });
+  vi.stubGlobal('matchMedia', () => preference);
+  stopTheme = followBrowserTheme();
+  return (next: boolean) => {
+    Object.assign(preference, { matches: next });
+    preference.dispatchEvent(new Event('change'));
+  };
+}
+
+for (const dark of [false, true]) {
+  test(`initial ${dark ? 'dark' : 'light'} preference styles the first application render and native controls`, async () => {
+    browserTheme(dark);
+    const a = await app();
+    expect(document.documentElement.classList.contains('wa-dark')).toBe(dark);
+    expect(getComputedStyle(a).color).toBe(
+      dark ? 'rgb(227, 239, 230)' : 'rgb(25, 57, 45)',
+    );
+    expect(
+      getComputedStyle(a.shadowRoot!.querySelector('input')!).colorScheme,
+    ).toBe(dark ? 'dark' : 'light');
+    expect(getComputedStyle(document.documentElement).backgroundColor).toBe(
+      dark ? 'rgb(16, 29, 23)' : 'rgb(239, 245, 239)',
+    );
+  });
+}
+
+for (const detection of ['no preference', 'unavailable', 'throws']) {
+  test(`theme falls back to light when preference detection is ${detection}`, async () => {
+    browserTheme(true);
+    stopTheme!();
+    vi.stubGlobal(
+      'matchMedia',
+      detection === 'unavailable'
+        ? undefined
+        : detection === 'throws'
+          ? () => {
+              throw new Error('Unsupported');
+            }
+          : () => Object.assign(new EventTarget(), { matches: false }),
+    );
+    stopTheme = followBrowserTheme();
+    const a = await app();
+    expect(document.documentElement.classList.contains('wa-dark')).toBe(false);
+    expect(getComputedStyle(a).colorScheme).toBe('light');
+  });
+}
+
+test('live theme changes preserve pending uploads, edited crops, OLED settings, pending renders, navigation, name and folder choice', async () => {
+  const changeTheme = browserTheme(false);
+  const a = await app();
+  const original = fetch;
+  let finishUpload: (() => void) | undefined;
+  let finishRender: (() => void) | undefined;
+  let holdRender = false;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (path: string, init?: RequestInit) => {
+      if (path === '/api/jobs')
+        await new Promise<void>((resolve) => {
+          finishUpload = resolve;
+        });
+      if (path.endsWith('/render') && holdRender)
+        await new Promise<void>((resolve) => {
+          finishRender = resolve;
+        });
+      return original(path, init);
+    }),
+  );
+  picker(a, [file()]);
+  await vi.waitFor(() => expect(finishUpload).toBeDefined());
+  changeTheme(true);
+  expect(a.busy).toContain('Uploading');
+  finishUpload!();
+  await processed(a);
+  checked(a, 'top right');
+  checked(a, 'Turn near-black colors into true black');
+  const editor = a.shadowRoot!.querySelector('crop-editor')!;
+  editor.dispatchEvent(
+    new CustomEvent('crop-change', {
+      detail: { ...a.crops.phone, left: 300 },
+      bubbles: true,
+      composed: true,
+    }),
+  );
+  editor.dispatchEvent(
+    new CustomEvent('crop-commit', { bubbles: true, composed: true }),
+  );
+  await vi.waitFor(() => expect(a.dirty).toBe(false));
+  holdRender = true;
+  threshold(a, 42);
+  await vi.waitFor(() => expect(finishRender).toBeDefined());
+  const crops = structuredClone(a.crops);
+  const prefs = structuredClone(a.prefs);
+  const job = a.job;
+  const requests = vi.mocked(fetch).mock.calls.length;
+  changeTheme(false);
+  changeTheme(true);
+  expect(a.oledProcessing).toBe(true);
+  expect(a.crops).toEqual(crops);
+  expect(a.prefs).toEqual(prefs);
+  expect(a.job).toBe(job);
+  expect(vi.mocked(fetch).mock.calls).toHaveLength(requests);
+  finishRender!();
+  await vi.waitFor(() => expect(a.dirty).toBe(false));
+  await page.getByRole('button', { name: 'Next: Download' }).click();
+  await page
+    .getByRole('textbox', { name: 'Wallpaper name' })
+    .fill('edited-name');
+  await page
+    .getByRole('checkbox', { name: 'Organize into device folders' })
+    .click();
+  const manifest = a.manifest;
+  const image = a.shadowRoot!.querySelector<HTMLImageElement>('.output')!;
+  const src = image.src;
+  changeTheme(false);
+  await a.updateComplete;
+  expect(a.page).toBe('download');
+  expect(a.name).toBe('edited-name');
+  expect(a.prefs.organizeIntoDeviceFolders).toBe(true);
+  expect(a.crops).toEqual(crops);
+  expect(a.manifest).toBe(manifest);
+  expect(image.src).toBe(src);
+  expect(getComputedStyle(image).filter).toBe('none');
+  await page.getByRole('button', { name: 'Back to Processing' }).click();
+  expect(getComputedStyle(a).colorScheme).toBe('light');
+  changeTheme(true);
+  expect(getComputedStyle(a).colorScheme).toBe('dark');
+  expect(a.crops).toEqual(crops);
+  expect(a.prefs).toEqual({ ...prefs, organizeIntoDeviceFolders: true });
+  stopTheme!();
+  changeTheme(false);
+  expect(document.documentElement.classList.contains('wa-dark')).toBe(true);
+});
+
+// Include translucent light surfaces in the measured contrast rather than
+// comparing their uncomposited CSS values against text and control colors.
+function themeContrast(foreground: string, background: string) {
+  const style = getComputedStyle(document.documentElement);
+  const color = (name: string) => {
+    const hex = style.getPropertyValue(`--app-${name}`).trim().slice(1);
+    return [0, 2, 4, 6].map((offset) =>
+      offset === 6 && hex.length === 6
+        ? 1
+        : parseInt(hex.slice(offset, offset + 2), 16) / 255,
+    );
+  };
+  const canvas = color('background');
+  const luminance = (rgba: number[]) =>
+    rgba.slice(0, 3).reduce((total, channel, i) => {
+      const opaque = channel * rgba[3]! + canvas[i]! * (1 - rgba[3]!);
+      const linear =
+        opaque <= 0.04045 ? opaque / 12.92 : ((opaque + 0.055) / 1.055) ** 2.4;
+      return total + linear * [0.2126, 0.7152, 0.0722][i]!;
+    }, 0);
+  const [low, high] = [
+    luminance(color(foreground)),
+    luminance(color(background)),
+  ].sort((a, b) => a - b);
+  return (high! + 0.05) / (low! + 0.05);
+}
+
+for (const dark of [false, true]) {
+  test(`${dark ? 'dark' : 'light'} text, warnings, status surfaces, control boundaries and focus meet contrast requirements`, () => {
+    browserTheme(dark);
+    for (const background of [
+      'background',
+      'drop',
+      'panel',
+      'selected',
+      'control',
+      'message',
+      'progress',
+    ]) {
+      expect(
+        themeContrast('text', background),
+        `text on ${background}`,
+      ).toBeGreaterThanOrEqual(4.5);
+      expect(
+        themeContrast('focus', background),
+        `focus on ${background}`,
+      ).toBeGreaterThanOrEqual(3);
+    }
+    for (const background of ['background', 'drop', 'panel', 'surround'])
+      expect(
+        themeContrast('muted', background),
+        `muted on ${background}`,
+      ).toBeGreaterThanOrEqual(4.5);
+    expect(themeContrast('subtle', 'background')).toBeGreaterThanOrEqual(4.5);
+    expect(themeContrast('warning', 'panel')).toBeGreaterThanOrEqual(4.5);
+    expect(themeContrast('on-accent', 'accent')).toBeGreaterThanOrEqual(4.5);
+    for (const background of [
+      'background',
+      'drop',
+      'panel',
+      'control',
+      'surround',
+      'progress',
+    ])
+      expect(
+        themeContrast('control-border', background),
+        `boundary on ${background}`,
+      ).toBeGreaterThanOrEqual(3);
+    expect(themeContrast('accent', 'selected')).toBeGreaterThanOrEqual(3);
+    expect(themeContrast('accent', 'surround')).toBeGreaterThanOrEqual(3);
+    expect(themeContrast('accent', 'progress')).toBeGreaterThanOrEqual(3);
+  });
+}

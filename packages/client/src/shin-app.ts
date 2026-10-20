@@ -284,12 +284,11 @@ export class ShinApp extends LitElement {
   static styles = css`
     :host {
       display: block;
-      color: #19392d;
-      --wa-color-brand-fill-loud: #246348;
+      color: var(--app-text);
     }
     header {
       padding: 1.3rem clamp(1rem, 5vw, 4rem);
-      border-bottom: 1px solid #cbd8cd;
+      border-bottom: 1px solid var(--app-header-border);
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -315,28 +314,28 @@ export class ShinApp extends LitElement {
     }
     p {
       line-height: 1.6;
-      color: #496454;
+      color: var(--app-muted);
     }
     .eyebrow {
       font-size: 0.8rem;
       letter-spacing: 0.14em;
       text-transform: uppercase;
-      color: #58745f;
+      color: var(--app-subtle);
     }
     .input {
       max-width: 760px;
       padding-top: clamp(2rem, 10vh, 6rem);
     }
     .drop {
-      border: 2px dashed #789c82;
+      border: 2px dashed var(--app-control-border);
       border-radius: 1rem;
-      background: #fff8;
+      background: var(--app-drop);
       text-align: center;
       padding: 3rem 1rem;
       margin: 2rem 0;
     }
     .drop:focus-within {
-      outline: 3px solid #246348;
+      outline: 3px solid var(--app-focus);
     }
     .drop input {
       display: block;
@@ -346,18 +345,54 @@ export class ShinApp extends LitElement {
     input,
     select {
       font: inherit;
-      accent-color: #246348;
+      accent-color: var(--app-accent);
     }
     input[type='text'] {
       box-sizing: border-box;
       width: 100%;
       padding: 0.8rem;
-      border: 1px solid #789c82;
+      border: 1px solid var(--app-control-border);
       border-radius: 0.4rem;
-      background: white;
+      background: var(--app-control);
+      color: var(--app-text);
     }
     input[type='range'] {
       width: 100%;
+      height: 1.5rem;
+      margin-inline: 0;
+      appearance: none;
+      background: transparent;
+    }
+    input[type='range']::-webkit-slider-runnable-track {
+      height: 0.5rem;
+      border: 1px solid var(--app-control-border);
+      border-radius: 1rem;
+      background: var(--app-surround);
+    }
+    input[type='range']::-moz-range-track {
+      height: 0.5rem;
+      border: 1px solid var(--app-control-border);
+      border-radius: 1rem;
+      background: var(--app-surround);
+    }
+    input[type='range']::-webkit-slider-thumb {
+      appearance: none;
+      width: 1rem;
+      height: 1rem;
+      margin-top: calc(-0.25rem - 1px);
+      border: 0;
+      border-radius: 50%;
+      background: var(--app-accent);
+    }
+    input[type='range']::-moz-range-thumb {
+      width: 1rem;
+      height: 1rem;
+      border: 0;
+      border-radius: 50%;
+      background: var(--app-accent);
+    }
+    input[type='range']:disabled {
+      opacity: 0.5;
     }
     label {
       line-height: 1.6;
@@ -365,7 +400,7 @@ export class ShinApp extends LitElement {
     button:focus-visible,
     input:focus-visible,
     select:focus-visible {
-      outline: 3px solid #246348;
+      outline: 3px solid var(--app-focus);
       outline-offset: 3px;
     }
     .layout {
@@ -375,8 +410,8 @@ export class ShinApp extends LitElement {
     }
     .panel,
     .card {
-      background: #fff9;
-      border: 1px solid #d0ded1;
+      background: var(--app-panel);
+      border: 1px solid var(--app-panel-border);
       border-radius: 0.8rem;
       padding: 1.1rem;
     }
@@ -399,14 +434,14 @@ export class ShinApp extends LitElement {
       margin: 0.7rem 0;
     }
     .anchors label {
-      border: 1px solid #b7cbbd;
+      border: 1px solid var(--app-anchor-border);
       border-radius: 0.4rem;
       padding: 0.3rem;
       font-size: 0.85rem;
     }
     .anchors label:has(:checked) {
-      background: #d4e7d6;
-      border-color: #246348;
+      background: var(--app-selected);
+      border-color: var(--app-accent);
     }
     .cards {
       display: grid;
@@ -421,7 +456,7 @@ export class ShinApp extends LitElement {
       margin: auto;
     }
     .source-wrap {
-      background: #dce6dc;
+      background: var(--app-surround);
       border-radius: 0.6rem;
       padding: 0.7rem;
       margin-bottom: 1.5rem;
@@ -441,11 +476,11 @@ export class ShinApp extends LitElement {
       font-size: 0.85rem;
     }
     .warning {
-      color: #7b4b10;
+      color: var(--app-warning);
     }
     .message {
-      border: 1px solid #b46c4b;
-      background: #fff2e9;
+      border: 1px solid var(--app-message-border);
+      background: var(--app-message);
       padding: 1rem;
       border-radius: 0.5rem;
       margin-bottom: 1rem;
@@ -455,7 +490,7 @@ export class ShinApp extends LitElement {
       align-items: center;
       gap: 0.7rem;
       padding: 0.8rem;
-      background: #deebdf;
+      background: var(--app-progress);
       border-radius: 0.5rem;
       margin-bottom: 1rem;
     }
@@ -472,10 +507,10 @@ export class ShinApp extends LitElement {
       align-items: center;
       gap: 0.7rem;
       padding: 1rem;
-      border: 1px solid #789c82;
+      border: 1px solid var(--app-control-border);
       border-radius: 0.6rem;
-      background: #deebdf;
-      box-shadow: 0 4px 18px #19392d26;
+      background: var(--app-progress);
+      box-shadow: 0 4px 18px var(--app-shadow);
       pointer-events: none;
     }
     .oled-toast wa-spinner {
@@ -490,7 +525,7 @@ export class ShinApp extends LitElement {
     }
     .step {
       font-size: 0.8rem;
-      color: #58745f;
+      color: var(--app-subtle);
     }
     .name {
       max-width: 36rem;
@@ -518,7 +553,7 @@ export class ShinApp extends LitElement {
       font-weight: 650;
       margin-bottom: 0.6rem;
     }
-    .stale {
+    .stale .output {
       opacity: 0.55;
     }
     @media (max-width: 720px) {

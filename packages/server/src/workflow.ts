@@ -43,6 +43,7 @@ export const defaultPreferences: Preferences = {
   anchor: 'center',
   oled: false,
   threshold: 16,
+  organizeIntoDeviceFolders: false,
 };
 function fail(message: string, statusCode = 400): never {
   throw Object.assign(new Error(message), { statusCode });
@@ -63,6 +64,8 @@ function preferences(value: unknown): Preferences {
       'bottom-right',
     ].includes(p.anchor) ||
     typeof p.oled !== 'boolean' ||
+    (p.organizeIntoDeviceFolders !== undefined &&
+      typeof p.organizeIntoDeviceFolders !== 'boolean') ||
     !Number.isInteger(p.threshold) ||
     p.threshold < 0 ||
     p.threshold > 255
@@ -76,6 +79,7 @@ function preferences(value: unknown): Preferences {
     anchor: p.anchor,
     oled: p.oled,
     threshold: p.threshold,
+    organizeIntoDeviceFolders: p.organizeIntoDeviceFolders ?? false,
   };
 }
 interface StoredJob extends Job {
@@ -440,7 +444,7 @@ export async function registerWorkflow(
   });
   app.get<{
     Params: { id: string; revision: string };
-    Querystring: { name?: string };
+    Querystring: { name?: string; organizeIntoDeviceFolders?: string };
   }>('/api/jobs/:id/zip/:revision', async (request, reply) =>
     exclusive(async () => {
       const job = getJob(request.params.id),
@@ -452,10 +456,11 @@ export async function registerWorkflow(
       )
         fail('Generate current downloads before downloading the archive.', 409);
       const name = safeName(request.query.name ?? 'wallpaper');
+      const folders = request.query.organizeIntoDeviceFolders === 'true';
       const writer = new ZipWriter(new Uint8ArrayWriter(), { level: 0 });
       for (const id of Object.keys(m.outputs))
         await writer.add(
-          `${name}-${id}.png`,
+          folders ? `${id}/${name}.png` : `${name}-${id}.png`,
           new Uint8ArrayReader(
             await readFile(join(job.directory, m.revision, `${id}.png`)),
           ),

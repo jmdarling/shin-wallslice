@@ -12,6 +12,7 @@ export interface Preferences {
   anchor: Anchor;
   oled: boolean;
   threshold: number;
+  organizeIntoDeviceFolders: boolean;
 }
 export interface Crop {
   left: number;

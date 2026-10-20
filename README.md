@@ -7,9 +7,9 @@ One wallpaper for all your screens. Version 0.2.0 accepts a JPEG, PNG, or WebP, 
 1. Drop one image, paste an image from the clipboard, or choose a file.
 2. Select output devices. Smart starts each crop using image entropy; the five anchors position all selected crops together. Drag any crop independently, or focus its boundary and use arrow keys (Shift moves 10 pixels). Reset position restores that device to the current global method. Crops have fixed size and never leave the source. Softness warnings indicate upscaling.
 3. Optionally enable OLEDify: a pixel becomes true black when **all three RGB channels are at or below** the integer threshold. Other pixels retain their RGB values. The cutoff is applied after resizing, including in exported PNGs. Previews update automatically; progress appears while outputs are generated.
-4. Continue to Download, edit the base name, and download individual PNGs or the ZIP. Names are normalized into safe basenames. Back preserves the current work; Start over discards it.
+4. Continue to Download, edit the base name, and download individual PNGs or the ZIP. Names are normalized into safe basenames. The ZIP defaults to `<name>-<device-id>.png` files at its root. Check “Organize into device folders” to use `<device-id>/<name>.png` instead; individual downloads always retain `<name>-<device-id>.png` names. Back preserves the current work; Start over discards it.
 
-Only preferences (device selections, global method/anchor, OLEDify enable/threshold) survive reload or restart. They are shared by this single-user installation. Sources, crop positions, output files, and edited wallpaper names are temporary and never restored. Browser reload begins at Input. Abandoned jobs expire automatically.
+Only preferences (device selections, global method/anchor, OLEDify enable/threshold, and device folder organization) survive reload or restart. They are shared by this single-user installation and stored in `preferences.json` under the configured data directory (`/data` in Docker). Existing preferences without a folder organization choice default to unchecked. Sources, crop positions, output files, and edited wallpaper names are temporary and never restored. Browser reload begins at Input. Abandoned jobs expire automatically.
 
 ## Development and verification
 

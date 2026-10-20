@@ -39,6 +39,7 @@ export class ShinApp extends LitElement {
     anchor: 'center',
     oled: false,
     threshold: 16,
+    organizeIntoDeviceFolders: false,
   };
   job: Job | undefined;
   crops: Record<string, Crop> = {};
@@ -771,11 +772,27 @@ export class ShinApp extends LitElement {
                       this.name = (e.target as HTMLInputElement).value;
                     }}
                 /></label>
+                <label
+                  ><input
+                    type="checkbox"
+                    .checked=${this.prefs.organizeIntoDeviceFolders}
+                    @change=${(e: Event) => {
+                      this.prefs = {
+                        ...this.prefs,
+                        organizeIntoDeviceFolders: (
+                          e.target as HTMLInputElement
+                        ).checked,
+                      };
+                      this.save();
+                    }}
+                  />
+                  Organize into device folders</label
+                >
                 <div class="download-actions">
                   <wa-button
                     variant="brand"
                     ?disabled=${!usable}
-                    @click=${() => this.download(`/api/jobs/${j.id}/zip/${this.manifest!.revision}?name=${encodeURIComponent(this.safeName())}`, `${this.safeName()}.zip`)}
+                    @click=${() => this.download(`/api/jobs/${j.id}/zip/${this.manifest!.revision}?name=${encodeURIComponent(this.safeName())}&organizeIntoDeviceFolders=${this.prefs.organizeIntoDeviceFolders}`, `${this.safeName()}.zip`)}
                     >Download all: ${this.safeName()}.zip</wa-button
                   >
                 </div>

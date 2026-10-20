@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { page } from 'vitest/browser';
+import { page, userEvent } from 'vitest/browser';
 import { ShinApp } from './shin-app.js';
 import { CropEditor } from './crop-editor.js';
 import type { Crop } from '../../server/src/protocol.js';
@@ -23,6 +23,7 @@ let preferences = {
   anchor: 'center',
   oled: false,
   threshold: 16,
+  organizeIntoDeviceFolders: false,
 };
 let renderBodies: {
   crops: Record<string, Crop>;
@@ -39,6 +40,7 @@ beforeEach(() => {
     anchor: 'center',
     oled: false,
     threshold: 16,
+    organizeIntoDeviceFolders: false,
   };
   vi.stubGlobal(
     'fetch',
@@ -236,6 +238,101 @@ test('selection gates Download; Back preserves name and positions; Start over re
   expect(b.prefs.devices).toEqual(['laptop']);
   expect(b.job).toBeUndefined();
 });
+test('folder checkbox changes ZIP layout without regenerating, keeps PNG names and persists through navigation and reload', async () => {
+  const downloads: string[] = [];
+  const anchorClick = vi
+    .spyOn(HTMLAnchorElement.prototype, 'click')
+    .mockImplementation(function (this: HTMLAnchorElement) {
+      downloads.push(this.download);
+    });
+  try {
+    const a = await app();
+    picker(a, [file()]);
+    await processed(a);
+    checked(a, 'Turn near-black colors into true black');
+    const editor = a.shadowRoot!.querySelector('crop-editor')!;
+    editor.dispatchEvent(
+      new CustomEvent('crop-change', {
+        detail: { ...a.crops.phone, left: 300 },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+    editor.dispatchEvent(
+      new CustomEvent('crop-commit', { bubbles: true, composed: true }),
+    );
+    await vi.waitFor(() => expect(a.dirty).toBe(false));
+    await page.getByRole('button', { name: 'Next: Download' }).click();
+    const checkbox = page.getByRole('checkbox', {
+      name: 'Organize into device folders',
+    });
+    await expect.element(checkbox).not.toBeChecked();
+    await page
+      .getByRole('textbox', { name: 'Wallpaper name' })
+      .fill('../edited:name');
+    const crops = structuredClone(a.crops);
+    const manifest = a.manifest;
+    const renders = renderCount;
+    await page.getByRole('button', { name: 'Download all:' }).click();
+    await vi.waitFor(() => expect(a.busy).toBe(''));
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('organizeIntoDeviceFolders=false'),
+    );
+    (
+      a.shadowRoot!.querySelector('input[type=checkbox]') as HTMLInputElement
+    ).focus();
+    await userEvent.keyboard(' ');
+    await expect.element(checkbox).toBeChecked();
+    await vi.waitFor(() =>
+      expect(preferences.organizeIntoDeviceFolders).toBe(true),
+    );
+    await page.getByRole('button', { name: 'Download all:' }).click();
+    await vi.waitFor(() => expect(a.busy).toBe(''));
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'name=edited-name&organizeIntoDeviceFolders=true',
+      ),
+    );
+    await page
+      .getByRole('button', { name: 'Download PNG', exact: true })
+      .first()
+      .click();
+    await vi.waitFor(() => expect(a.busy).toBe(''));
+    expect(downloads).toEqual([
+      'edited-name.zip',
+      'edited-name.zip',
+      'edited-name-phone.png',
+    ]);
+    expect(a.crops).toEqual(crops);
+    expect(a.manifest).toBe(manifest);
+    expect(a.prefs.oled).toBe(true);
+    expect(renderCount).toBe(renders);
+    await page.getByRole('button', { name: 'Back to Processing' }).click();
+    expect(a.name).toBe('../edited:name');
+    await page.getByRole('button', { name: 'Next: Download' }).click();
+    await expect.element(checkbox).toBeChecked();
+    await page.getByRole('button', { name: 'Start over', exact: true }).click();
+    await vi.waitFor(() => expect(a.page).toBe('input'));
+    await a.updateComplete;
+    picker(a, [file('new.png')]);
+    await processed(a);
+    await page.getByRole('button', { name: 'Next: Download' }).click();
+    await expect.element(checkbox).toBeChecked();
+    a.remove();
+    const b = await app();
+    picker(b, [file()]);
+    await processed(b);
+    await page.getByRole('button', { name: 'Next: Download' }).click();
+    await expect.element(checkbox).toBeChecked();
+    await checkbox.click();
+    await vi.waitFor(() =>
+      expect(preferences.organizeIntoDeviceFolders).toBe(false),
+    );
+  } finally {
+    anchorClick.mockRestore();
+  }
+});
+
 test('crop editor clamps pointer and keyboard movement, keeps fixed size, and accepts touch pointers', async () => {
   const e = document.createElement('crop-editor') as CropEditor;
   e.source = pixel;

@@ -280,6 +280,7 @@ test('preferences survive server recreation while jobs expire and restart at Inp
     anchor: 'top-right',
     oled: true,
     threshold: 42,
+    organizeIntoDeviceFolders: true,
   };
   expect(
     (await app.inject({ method: 'PUT', url: '/api/preferences', payload: p }))
@@ -337,6 +338,101 @@ test('preference read/write errors are clear and retryable', async () => {
     ).statusCode,
   ).toBe(400);
 });
+
+test('legacy preferences default to root ZIP layout and invalid folder preferences are rejected', async () => {
+  const { app, config } = await setup();
+  expect(
+    (await app.inject('/api/catalog')).json().preferences
+      .organizeIntoDeviceFolders,
+  ).toBe(false);
+  const legacy = {
+    devices: defaultPreferences.devices,
+    method: defaultPreferences.method,
+    anchor: defaultPreferences.anchor,
+    oled: defaultPreferences.oled,
+    threshold: defaultPreferences.threshold,
+  };
+  await app.inject({
+    method: 'PUT',
+    url: '/api/preferences',
+    payload: defaultPreferences,
+  });
+  await app.close();
+  await writeFile(
+    join(config.dataDirectory, 'preferences.json'),
+    JSON.stringify(legacy),
+  );
+  const restarted = buildApp(config);
+  cleanups.push(() => restarted.close());
+  const catalog = (await restarted.inject('/api/catalog')).json();
+  expect(catalog.preferenceError).toBe('');
+  expect(catalog.preferences).toEqual(defaultPreferences);
+  expect(
+    (
+      await restarted.inject({
+        method: 'PUT',
+        url: '/api/preferences',
+        payload: { ...legacy, organizeIntoDeviceFolders: 'true' },
+      })
+    ).statusCode,
+  ).toBe(400);
+});
+
+test('both ZIP layouts preserve current PNGs, safe names, and distinct selected device IDs with identical dimensions', async () => {
+  const duplicate = {
+    ...devices[0]!,
+    id: 'same-size-phone',
+    name: 'Same size phone',
+  };
+  devices.push(duplicate);
+  try {
+    const { app } = await setup();
+    const job = await upload(app, await image());
+    const selected = [devices[0]!, duplicate];
+    const m = await render(
+      app,
+      job,
+      Object.fromEntries(selected.map((d) => [d.id, job.smart[d.id]!])),
+      true,
+      42,
+    );
+    const originals = await Promise.all(
+      selected.map(
+        async (d) => (await app.inject(m.outputs[d.id]!)).rawPayload,
+      ),
+    );
+    for (const name of ['sunset', '../../bad\\name:*?', '', '...']) {
+      for (const folders of [false, true]) {
+        const response = await app.inject(
+          `/api/jobs/${job.id}/zip/${m.revision}?name=${encodeURIComponent(name)}&organizeIntoDeviceFolders=${folders}`,
+        );
+        expect(response.statusCode).toBe(200);
+        expect(response.headers['content-disposition']).toBe(
+          `attachment; filename*=UTF-8''${encodeURIComponent(safeName(name))}.zip`,
+        );
+        const zip = new ZipReader(new Uint8ArrayReader(response.rawPayload));
+        const entries = await zip.getEntries();
+        expect(entries.map((e) => e.filename)).toEqual(
+          selected.map((d) =>
+            folders
+              ? `${d.id}/${safeName(name)}.png`
+              : `${safeName(name)}-${d.id}.png`,
+          ),
+        );
+        for (const [index, entry] of entries.entries()) {
+          expect(entry.directory).toBe(false);
+          if (!entry.directory)
+            expect(
+              Buffer.from(await entry.getData!(new Uint8ArrayWriter())),
+            ).toEqual(originals[index]);
+        }
+        await zip.close();
+      }
+    }
+  } finally {
+    devices.pop();
+  }
+}, 30000);
 
 test('storage admission is bounded, expired jobs release slots and disk, and startup reclaims abandoned process directories', async () => {
   const { app, config, root } = await setup();

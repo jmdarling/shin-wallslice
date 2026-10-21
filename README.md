@@ -50,8 +50,8 @@ Applications listing is pending. No source checkout or build is needed.
 **Version 1.0.1 is available as a public image** for Linux amd64 and arm64. The
 commands below install it without registry login. See the
 [release](https://github.com/jmdarling/shin-wallslice/releases/tag/v1.0.1) and
-[verified distribution evidence](docs/maintainers/v1.0.0-evidence.md) for the exact
-digest, native runtime checks, SBOM/provenance, and vulnerability reports.
+[1.0.1 changes](docs/maintainers/v1.0.1-release-notes.md). The release records the
+exact digest, native runtime checks, SBOM/provenance, and vulnerability reports.
 
 Allow **4 GiB application RAM** and **4 GiB free writable temporary disk**. One
 image supports Linux amd64 and arm64. Ordinary processing works without AI or

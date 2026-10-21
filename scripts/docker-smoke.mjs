@@ -91,7 +91,7 @@ async function check(configPath, port, environment = []) {
     docker('inspect', '--format', '{{json .Config.Healthcheck.Test}}', id),
   );
   docker('exec', id, ...health.slice(1));
-  if (environment.length) {
+  if (environment.includes('SHIN_WALLSLICE_AI_ENABLED=true')) {
     const providerCheck = `
       import { createServer } from 'node:http';
       import { createRequire } from 'node:module';

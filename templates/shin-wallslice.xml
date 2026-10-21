@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Container version="2">
+  <Name>shin-wallslice</Name>
+  <Repository>ghcr.io/jmdarling/shin-wallslice:1</Repository>
+  <Registry>https://github.com/jmdarling/shin-wallslice/pkgs/container/shin-wallslice</Registry>
+  <Network>bridge</Network>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/jmdarling/shin-wallslice/issues</Support>
+  <Project>https://github.com/jmdarling/shin-wallslice</Project>
+  <Overview>One wallpaper. Every device. Crop locally to six device presets, adjust framing and OLED shadows, then download PNGs or a ZIP. Optional AI is disabled by default. Single-user trusted-LAN access; no built-in login. Allow 4 GiB RAM and 4 GiB writable temporary disk space. Only preferences persist in appdata; uploaded images and exports expire. Startup initializes only /data and preferences.json, then Fastify runs as UID/GID 1000.</Overview>
+  <Category>Tools:Utilities</Category>
+  <WebUI>http://[IP]:[PORT:3000]/</WebUI>
+  <Icon>https://raw.githubusercontent.com/jmdarling/shin-wallslice/main/docs/assets/icon.svg</Icon>
+  <TemplateURL>https://raw.githubusercontent.com/jmdarling/shin-wallslice/main/templates/shin-wallslice.xml</TemplateURL>
+  <ExtraParams>--memory=4g --user=0:0</ExtraParams>
+  <Config Name="WebUI port" Target="3000" Default="8080" Mode="tcp" Description="Choose an unused host port." Type="Port" Display="always" Required="true" Mask="false">8080</Config>
+  <Config Name="Appdata" Target="/data" Default="/mnt/user/appdata/shin-wallslice" Mode="rw" Description="Dedicated preferences directory. Do not map a share root here." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/shin-wallslice</Config>
+  <Config Name="Advanced: enable AI" Target="SHIN_WALLSLICE_AI_ENABLED" Default="false" Description="Optional. Requires your vision service URL and model." Type="Variable" Display="advanced" Required="false" Mask="false">false</Config>
+</Container>

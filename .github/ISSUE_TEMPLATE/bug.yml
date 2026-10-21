@@ -1,0 +1,32 @@
+name: Bug report
+description: Report a reproducible problem
+body:
+  - type: markdown
+    attributes:
+      value: Redact API tokens, private configuration, personal images, and private network details. Owner issues start a paid agent attempt when automation is enabled; other reports await maintainer action.
+  - type: textarea
+    id: environment
+    attributes:
+      label: Version and environment
+      description: Image tag/digest, architecture, Docker/Unraid version, browser.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior and success criteria
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Sanitized errors or screenshots may help.
+    validations:
+      required: true

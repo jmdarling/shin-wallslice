@@ -44,41 +44,43 @@ shin-wallslice runs on your own server in a single container. Cropping and expor
 
 ### Choose an installation
 
-| Path                                  | Best for                                              | You need                                                              |
-| ------------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------- |
-| [Docker run](#docker-run)             | A quick home-server installation                      | Git, Docker Engine or Docker Desktop, terminal access                 |
-| [Docker Compose](#docker-compose)     | A repeatable setup kept in one file                   | Git, Docker with the Compose plugin                                   |
-| [Manual Unraid](#manual-unraid-setup) | An installation managed through the Unraid Docker tab | An Unraid server with Docker enabled, a computer with Git and SSH/SCP |
-| [Local Node.js](#local-nodejs)        | Running directly on a computer without containers     | Git, Node.js 24 LTS, pnpm 11.25.0                                     |
+**Unraid:** [import the supplied template and Apply](docs/unraid.md). Community
+Applications listing is pending. No source checkout or build is needed after
+public image publication.
 
-Allow **4 GiB of available application memory** and at least **4 GiB of free temporary storage**, plus room for the source checkout, dependencies, and container build. Container deployments support **Linux amd64 and arm64**. Build on the target architecture unless you have configured cross-platform emulation.
+**Publication status:** v1.0.0 distribution files are prepared, but public GHCR
+publication and anonymous pulls are still pending verification. The commands below
+are the intended registry installation path and require that first publication.
+See the [release evidence](docs/maintainers/v1.0.0-evidence.md) and
+[maintainer handoff](docs/maintainers/releases.md) for current prerequisites.
 
-All paths below build from source. There is currently no published container image or supplied Unraid Community Apps template. An internet connection is needed to obtain source, dependencies, and base images. Once installed, ordinary image processing works without an AI service.
+Allow **4 GiB application RAM** and **4 GiB free writable temporary disk**. One
+image supports Linux amd64 and arm64. Ordinary processing works without AI or
+another service container; optional AI is disabled by default.
 
-**Access:** this is a single-user application with shared preferences and no built-in login or per-user isolation. Use a trusted home network. The container examples publish to the host's network interfaces; do not forward that port directly to the internet. If you need remote access, provide authentication and HTTPS through your own access layer or use a private VPN.
-
-Terminal examples use POSIX shell syntax (Linux/macOS, or Git Bash on Windows). Adapt multiline commands if using PowerShell.
+**Access:** single-user shared preferences, no built-in login. Use a trusted LAN.
+For remote access provide your own authentication/HTTPS layer or private VPN.
+Terminal examples use POSIX shell syntax.
 
 ### Docker run
 
-Install [Docker](https://docs.docker.com/get-started/get-docker/) and Git first. On Linux, your account must be able to run Docker commands. Run these commands in a terminal on the machine that will host the app:
+Install Docker, then run on your server (no Git, Node.js, checkout, build, or
+registry login required for the public image):
 
 ```sh
-git clone https://github.com/jmdarling/shin-wallslice.git
-cd shin-wallslice
-docker build -t shin-wallslice:local .
 docker run -d \
   --name shin-wallslice \
   --restart unless-stopped \
   --memory=4g \
   -p 8080:3000 \
   --mount type=volume,src=shin-wallslice-data,dst=/data \
-  shin-wallslice:local
+  ghcr.io/jmdarling/shin-wallslice:1.0.0
 ```
 
-Open **[http://localhost:8080](http://localhost:8080)** on that machine. From another device, use `http://YOUR_SERVER_IP:8080`, replacing `YOUR_SERVER_IP` with the server's LAN address.
-
-Check startup:
+Open [http://localhost:8080](http://localhost:8080), or
+`http://YOUR_SERVER_IP:8080` from another device (replace `YOUR_SERVER_IP` with the
+server's LAN address). The Input screen should appear. Named volumes initialize
+with the non-root UID/GID 1000 application's ownership.
 
 ```sh
 curl --fail http://localhost:8080/api/health
@@ -86,27 +88,20 @@ docker inspect --format '{{.State.Health.Status}}' shin-wallslice
 docker logs --tail 50 shin-wallslice
 ```
 
-The health endpoint returns `{"status":"ok"}`. Docker health changes from `starting` to `healthy` after its first successful check, usually within 30 seconds. The browser should show **One wallpaper. Every device.**
-
-```sh
-docker stop shin-wallslice
-docker start shin-wallslice
-```
-
-The `/data` volume retains preferences across restarts and container replacement. Temporary images are deliberately not restored. Continue with [Your first wallpaper](#your-first-wallpaper).
-
-**Port already used?** Change only the left side of `-p`, for example `-p 8081:3000`, and open port 8081 in your browser. The right side remains 3000 unless you explicitly change the application's runtime port. `EXPOSE 3000` is image metadata; it does not override configuration.
+Expect `{"status":"ok"}` and `healthy` after the first health check, usually within
+30 seconds. Change only the host port for a conflict, e.g. `-p 8081:3000`. Persistent
+preferences survive container replacement with the same volume; temporary images do
+not. Continue with [Your first wallpaper](#your-first-wallpaper).
 
 ### Docker Compose
 
-Clone the source on the host as above. The repository includes this [compose.yaml](compose.yaml) in its root; if creating it yourself, save the complete example there, next to the Dockerfile:
+Download [compose.yaml](compose.yaml) to an otherwise empty directory; no checkout
+is needed. Its contents are:
 
 ```yaml
 services:
   wallslice:
-    build:
-      context: .
-    image: shin-wallslice:local
+    image: ghcr.io/jmdarling/shin-wallslice:1.0.0
     container_name: shin-wallslice
     restart: unless-stopped
     mem_limit: 4g
@@ -119,101 +114,35 @@ volumes:
   wallslice-data:
 ```
 
-From the repository root:
+In that directory:
 
 ```sh
 docker compose config
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 docker compose ps
 curl --fail http://localhost:8080/api/health
 docker compose logs --tail 50 wallslice
 ```
 
-Open **[http://localhost:8080](http://localhost:8080)**, or `http://YOUR_SERVER_IP:8080` from your LAN. Expect `{"status":"ok"}` and the Input screen. The [Compose service reference](https://docs.docker.com/reference/compose-file/services/) describes the build, memory, and restart settings used here.
+Open [http://localhost:8080](http://localhost:8080) or your server's LAN address.
+Use one installation method at a time; both examples use the same name and port.
+Compose creates a project-scoped volume; retain the same directory/project name for
+replacement (`docker compose -p YOUR_PROJECT` can fix a chosen project name).
+Change `8080:3000` to `8081:3000` for a port conflict. `docker compose down` removes
+the container/network while retaining preferences; `--volumes` also deletes them.
 
-```sh
-docker compose stop
-docker compose start
-# Rebuild after a source update, then replace the container:
-docker compose up -d --build
-# Remove the container and network, retaining the data volume:
-docker compose down
-```
-
-Use one installation method at a time: the run and Compose examples share a container name and port. Compose uses its own project-scoped data volume, usually `shin-wallslice_wallslice-data`; it does not automatically use the run example's `shin-wallslice-data` volume. Keep the checkout folder/project name stable, or use the same `docker compose -p YOUR_PROJECT` value for every command.
-
-For a port conflict, change `"8080:3000"` to `"8081:3000"` and recreate the service. For optional JSON configuration, add a read-only bind mount under this service's `volumes`, after creating the file:
-
-```yaml
-- ./config/local.json:/config/config.json:ro
-```
-
-That line is a fragment to add alongside `wallslice-data:/data`, not a replacement Compose file. See [Configuration](#configuration) before enabling AI.
+Optional read-only partial JSON: first create a readable private file, then add
+`./config.json:/config/config.json:ro` alongside the data mapping. No JSON is needed
+for first run. See [Configuration](#configuration).
 
 ### Manual Unraid setup
 
-This path builds an image on your NAS and then creates a container in its Docker interface. A locally built image is not a registry release: Unraid's update/pull feature cannot rebuild it for you.
-
-**1. Copy the source from your computer.** Install Git and an SSH/SCP client on your computer. Enable SSH on Unraid if needed. In your computer's terminal, replace `YOUR_UNRAID_IP`:
-
-```sh
-git clone https://github.com/jmdarling/shin-wallslice.git
-scp -r shin-wallslice root@YOUR_UNRAID_IP:/mnt/user/appdata/shin-wallslice-source
-```
-
-Use a fresh clone so you do not copy local credentials or dependencies. The source directory is separate from persistent appdata. If your NAS uses another share/pool, substitute that path consistently.
-
-**2. Build on the NAS.** Open the Unraid web terminal or SSH into the NAS, then run:
-
-```sh
-cd /mnt/user/appdata/shin-wallslice-source
-docker build -t shin-wallslice:local .
-mkdir -p /mnt/user/appdata/shin-wallslice
-chown 1000:1000 /mnt/user/appdata/shin-wallslice
-chmod 750 /mnt/user/appdata/shin-wallslice
-```
-
-Only change ownership on this dedicated app directory. The container runs as UID/GID **1000:1000**; it does not implement `PUID`/`PGID` variables. Keep at least 4 GiB free in the Docker storage backing the writable container layer for default temporary files, and additional space for builds/images.
-
-**3. Add the container.** In the Unraid interface, go to **Docker → Add Container**, leave the template selection empty, and enable **Advanced View** where needed. Enter these values:
-
-| Field / added item | Value                                                                  |
-| ------------------ | ---------------------------------------------------------------------- |
-| Name               | `shin-wallslice`                                                       |
-| Repository         | `shin-wallslice:local` (the image just built on this NAS)              |
-| Network Type       | `Bridge`                                                               |
-| Privileged         | Off                                                                    |
-| Console shell      | `sh`                                                                   |
-| Extra Parameters   | `--memory=4g --pull=never`                                             |
-| WebUI              | `http://[IP]:[PORT:3000]/`                                             |
-| Port               | Container `3000`, host `8080`, TCP                                     |
-| Path               | Container `/data`, host `/mnt/user/appdata/shin-wallslice`, Read/Write |
-
-Use **Add another Path, Port, Variable, Label or Device** to create the port and path entries. Apply the form and enable the container's **Autostart** toggle. If your Unraid version attempts to pull the local image during creation, verify it exists with `docker image inspect shin-wallslice:local` and consult the creation log; there is no registry image to pull. The mapping concepts and controls are described in [Unraid's container guide](https://docs.unraid.net/unraid-os/using-unraid-to/run-docker-containers/managing-and-customizing-containers/).
-
-**4. Open and check.** Browse to `http://YOUR_UNRAID_IP:8080`, or click the container's WebUI action. The Input screen should appear. In the NAS terminal:
-
-```sh
-curl --fail http://127.0.0.1:8080/api/health
-docker logs --tail 50 shin-wallslice
-docker inspect --format '{{.State.Health.Status}}' shin-wallslice
-```
-
-Expect `{"status":"ok"}` and eventually `healthy`. Change the **host** port if 8080 is occupied. Leave the container port at 3000 unless changing `SHIN_WALLSLICE_PORT` too.
-
-**Optional configuration:** in the NAS terminal, create a dedicated configuration directory and a disabled-AI JSON file:
-
-```sh
-mkdir -p /mnt/user/appdata/shin-wallslice-config
-printf '%s\n' '{"ai":{"enabled":false}}' > /mnt/user/appdata/shin-wallslice-config/config.json
-chown 1000:1000 /mnt/user/appdata/shin-wallslice-config /mnt/user/appdata/shin-wallslice-config/config.json
-chmod 750 /mnt/user/appdata/shin-wallslice-config
-chmod 640 /mnt/user/appdata/shin-wallslice-config/config.json
-```
-
-This example creates a new file; do not run the `printf` command over an existing configuration you want to keep. Edit that JSON as needed. Add a Read Only path mapping from that **file** to `/config/config.json`. Alternatively, add the exact environment names from the [reference](#environment-variables) as Variable entries. Apply/recreate the container after editing mappings or variables; restart after changing JSON contents. Neither the source checkout nor the JSON configuration is mounted at `/data`.
-
-To update, copy updated source to the source directory, rebuild the local tag on the NAS, and recreate the container from its saved configuration so it uses the new image. Keep the `/data` mapping. See [Updates](#updates-backups-and-removal) for backups and the distinction between restarting and replacing a container.
+Use the [supplied template and short Unraid 7.2.3 guide](docs/unraid.md). It covers
+pre-listing import, port/path choices, WebUI, autostart, advanced AI/JSON settings,
+updates, rollback, and the real-NAS verification checklist. No image build, XML
+editing, or terminal permission repair is needed. Fastify runs as UID/GID 1000;
+the template's bounded initializer prepares only the dedicated appdata mount.
 
 ### Local Node.js
 
@@ -364,10 +293,10 @@ docker run -d \
   -p 8080:3000 \
   --mount type=volume,src=shin-wallslice-data,dst=/data \
   --mount type=bind,src="$(pwd)/config/local.json",dst=/config/config.json,readonly \
-  shin-wallslice:local
+  ghcr.io/jmdarling/shin-wallslice:1.0.0
 ```
 
-Run from the repository root. The file must exist and be readable by UID 1000; its parent directories must be traversable by that user. Protect files containing tokens from other users while granting that read access. The application does not need write access to `/config`. Do not place private files elsewhere in the build context and assume they will be ignored.
+Use the absolute path to your private JSON file in the mount source. The file must exist and be readable by UID 1000; its parent directories must be traversable by that user. Protect files containing tokens from other users while granting that read access. The application does not need write access to `/config`. Do not place private files elsewhere in the build context and assume they will be ignored.
 
 ### Defaults and validation
 
@@ -436,7 +365,7 @@ docker run -d \
   -e SHIN_WALLSLICE_HOST=0.0.0.0 \
   -e SHIN_WALLSLICE_PORT=3456 \
   -e SHIN_WALLSLICE_AI_ENABLED=false \
-  shin-wallslice:local
+  ghcr.io/jmdarling/shin-wallslice:1.0.0
 ```
 
 This replaces the quick-start container, rather than running alongside it. The browser still uses port 8080. The built-in health check reads the effective configuration, including the overridden port.
@@ -528,44 +457,38 @@ Preferences are shared by everyone using this installation. They survive reloads
 
 Cropping and exports happen on your server. AI-disabled installations make no AI requests. Browser downloads remain wherever you save them even after the server deletes its temporary job. Back up original images and downloaded outputs yourself if you want to retain them; this app is not a persistent wallpaper library.
 
-The image runs as non-root `node` with UID/GID 1000. Named volumes are the easiest Docker option. For bind mounts, make only the dedicated data/scratch directories writable and traversable by that identity; do not solve errors with privileged mode or `chmod 777`. Read-only JSON mounts are supported.
+The image defaults to non-root `node` with UID/GID 1000. The [Unraid template](docs/unraid.md#identity-and-first-run-permissions) uses a bounded startup initializer for fresh host bind mounts before dropping to that identity. Named volumes are the easiest Docker option. For bind mounts, make only the dedicated data/scratch directories writable and traversable by that identity; do not solve errors with privileged mode or `chmod 777`. Read-only JSON mounts are supported.
 
 ## Updates, backups, and removal
 
-### Update from source
+### Update and roll back
 
-Back up data/private configuration first. From your checkout, obtain the desired source update (for a clean tracking branch, `git pull --ff-only`), then rebuild. If Git reports local changes or divergence, resolve them before proceeding; do not discard configuration or other work to force an update.
+Back up preferences/private configuration and download active outputs first.
+Examples pin `:1.0.0` for reproducibility. To upgrade, choose a newer verified exact
+version from the release notes, replace the image tag in your run/Compose settings,
+and recreate using the same data volume, ports, and optional configuration.
+Alternatively `:1`, `:1.0`, or `:latest` track their stable release series.
+Publication makes images available; it never automatically updates your server.
 
-**Docker run**, from the repository root:
+For Docker run:
 
 ```sh
-git pull --ff-only
-docker build -t shin-wallslice:local .
+docker pull ghcr.io/jmdarling/shin-wallslice:1.0.0
 docker stop shin-wallslice
 docker rm shin-wallslice
 ```
 
-Run the same `docker run` command used to install, with the same volume, mappings, environment variables, and optional configuration mount. Removing the container above leaves the named volume intact. A simple `docker restart` does not switch an existing container to a newly built image.
+Rerun the original install command with your chosen image tag and **the same data
+mount/settings**. Restart alone does not load a new image. With Compose, edit the
+image tag, then `docker compose pull` and `docker compose up -d` from the same project.
+With Unraid use Check for Updates → Update, retaining appdata. To pin or roll back,
+choose a previously verified exact version/digest in Repository and Apply.
 
-**Compose**, from the same checkout/project:
-
-```sh
-git pull --ff-only
-docker compose up -d --build
-```
-
-**Unraid:** update source on your computer, copy the updated tracked source to the dedicated NAS source directory, and rebuild `shin-wallslice:local` there. Stop/remove the old container **without deleting appdata**, then use **Add Container** with its saved user template and the same mappings. Do not select a registry update/force-pull action for this local image. If your Docker storage is recreated, rebuild the image from the retained source before recreating the container.
-
-**Local Node.js:** stop the app, then run:
-
-```sh
-git pull --ff-only
-pnpm install --frozen-lockfile
-pnpm build
-pnpm start
-```
-
-After any update, check `/api/health` and open the app. Temporary workflows are lost on replacement/restart, so download your current outputs first.
+For this first public release there is no prior public version; retain your prior
+local image if migrating from source. Later releases describe compatibility and
+rollback in their release notes. After replacement check health, WebUI, and saved
+preferences. See [source builds and development](#development-and-verification) for
+local-only updates.
 
 ### Back up and restore
 
@@ -590,11 +513,11 @@ docker cp ./wallslice-backup/. shin-wallslice:/data/
 # Restore ownership on this dedicated volume before starting:
 docker run --rm --user 0 \
   --mount type=volume,src=shin-wallslice-data,dst=/data \
-  --entrypoint chown shin-wallslice:local -R 1000:1000 /data
+  ghcr.io/jmdarling/shin-wallslice:1.0.0 true
 docker start shin-wallslice
 ```
 
-The temporary ownership helper exits immediately; the application itself still runs as non-root. For Compose substitute its actual volume name, found with `docker volume ls` and container inspection. Restore private JSON separately and reinstate environment variables/mounts, then confirm preferences after startup. Restored preferences do not restore images, crop positions, or downloads.
+The bounded initializer repairs only the mount root and preferences file, then exits; the application itself still runs as non-root. For Compose substitute its actual volume name, found with `docker volume ls` and container inspection. Restore private JSON separately and reinstate environment variables/mounts, then confirm preferences after startup. Restored preferences do not restore images, crop positions, or downloads.
 
 ### Remove an installation
 
@@ -637,6 +560,15 @@ When reporting a problem in [GitHub Issues](https://github.com/jmdarling/shin-wa
 
 ## Development and verification
 
+For a local source image, clone this repository and run
+`docker build -t shin-wallslice:local .`; use that local tag in place of the public
+image in the installation command. Rebuild/recreate after source changes. Local
+images receive no registry updates. Contributor setup, issue/PR conventions, and
+validation evidence are in [CONTRIBUTING.md](CONTRIBUTING.md). Maintainers should
+read [release operations](docs/maintainers/releases.md),
+[issue automation](docs/maintainers/automation.md), and
+[CA submission materials](docs/maintainers/community-applications.md).
+
 The client is Lit + Web Awesome with Vite. The server is Fastify + Sharp. Both packages use strict TypeScript and ES modules, Node.js 24 LTS, pnpm 11.25.0, and Vitest.
 
 From a source checkout with the prerequisites installed:
@@ -665,6 +597,12 @@ pnpm --filter @shin-wallslice/client exec playwright install --with-deps chromiu
 | `pnpm check`        | All five checks above                                                     |
 
 ### Container verification
+
+For a faster architecture runtime check under emulation, append `--quick` after
+the image and engine arguments, e.g.
+`node scripts/docker-smoke.mjs shin-wallslice:amd64 podman --quick`. This uses a
+smaller source while still checking all six PNGs, ZIP contents, and OLEDify.
+Default CI/release checks retain both full 8K source cases on native runners.
 
 With Docker Buildx and emulation configured, build and exercise each supported architecture separately:
 

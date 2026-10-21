@@ -1,0 +1,31 @@
+name: Feature request
+description: Propose an actionable change
+body:
+  - type: markdown
+    attributes:
+      value: Redact secrets and private data. Describe concrete behavior; ambiguous requests need clarification before implementation.
+  - type: textarea
+    id: environment
+    attributes:
+      label: Relevant version and environment
+    validations:
+      required: true
+  - type: textarea
+    id: current
+    attributes:
+      label: Current behavior and problem
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: criteria
+    attributes:
+      label: Success criteria
+      description: Concrete conditions that demonstrate completion; include scope limits.
+    validations:
+      required: true

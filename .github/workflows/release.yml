@@ -1,0 +1,184 @@
+name: Release
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing published stable release tag (v1.0.0)
+        required: true
+        type: string
+      recovery_digest:
+        description: Only for post-publication recovery, existing exact sha256 digest
+        required: false
+        type: string
+permissions: {}
+concurrency:
+  group: stable-release
+  cancel-in-progress: false
+jobs:
+  prepare:
+    if: github.event_name == 'workflow_dispatch' || (!github.event.release.prerelease && !github.event.release.draft)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+      revision: ${{ steps.version.outputs.revision }}
+    steps:
+      - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        id: release
+        env:
+          REQUESTED_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        with:
+          script: |
+            const tag = process.env.REQUESTED_TAG;
+            if (!/^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(tag)) throw Error('Expected stable vMAJOR.MINOR.PATCH tag');
+            const {data:r} = await github.rest.repos.getReleaseByTag({...context.repo, tag});
+            if (r.draft || r.prerelease) throw Error('Release must be published and stable');
+            core.setOutput('tag', tag);
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ steps.release.outputs.tag }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: Check all package versions
+        id: version
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          node --input-type=module -e "import {validatePackages} from './scripts/release-policy.mjs'; import {appendFileSync} from 'node:fs'; appendFileSync(process.env.GITHUB_OUTPUT, 'version='+validatePackages(process.env.RELEASE_TAG)+'\n');"
+          echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+  verify:
+    needs: prepare
+    uses: ./.github/workflows/verify.yml
+    permissions:
+      contents: read
+    with:
+      ref: ${{ needs.prepare.outputs.revision }}
+  candidate:
+    needs: [prepare, verify]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/jmdarling/shin-wallslice
+      RECOVERY_DIGEST: ${{ inputs.recovery_digest }}
+      RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+      RELEASE_REVISION: ${{ needs.prepare.outputs.revision }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.prepare.outputs.revision }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+      - uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Protect existing exact version
+        run: node scripts/release-registry.mjs preflight
+      - uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        if: inputs.recovery_digest == ''
+        id: build
+        with:
+          context: .
+          platforms: linux/${{ matrix.arch }}
+          push: true
+          tags: ghcr.io/jmdarling/shin-wallslice:candidate-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.arch }}
+          build-args: |
+            VERSION=${{ needs.prepare.outputs.version }}
+            REVISION=${{ needs.prepare.outputs.revision }}
+          provenance: mode=max
+          sbom: true
+      - name: Exercise exact candidate artifact (native runner)
+        env:
+          BUILT_DIGEST: ${{ steps.build.outputs.digest }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          mkdir -p evidence
+          digest="${RECOVERY_DIGEST:-$BUILT_DIGEST}"
+          ref="$IMAGE@$digest"
+          docker pull "$ref"
+          test "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.version"}}' "$ref")" = "$RELEASE_VERSION"
+          test "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$ref")" = "$RELEASE_REVISION"
+          node scripts/docker-smoke.mjs "$ref" | tee "evidence/smoke-$ARCH.txt"
+          node scripts/container-persistence.mjs "$ref" | tee -a "evidence/smoke-$ARCH.txt"
+          printf '%s' "$digest" > "evidence/digest-$ARCH.txt"
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ghcr.io/jmdarling/shin-wallslice@${{ inputs.recovery_digest || steps.build.outputs.digest }}
+          format: json
+          output: evidence/vulnerabilities-${{ matrix.arch }}.json
+          exit-code: '0'
+          ignore-unfixed: false
+      - name: Block fixable high and critical vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ghcr.io/jmdarling/shin-wallslice@${{ inputs.recovery_digest || steps.build.outputs.digest }}
+          format: table
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: release-${{ matrix.arch }}
+          path: evidence/
+          retention-days: 90
+  publish:
+    needs: [prepare, candidate]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/jmdarling/shin-wallslice
+      RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+      RELEASE_REVISION: ${{ needs.prepare.outputs.revision }}
+      RECOVERY_DIGEST: ${{ inputs.recovery_digest }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.prepare.outputs.revision }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: release-*
+          path: evidence
+          merge-multiple: true
+      - uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish verified manifest and verify anonymous access before aliases
+        run: node scripts/release-registry.mjs publish
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: release-manifest
+          path: evidence/
+          retention-days: 90

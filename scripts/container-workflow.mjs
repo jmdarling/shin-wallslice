@@ -20,9 +20,10 @@ async function json(path, init) {
   return r.json();
 }
 const catalog = await json('/api/catalog');
-for (const width of [7680, 8192]) {
+const quick = process.env.WALLSLICE_SMOKE_QUICK === '1';
+for (const width of quick ? [1800] : [7680, 8192]) {
   // A spatial colour gradient exercises real resampling while keeping the fixture reproducible.
-  const height = 4320;
+  const height = quick ? 600 : 4320;
   let pixels = Buffer.alloc(width * height * 3);
   for (let y = 0; y < height; y++)
     for (let x = 0; x < width; x++) {
@@ -41,7 +42,7 @@ for (const width of [7680, 8192]) {
     body: source,
   });
   if (job.width !== width || job.height !== height)
-    throw new Error('8K source dimensions changed');
+    throw new Error('Source dimensions changed');
   const output = await json(`/api/jobs/${job.id}/render`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

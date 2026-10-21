@@ -5,7 +5,8 @@ import { join } from 'node:path';
 
 const image = process.argv[2] ?? 'shin-wallslice:local';
 const engine = process.argv[3] ?? 'docker';
-const configurationOnly = process.argv[4] === '--configuration-only';
+const configurationOnly = process.argv.includes('--configuration-only');
+const quick = process.argv.includes('--quick');
 const directory = mkdtempSync(join(tmpdir(), 'wallslice-smoke-'));
 // Docker's non-root user must be able to traverse and read the fixture.
 chmodSync(directory, 0o755);
@@ -76,6 +77,13 @@ async function check(configPath, port, environment = []) {
     if (contents.includes('smoke-private-sentinel'))
       throw new Error('Credential leaked into client assets');
   }
+  docker(
+    'exec',
+    id,
+    'sh',
+    '-c',
+    'test ! -e /usr/local/bin/npm && test ! -d /app/packages/server/src && test ! -e /app/config/local.json && test ! -d /app/specs',
+  );
   if (docker('exec', id, 'id', '-u') === '0')
     throw new Error('Application runs as root');
   // Exercise the exact image health check with the same environment as the app.
@@ -125,6 +133,7 @@ async function check(configPath, port, environment = []) {
       engine,
       [
         'exec',
+        ...(quick ? ['--env', 'WALLSLICE_SMOKE_QUICK=1'] : []),
         id,
         'node',
         '--input-type=module',
@@ -149,14 +158,6 @@ try {
   writeFileSync(
     replacement,
     JSON.stringify({
-      ...JSON.parse(
-        await import('node:fs/promises').then((fs) =>
-          fs.readFile(
-            new URL('../config/docker.json', import.meta.url),
-            'utf8',
-          ),
-        ),
-      ),
       port: 3456,
       logLevel: 'warn',
     }),

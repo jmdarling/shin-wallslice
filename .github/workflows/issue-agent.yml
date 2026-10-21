@@ -1,0 +1,182 @@
+name: Issue agent
+on:
+  issues:
+    types: [opened]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Existing open issue number (maintainer only)
+        type: number
+        required: true
+permissions: {}
+concurrency:
+  group: issue-agent-${{ github.event.issue.number || inputs.issue_number }}
+  cancel-in-progress: false
+jobs:
+  authorize:
+    if: github.event_name == 'issues' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+      number: ${{ steps.gate.outputs.number }}
+      revision: ${{ steps.gate.outputs.revision }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        id: gate
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+          AUTOMATION_ENABLED: ${{ vars.ISSUE_AGENT_ENABLED }}
+        with:
+          script: |
+            const {authorizeIssue, issueBranch} = await import(`${process.env.GITHUB_WORKSPACE}/scripts/issue-policy.mjs`);
+            const number = Number(process.env.ISSUE_NUMBER);
+            const branch = issueBranch(number);
+            const {data:issue} = await github.rest.issues.get({...context.repo, issue_number:number});
+            let permission = 'none';
+            if(context.eventName === 'workflow_dispatch') {
+              const {data:p} = await github.rest.repos.getCollaboratorPermissionLevel({...context.repo,username:context.actor});
+              permission = p.permission;
+            }
+            if (process.env.AUTOMATION_ENABLED !== 'true' || !authorizeIssue({eventName:context.eventName, action:context.payload.action, sender:context.payload.sender, author:issue.user, permission, isPullRequest:!!issue.pull_request, state:issue.state})) {
+              core.notice('Skipped: automation disabled or trusted identity/issue authorization denied.'); return;
+            }
+            const {data:prs} = await github.rest.pulls.list({...context.repo,state:'all',head:`${context.repo.owner}:${branch}`});
+            if(prs.length) {core.notice(`Attempt already produced PR #${prs[0].number}; no duplicate.`);return;}
+            const {data:base} = await github.rest.repos.getBranch({...context.repo,branch:'main'});
+            core.setOutput('run','true'); core.setOutput('number',number);core.setOutput('revision',base.commit.sha);
+            require('fs').writeFileSync('issue.json',JSON.stringify({number,title:issue.title,body:issue.body,url:issue.html_url}));
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: steps.gate.outputs.run == 'true'
+        with:
+          name: issue-data
+          path: issue.json
+          retention-days: 7
+  agent:
+    needs: authorize
+    if: needs.authorize.outputs.run == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ fromJSON(vars.ISSUE_AGENT_TIMEOUT_MINUTES || '30') }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.authorize.outputs.revision }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: issue-data
+          path: .issue-task
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @shin-wallslice/client exec playwright install --with-deps chromium
+      - name: Prepare task and check credential presence
+        env:
+          HAS_KEY: ${{ secrets.OPENAI_API_KEY != '' }}
+        run: |
+          test "$HAS_KEY" = true || { echo 'Missing OPENAI_API_KEY repository secret; see docs/maintainers/automation.md'; exit 1; }
+          printf '\n.issue-task/\n' >> .git/info/exclude
+          cp .github/agent-prompt.md .issue-task/prompt.md
+      - uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675 # v1, reviewed 2026-10-20
+        id: codex
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          codex-version: '0.138.0'
+          model: ${{ vars.ISSUE_AGENT_MODEL || 'gpt-5.3-codex' }}
+          permission-profile: ':workspace'
+          safety-strategy: drop-sudo
+          prompt-file: .issue-task/prompt.md
+          output-file: .issue-task/result.json
+          output-schema: '{"type":"object","properties":{"status":{"type":"string","enum":["implemented","blocked"]},"summary":{"type":"string"},"validation":{"type":"string"}},"required":["status","summary","validation"],"additionalProperties":false}'
+      - name: Collect changes without executing proposed code
+        run: |
+          git add -A -- . ':!.issue-task'
+          git diff --cached --binary > .issue-task/change.patch
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: agent-result
+          path: |
+            .issue-task/change.patch
+            .issue-task/result.json
+          include-hidden-files: true
+          retention-days: 7
+  propose:
+    needs: [authorize, agent]
+    if: always() && needs.authorize.outputs.run == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      # Fresh runner: never run a script, hook, package install, or check from
+      # agent changes in the job holding the write token.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.authorize.outputs.revision }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        if: needs.agent.result == 'success'
+        with:
+          name: agent-result
+          path: ${{ runner.temp }}/agent-result
+      - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        env:
+          ISSUE_NUMBER: ${{ needs.authorize.outputs.number }}
+          BASE_SHA: ${{ needs.authorize.outputs.revision }}
+          AGENT_RESULT: ${{ needs.agent.result }}
+        with:
+          script: |
+            const fs = require('fs');
+            const cp = require('child_process');
+            const number = Number(process.env.ISSUE_NUMBER);
+            const branch = `codex/issue-${number}`;
+            const comment = body => github.rest.issues.createComment({...context.repo,issue_number:number,body});
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            if(process.env.AGENT_RESULT !== 'success') {await comment(`Codex attempt ${process.env.AGENT_RESULT}. Check [workflow diagnostics](${runUrl}) for missing credentials, timeout, or execution failures. No work is claimed complete. Correct the blocker, then retry manually.`);return;}
+            const result = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/agent-result/result.json`,'utf8'));
+            if(result.status !== 'implemented') {await comment(`Codex needs clarification or is blocked:\n\n${String(result.summary).slice(0,5000)}\n\nValidation: ${String(result.validation).slice(0,3000)}\n\n[Run](${runUrl})`);return;}
+            const {data:prs}=await github.rest.pulls.list({...context.repo,state:'all',head:`${context.repo.owner}:${branch}`});
+            if(prs.length) {core.notice('PR already exists; skipping duplicate');return;}
+            cp.execFileSync('git',['-c','core.hooksPath=/dev/null','apply','--index','--binary',`${process.env.RUNNER_TEMP}/agent-result/change.patch`]);
+            const diff=cp.execFileSync('git',['diff','--cached','--name-only'],{encoding:'utf8'});
+            if(!diff.trim()) {await comment(`Codex returned no changes. Review [run](${runUrl}) and clarify the issue before retrying.`);return;}
+            cp.execFileSync('git',['-c','core.hooksPath=/dev/null','-c','user.name=shin-wallslice agent','-c','user.email=agent@users.noreply.github.com','commit','-m',`Address issue #${number}`]);
+            const sha=cp.execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
+            const {data:base}=await github.rest.git.getCommit({...context.repo,commit_sha:process.env.BASE_SHA});
+            const raw=cp.execFileSync('git',['diff-tree','--no-commit-id','--raw','--no-renames','-r','-z',process.env.BASE_SHA,sha],{encoding:'utf8'}).split('\0');
+            const tree=[];
+            for(let i=0;i<raw.length-1;i+=2) {
+              const [oldMode,mode,oldSha,objectSha,status]=raw[i].slice(1).split(' ');
+              const path=raw[i+1];
+              if(status==='D') {tree.push({path,mode:oldMode,type:'blob',sha:null});continue;}
+              if(!['100644','100755'].includes(mode)) throw Error('Agent patch contains unsupported symlink or submodule');
+              const content=cp.execFileSync('git',['cat-file','blob',objectSha]).toString('base64');
+              const {data:blob}=await github.rest.git.createBlob({...context.repo,content,encoding:'base64'});
+              tree.push({path,mode,type:'blob',sha:blob.sha});
+            }
+            const {data:t}=await github.rest.git.createTree({...context.repo,base_tree:base.tree.sha,tree});
+            const {data:c}=await github.rest.git.createCommit({...context.repo,message:`Address issue #${number}`,tree:t.sha,parents:[process.env.BASE_SHA]});
+            try {await github.rest.git.createRef({...context.repo,ref:`refs/heads/${branch}`,sha:c.sha});}
+            catch(error) {
+              if(error.status!==422)throw error;
+              // Recover only an orphan branch produced by an earlier interrupted run.
+              const {data:existing}=await github.rest.git.getRef({...context.repo,ref:`heads/${branch}`});
+              const {data:commit}=await github.rest.git.getCommit({...context.repo,commit_sha:existing.object.sha});
+              if(commit.tree.sha!==t.sha)throw Error('Existing issue branch differs; inspect it before retrying');
+            }
+            const {data:pr}=await github.rest.pulls.create({...context.repo,head:branch,base:'main',title:`Address issue #${number}`,body:`Closes #${number}\n\n${String(result.summary).slice(0,8000)}\n\nValidation reported by agent:\n${String(result.validation).slice(0,6000)}\n\nRequired PR checks remain mandatory. If GitHub shows “Approve workflows to run”, a maintainer must approve them. Human review and merge required.\n\n[Agent run](${runUrl})`});
+            await comment(`Proposed changes: ${pr.html_url}. Review the PR and required checks; approve pending workflow runs if GitHub requests it. This issue stays open until a human merges the PR.`);

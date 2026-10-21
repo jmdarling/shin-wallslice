@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>shin-wallslice: one landscape, every screen</title>
+  <rect width="256" height="256" rx="54" fill="#151d32"/>
+  <rect x="28" y="39" width="174" height="128" rx="14" fill="#8dc8ef"/>
+  <circle cx="156" cy="76" r="19" fill="#ffcf89"/>
+  <path d="M28 146 86 82l45 51 26-28 45 41v21H28Z" fill="#496995"/>
+  <path d="m28 156 55-40 48 44 34-27 37 23v11H28Z" fill="#263d64"/>
+  <rect x="146" y="98" width="84" height="130" rx="15" fill="#151d32" stroke="#f2f4fa" stroke-width="8"/>
+  <path d="M154 114h68v67l-24-34-18 23-26-37Z" fill="#8dc8ef"/>
+  <path d="m154 175 26-27 18 23 24-15v57h-68Z" fill="#496995"/>
+  <path d="M55 193h61m-30-18v18" stroke="#f2f4fa" stroke-width="10" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CommunityApplications>
+  <Profile>shin-wallslice turns one image into device-sized PNG wallpapers and ZIP downloads using local processing. Optional AI connects to your chosen vision service. Intended for a single user on a trusted LAN. Support: GitHub issues.</Profile>
+  <Icon>https://raw.githubusercontent.com/jmdarling/shin-wallslice/main/docs/assets/icon.svg</Icon>
+  <WebPage>https://github.com/jmdarling/shin-wallslice</WebPage>
+</CommunityApplications>

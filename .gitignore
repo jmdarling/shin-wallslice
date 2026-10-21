@@ -147,3 +147,15 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Workspace-specific ignores
+dist/
+coverage/
+.DS_Store
+
+# Local wallpaper state
+data/
+tmp/
+
+# Private runtime configuration
+config/local.json

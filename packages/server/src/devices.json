@@ -1,0 +1,38 @@
+[
+  {
+    "id": "iphone-18-pro-max",
+    "name": "iPhone 18 Pro Max",
+    "width": 1320,
+    "height": 2868
+  },
+  {
+    "id": "m5-ipad-pro-11-inch",
+    "name": "M5 iPad Pro 11-inch",
+    "width": 2420,
+    "height": 2420
+  },
+  {
+    "id": "m5-ipad-pro-13-inch",
+    "name": "M5 iPad Pro 13-inch",
+    "width": 2752,
+    "height": 2752
+  },
+  {
+    "id": "m1-2020-macbook-air",
+    "name": "M1, 2020 MacBook Air",
+    "width": 2560,
+    "height": 1600
+  },
+  {
+    "id": "14-inch-nov-2024-macbook-pro",
+    "name": "14-inch, Nov 2024 MacBook Pro",
+    "width": 3024,
+    "height": 1964
+  },
+  {
+    "id": "generic-16x9-4k",
+    "name": "Generic 16:9 4K",
+    "width": 3840,
+    "height": 2160
+  }
+]

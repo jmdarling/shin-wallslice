@@ -1,0 +1,13 @@
+services:
+  wallslice:
+    image: ghcr.io/jmdarling/shin-wallslice:1.0.0
+    container_name: shin-wallslice
+    restart: unless-stopped
+    mem_limit: 4g
+    ports:
+      - '8080:3000'
+    volumes:
+      - wallslice-data:/data
+
+volumes:
+  wallslice-data:

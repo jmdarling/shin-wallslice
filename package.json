@@ -1,0 +1,34 @@
+{
+  "name": "shin-wallslice",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @shin-wallslice/server build && concurrently -k -n server,client \"pnpm --filter @shin-wallslice/server dev\" \"pnpm --filter @shin-wallslice/client dev\"",
+    "build": "pnpm -r build",
+    "start": "pnpm --filter @shin-wallslice/server start",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:browser:install": "pnpm --filter @shin-wallslice/client exec playwright install chromium",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build && pnpm distribution:check",
+    "docker:smoke": "node scripts/docker-smoke.mjs",
+    "distribution:check": "python3 scripts/validate-distribution.py && node --test scripts/distribution.test.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "eslint": "^9.39.0",
+    "typescript-eslint": "^8.0.0",
+    "eslint-config-prettier": "^10.0.0",
+    "prettier": "^3.0.0",
+    "typescript": "~5.9.3",
+    "concurrently": "^9.0.0",
+    "@types/node": "^24.0.0"
+  }
+}

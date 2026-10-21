@@ -1,0 +1,18 @@
+node_modules
+**/node_modules
+**/dist
+.git
+.agents
+ui.excalidraw
+specs
+coverage
+
+data
+tmp
+**/data
+**/tmp
+
+# Private runtime configuration
+config/local.json
+**/.env
+**/.env.*

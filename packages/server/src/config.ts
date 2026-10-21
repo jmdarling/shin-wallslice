@@ -215,6 +215,9 @@ export async function loadConfig(
       const name = `SHIN_WALLSLICE_${suffix}`;
       const raw = environment[name];
       if (raw === undefined) continue;
+      // Unraid supplies blank optional template fields as empty environment values.
+      // Preserve JSON/default endpoint settings until these fields are filled in.
+      if (raw === '' && ['ai.baseUrl', 'ai.model'].includes(setting)) continue;
       let value: string | number | boolean = raw;
       if (setting === 'ai.enabled') {
         if (raw !== 'true' && raw !== 'false')

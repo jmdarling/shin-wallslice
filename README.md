@@ -47,11 +47,11 @@ shin-wallslice runs on your own server in a single container. Cropping and expor
 **Unraid:** [import the supplied template and Apply](docs/unraid.md). Community
 Applications listing is pending. No source checkout or build is needed.
 
-**Version 1.0.0 is available as a public image** for Linux amd64 and arm64. The
+**Version 1.0.1 is available as a public image** for Linux amd64 and arm64. The
 commands below install it without registry login. See the
-[release](https://github.com/jmdarling/shin-wallslice/releases/tag/v1.0.0) and
-[verified distribution evidence](docs/maintainers/v1.0.0-evidence.md) for the exact
-digest, native runtime checks, SBOM/provenance, and vulnerability reports.
+[release](https://github.com/jmdarling/shin-wallslice/releases/tag/v1.0.1) and
+[1.0.1 changes](docs/maintainers/v1.0.1-release-notes.md). The release records the
+exact digest, native runtime checks, SBOM/provenance, and vulnerability reports.
 
 Allow **4 GiB application RAM** and **4 GiB free writable temporary disk**. One
 image supports Linux amd64 and arm64. Ordinary processing works without AI or
@@ -73,7 +73,7 @@ docker run -d \
   --memory=4g \
   -p 8080:3000 \
   --mount type=volume,src=shin-wallslice-data,dst=/data \
-  ghcr.io/jmdarling/shin-wallslice:1.0.0
+  ghcr.io/jmdarling/shin-wallslice:1.0.1
 ```
 
 Open [http://localhost:8080](http://localhost:8080), or
@@ -100,7 +100,7 @@ is needed. Its contents are:
 ```yaml
 services:
   wallslice:
-    image: ghcr.io/jmdarling/shin-wallslice:1.0.0
+    image: ghcr.io/jmdarling/shin-wallslice:1.0.1
     container_name: shin-wallslice
     restart: unless-stopped
     mem_limit: 4g
@@ -292,7 +292,7 @@ docker run -d \
   -p 8080:3000 \
   --mount type=volume,src=shin-wallslice-data,dst=/data \
   --mount type=bind,src="$(pwd)/config/local.json",dst=/config/config.json,readonly \
-  ghcr.io/jmdarling/shin-wallslice:1.0.0
+  ghcr.io/jmdarling/shin-wallslice:1.0.1
 ```
 
 Use the absolute path to your private JSON file in the mount source. The file must exist and be readable by UID 1000; its parent directories must be traversable by that user. Protect files containing tokens from other users while granting that read access. The application does not need write access to `/config`. Do not place private files elsewhere in the build context and assume they will be ignored.
@@ -350,7 +350,7 @@ Set these on the process or container. Unset variables preserve JSON/default val
 | `ai.model`            | `SHIN_WALLSLICE_AI_MODEL`              | Nonempty string                                                             |
 | `ai.token`            | `SHIN_WALLSLICE_AI_TOKEN`              | String without line breaks; empty clears the optional bearer token          |
 
-Integers accept only unsigned decimal digits with no whitespace, sign, leading zeros (except `0`), exponent, fraction, or hex notation, and must satisfy their ranges. Strings are used as supplied; whitespace-only strings are invalid except for the token. Empty values are invalid for every type except `ai.token`. Boolean values are case-sensitive. Invalid input fails startup with a nonzero exit. Environment `SHIN_WALLSLICE_AI_ENABLED=false` prevents AI requests even when JSON enables AI. Local and container starts share these rules. Unrelated environment variables have no effect.
+Integers accept only unsigned decimal digits with no whitespace, sign, leading zeros (except `0`), exponent, fraction, or hex notation, and must satisfy their ranges. Strings are used as supplied; whitespace-only strings are invalid except for the token. Empty `ai.baseUrl` and `ai.model` environment values are treated as unset, preserving JSON/default values (1.0.1+). Empty values remain invalid for other settings except `ai.token`, where empty clears the token. Boolean values are case-sensitive. Invalid input fails startup with a nonzero exit. Environment `SHIN_WALLSLICE_AI_ENABLED=false` prevents AI requests even when JSON enables AI. Local and container starts share these rules. Unrelated environment variables have no effect.
 
 A complete non-AI environment-based example, using container port 3456 instead of 3000:
 
@@ -364,7 +364,7 @@ docker run -d \
   -e SHIN_WALLSLICE_HOST=0.0.0.0 \
   -e SHIN_WALLSLICE_PORT=3456 \
   -e SHIN_WALLSLICE_AI_ENABLED=false \
-  ghcr.io/jmdarling/shin-wallslice:1.0.0
+  ghcr.io/jmdarling/shin-wallslice:1.0.1
 ```
 
 This replaces the quick-start container, rather than running alongside it. The browser still uses port 8080. The built-in health check reads the effective configuration, including the overridden port.
@@ -398,7 +398,7 @@ The server appends `/chat/completions`: `http://YOUR_AI_SERVER_IP:1234/v1` becom
 
 A container's `localhost` refers to **that container**, not your NAS or another model server. Prefer the AI server's reachable LAN address. On Docker Desktop, `host.docker.internal` can reach the host; on Linux Docker Engine you can add `--add-host=host.docker.internal:host-gateway` and use that name. The model service must listen on an address reachable from the container and permit the connection through its firewall. See [Docker's host networking guidance](https://docs.docker.com/reference/cli/docker/container/run/#add-host).
 
-Alternatively set `SHIN_WALLSLICE_AI_ENABLED=true`, `SHIN_WALLSLICE_AI_BASE_URL`, `SHIN_WALLSLICE_AI_MODEL`, and optionally `SHIN_WALLSLICE_AI_TOKEN` as container variables. In Unraid, use Variable entries with these exact names; in Compose, use an `environment:` mapping. You can combine a JSON endpoint/model with an environment token.
+Alternatively set `SHIN_WALLSLICE_AI_ENABLED=true`, `SHIN_WALLSLICE_AI_BASE_URL`, `SHIN_WALLSLICE_AI_MODEL`, and optionally `SHIN_WALLSLICE_AI_TOKEN` as container variables. In Unraid, fill in the supplied advanced AI fields; in Compose, use an `environment:` mapping. You can combine a JSON endpoint/model with an environment token.
 
 Restart/recreate as appropriate, then upload an image to exercise the service. Provider availability is checked only after an accepted upload; a healthy app does not establish that AI works. A connection failure leaves local processing available and shows a nonblocking error with Retry. Setting `SHIN_WALLSLICE_AI_ENABLED=false` disables AI even when JSON enables it.
 
@@ -463,7 +463,7 @@ The image defaults to non-root `node` with UID/GID 1000. The [Unraid template](d
 ### Update and roll back
 
 Back up preferences/private configuration and download active outputs first.
-Examples pin `:1.0.0` for reproducibility. To upgrade, choose a newer verified exact
+Examples pin `:1.0.1` for reproducibility. To upgrade, choose a newer verified exact
 version from the release notes, replace the image tag in your run/Compose settings,
 and recreate using the same data volume, ports, and optional configuration.
 Alternatively `:1`, `:1.0`, or `:latest` track their stable release series.
@@ -472,7 +472,7 @@ Publication makes images available; it never automatically updates your server.
 For Docker run:
 
 ```sh
-docker pull ghcr.io/jmdarling/shin-wallslice:1.0.0
+docker pull ghcr.io/jmdarling/shin-wallslice:1.0.1
 docker stop shin-wallslice
 docker rm shin-wallslice
 ```
@@ -512,7 +512,7 @@ docker cp ./wallslice-backup/. shin-wallslice:/data/
 # Restore ownership on this dedicated volume before starting:
 docker run --rm --user 0 \
   --mount type=volume,src=shin-wallslice-data,dst=/data \
-  ghcr.io/jmdarling/shin-wallslice:1.0.0 true
+  ghcr.io/jmdarling/shin-wallslice:1.0.1 true
 docker start shin-wallslice
 ```
 

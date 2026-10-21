@@ -188,10 +188,35 @@ test('validates supplied values before overrides and checks effective AI require
     'LOG_LEVEL',
     'DATA_DIRECTORY',
     'TEMPORARY_DIRECTORY',
-    'AI_BASE_URL',
-    'AI_MODEL',
   ]) {
     await expect(f.load({ [`SHIN_WALLSLICE_${suffix}`]: '' })).rejects.toThrow(
+      'Configuration error',
+    );
+  }
+});
+
+test('blank Unraid AI fields are unset while enabled AI still requires an endpoint and model', async () => {
+  const f = await fixture();
+  const emptyFields = {
+    SHIN_WALLSLICE_AI_BASE_URL: '',
+    SHIN_WALLSLICE_AI_MODEL: '',
+    SHIN_WALLSLICE_AI_TOKEN: '',
+  };
+  expect((await f.load(emptyFields)).ai).toEqual({ enabled: false, token: '' });
+  await expect(
+    f.load({ ...emptyFields, SHIN_WALLSLICE_AI_ENABLED: 'true' }),
+  ).rejects.toThrow('enabled ai requires');
+  await f.put(f.local, {
+    ai: { enabled: true, baseUrl: 'http://provider/v1', model: 'vision' },
+  });
+  expect((await f.load(emptyFields)).ai).toEqual({
+    enabled: true,
+    baseUrl: 'http://provider/v1',
+    model: 'vision',
+    token: '',
+  });
+  for (const suffix of ['AI_BASE_URL', 'AI_MODEL']) {
+    await expect(f.load({ [`SHIN_WALLSLICE_${suffix}`]: ' ' })).rejects.toThrow(
       'Configuration error',
     );
   }

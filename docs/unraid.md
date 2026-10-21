@@ -51,12 +51,20 @@ bind directory, PID 1 identity, named volumes, and replacement persistence.
 
 ## Advanced configuration
 
-Ordinary installation requires no JSON mount. To enable AI, add **Variable** entries
-in Advanced View using `SHIN_WALLSLICE_AI_BASE_URL` (your real endpoint ending in
-`/v1`), `SHIN_WALLSLICE_AI_MODEL` (your real vision model), and optionally
-`SHIN_WALLSLICE_AI_TOKEN` (mask this value). Then set the supplied advanced
-`SHIN_WALLSLICE_AI_ENABLED` field to `true`. Do not add empty model/URL variables;
-supplied invalid values are rejected even when AI is disabled.
+Ordinary installation requires no JSON mount. In **Advanced View**, the template
+includes blank **AI API base URL**, **AI model**, and masked **AI token** fields.
+Leave these blank with **enable AI** set to `false` for local processing. To enable
+AI, fill in your real service URL ending in `/v1`, its vision model identifier, and
+an optional bearer token, then set **enable AI** to `true` and Apply. No manually
+added variables are needed.
+
+Blank URL/model fields preserve JSON/default settings in image **1.0.1 or later**;
+nonempty invalid values still fail startup, and enabled AI needs both URL and model.
+A blank token clears any JSON token; fill in the token field if your service needs
+one. Existing installations should update the image before using the new template.
+Re-run the import commands above to refresh the available user template; existing
+saved container templates may retain their old fields. Preserve your port/appdata
+mappings and private settings when selecting the refreshed template.
 
 Alternatively mount a pre-existing readable partial JSON file to
 `/config/config.json`, Read Only. Keep secrets private. Defaults, selected JSON,
@@ -86,10 +94,11 @@ and retain the same `/data` mapping. Download active work and back up
 Removing the container should retain appdata; deleting appdata removes preferences.
 See [backup and removal](../README.md#back-up-and-restore).
 
-## Actual NAS verification (required before v1.0.0 completion)
+## Actual NAS verification
 
-This environment has no NAS access. Run this guided checklist on **real Unraid
-7.2.3**, using a new dedicated appdata directory, and record results in
+The developer reports that the initial NAS test worked and all functionality
+passed. This environment has no direct NAS access; use this checklist to verify
+changes on **real Unraid 7.2.3**, using a dedicated appdata directory, and record results in
 [verification evidence](maintainers/v1.0.0-evidence.md):
 
 - Import template, select it, Apply with normal port/path choices; no permission repair.

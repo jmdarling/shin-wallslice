@@ -91,7 +91,7 @@ async function check(configPath, port, environment = []) {
     docker('inspect', '--format', '{{json .Config.Healthcheck.Test}}', id),
   );
   docker('exec', id, ...health.slice(1));
-  if (environment.length) {
+  if (environment.includes('SHIN_WALLSLICE_AI_ENABLED=true')) {
     const providerCheck = `
       import { createServer } from 'node:http';
       import { createRequire } from 'node:module';
@@ -153,7 +153,12 @@ async function check(configPath, port, environment = []) {
 }
 
 try {
-  await check(undefined, 3000);
+  await check(undefined, 3000, [
+    'SHIN_WALLSLICE_AI_ENABLED=false',
+    'SHIN_WALLSLICE_AI_BASE_URL=',
+    'SHIN_WALLSLICE_AI_MODEL=',
+    'SHIN_WALLSLICE_AI_TOKEN=',
+  ]);
   const replacement = join(directory, 'config.json');
   writeFileSync(
     replacement,
@@ -175,6 +180,16 @@ try {
   for (const [name, contents, environment = []] of [
     ['malformed', '{"ai":{"token":"smoke-private-sentinel"}, BROKEN'],
     ['invalid', JSON.stringify({ host: '0.0.0.0', port: 0, logLevel: 'info' })],
+    [
+      'missing-enabled-ai',
+      '{}',
+      [
+        'SHIN_WALLSLICE_AI_ENABLED=true',
+        'SHIN_WALLSLICE_AI_BASE_URL=',
+        'SHIN_WALLSLICE_AI_MODEL=',
+        'SHIN_WALLSLICE_AI_TOKEN=',
+      ],
+    ],
     [
       'environment',
       '{}',

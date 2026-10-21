@@ -8,14 +8,15 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/jmdarling/shin-wallslice/issues</Support>
   <Project>https://github.com/jmdarling/shin-wallslice</Project>
-  <Overview>One wallpaper. Every device. Crop locally to six device presets, adjust framing and OLED shadows, then download PNGs or a ZIP. Optional AI is disabled by default. Single-user trusted-LAN access; no built-in login. Allow 4 GiB RAM and 4 GiB writable temporary disk space. Only preferences persist in appdata; uploaded images and exports expire. Startup initializes only /data and preferences.json, then Fastify runs as UID/GID 1000.</Overview>
+  <Overview>One wallpaper. Every device. Crop locally to six device presets, adjust framing and OLED shadows, then download PNGs or a ZIP. Optional AI is disabled by default. Single-user trusted-LAN access; no built-in login. Allow 4 GiB RAM and 4 GiB writable temporary disk space. Preferences persist in appdata; temporary jobs expire. Optional server saving (v1.2.0+) retains PNGs in a configured output directory; see the setup guide. Startup initializes only /data and preferences.json, then Fastify runs as UID/GID 1000.</Overview>
   <Category>Tools:Utilities</Category>
   <WebUI>http://[IP]:[PORT:3000]/</WebUI>
   <Icon>https://raw.githubusercontent.com/jmdarling/shin-wallslice/main/docs/assets/icon.svg</Icon>
   <TemplateURL>https://raw.githubusercontent.com/jmdarling/shin-wallslice/main/templates/shin-wallslice.xml</TemplateURL>
   <ExtraParams>--memory=4g --user=0:0</ExtraParams>
   <Config Name="WebUI port" Target="3000" Default="8080" Mode="tcp" Description="Choose an unused host port." Type="Port" Display="always" Required="true" Mask="false">8080</Config>
-  <Config Name="Appdata" Target="/data" Default="/mnt/user/appdata/shin-wallslice" Mode="rw" Description="Dedicated preferences directory. Do not map a share root here." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/shin-wallslice</Config>
+  <Config Name="Appdata" Target="/data" Default="/mnt/user/appdata/shin-wallslice" Mode="rw" Description="Dedicated preferences and optional output directory. Do not map a share root here." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/shin-wallslice</Config>
+  <!-- Optional output: on a v1.2.0+ build, add SHIN_WALLSLICE_OUTPUT_DIRECTORY=/data/output. Existing /data retains output, or add a dedicated rw /data/output host mapping prepared for UID/GID 1000. See docs/unraid.md. Disabled by default. -->
   <Config Name="Advanced: enable AI" Target="SHIN_WALLSLICE_AI_ENABLED" Default="false" Description="Optional. Requires your vision service URL and model." Type="Variable" Display="advanced" Required="false" Mask="false">false</Config>
   <Config Name="Advanced: AI API base URL" Target="SHIN_WALLSLICE_AI_BASE_URL" Default="" Description="Optional. Your vision service API URL ending in /v1. Leave blank when AI is disabled or configured through JSON. Requires image 1.0.1 or later." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="Advanced: AI model" Target="SHIN_WALLSLICE_AI_MODEL" Default="" Description="Optional. Your service's vision model identifier. Set a URL and model before enabling AI, or configure both through JSON." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>

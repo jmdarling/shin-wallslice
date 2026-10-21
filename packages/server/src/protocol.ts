@@ -38,6 +38,14 @@ export interface Manifest {
   source: string;
   outputs: Record<string, string>;
 }
+export interface SaveResult {
+  state: 'saved' | 'conflicts' | 'failed';
+  destination: string;
+  saved: string[];
+  conflicts: string[];
+  confirmation?: string;
+  failed: { path: string; message: string }[];
+}
 
 export type NamingStatus =
   | { state: 'disabled' | 'pending' }

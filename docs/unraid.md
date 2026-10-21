@@ -25,8 +25,7 @@ there and install using the same choices.
 Allow 4 GiB application RAM and 4 GiB free temporary disk storage. The default
 writable container layer holds `/tmp/shin-wallslice`. A dedicated scratch bind mount
 is optional; prepare it for UID/GID 1000 separately. Do not mount a small RAM-backed
-`/tmp` without budgeting its memory. Only preferences persist under `/data`; images
-and exports expire and disappear on restart/replacement. Download them first.
+`/tmp` without budgeting its memory. Preferences persist under `/data`; temporary images and exports expire on restart/replacement. Explicit server-saved PNGs persist when configured as below. Download or save active work first.
 
 Use a trusted LAN: single-user shared preferences, no built-in login. Optional AI is
 off. No other service container is required for ordinary processing.
@@ -71,6 +70,40 @@ Alternatively mount a pre-existing readable partial JSON file to
 and environment precedence follow the [configuration reference](../README.md#configuration).
 Unraid environment values are stored in its saved template: protect flash backups.
 
+## Optional server output
+
+Server saving requires **1.2.0 or later**; update an older image before enabling
+it. The template keeps saving disabled by default, so no new mount is required.
+
+Use **Add another Path, Port, Variable, Label or Device** → **Variable**:
+key `SHIN_WALLSLICE_OUTPUT_DIRECTORY`, value `/data/output`, then Apply.
+Alternatively supply `{"outputDirectory":"/data/output"}` through the optional
+read-only partial JSON mount. `/data/output` then uses the existing persistent
+appdata mapping. The non-root application creates the subdirectory on first save.
+
+For a dedicated output share/folder, add a **Path** with container path
+`/data/output`, host path such as `/mnt/user/wallpapers/shin-wallslice`, and **Read/Write**
+access. Prepare only that dedicated directory for UID/GID 1000 write/traverse
+permissions; for a newly created folder, an administrator can use:
+
+```sh
+install -d -o 1000 -g 1000 -m 0750 /mnt/user/wallpapers/shin-wallslice
+```
+
+Do not point it at an unrelated share root or recursively change existing files'
+ownership. The initializer touches only `/data` and `preferences.json`, so a
+separate output mount needs its own permissions. Keep `/data` for preferences.
+The environment value is a **container path**, not the Unraid host path.
+
+On Download choose **Save to server**. The folder checkbox selects either
+`<safe-name>-<device-id>.png` or `<device-id>/<safe-name>.png`. Review listed
+conflicts and choose **Replace** or **Cancel**. Saving can partially complete;
+read the saved/not-saved list, fix permissions or storage capacity, and retry.
+Browser downloads remain available. Keep the same output mapping when updating
+or replacing the container. Back up output folders separately if outside appdata;
+removing appdata also removes outputs stored inside it. Temporary cleanup and
+Start over do not delete saved wallpapers. See the [usage guide](../README.md#save-wallpapers-to-your-server).
+
 ## Operate, update, and roll back
 
 Use the container menu for logs and restart; health normally becomes `healthy`
@@ -91,6 +124,9 @@ For pinning or rollback, edit **Repository** to
 `ghcr.io/jmdarling/shin-wallslice:1.0.0` (or another verified exact release), Apply,
 and retain the same `/data` mapping. Download active work and back up
 `preferences.json` plus private configuration first. Restore backups while stopped.
+When rolling back below 1.2.0, remove `outputDirectory` from JSON and
+`SHIN_WALLSLICE_OUTPUT_DIRECTORY` from the environment. Retain output mounts;
+older images leave saved PNGs intact but cannot save more.
 Removing the container should retain appdata; deleting appdata removes preferences.
 See [backup and removal](../README.md#back-up-and-restore).
 
@@ -115,3 +151,5 @@ changes on **real Unraid 7.2.3**, using a dedicated appdata directory, and recor
   compatible public version exists. Confirm saved appdata survives.
 
 Record failures and observations; container simulation does not count as this test.
+
+For v1.2.0, also save both layouts, cancel and confirm conflicts, then replace the container retaining the output mapping and verify the PNG files remain.

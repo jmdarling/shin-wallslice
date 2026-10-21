@@ -1,4 +1,11 @@
-import { mkdtemp, writeFile, rm, mkdir, copyFile } from 'node:fs/promises';
+import {
+  mkdtemp,
+  writeFile,
+  rm,
+  mkdir,
+  copyFile,
+  chmod,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -103,6 +110,7 @@ test('every environment setting overrides JSON and environment-only AI is suppor
     logLevel: 'warn',
     dataDirectory: './private-data',
     temporaryDirectory: './private-tmp',
+    outputDirectory: './output',
     memoryBudgetMiB: 1024,
     temporaryStorageMiB: 8192,
     jobTtlMinutes: 10,
@@ -242,6 +250,7 @@ test('malformed JSON, unknown keys and invalid environment diagnostics never ech
         'HOST',
         'DATA_DIRECTORY',
         'TEMPORARY_DIRECTORY',
+        'OUTPUT_DIRECTORY',
         'AI_TOKEN',
         'AI_MODEL',
       ].includes(suffix)
@@ -310,4 +319,30 @@ test('automatic local discovery is anchored to the repository from root and pack
       ai: { enabled: false, token: 'discovery-sentinel' },
     });
   }
+});
+
+test('output directory uses normal JSON/environment precedence and rejects invalid supplied values safely', async () => {
+  const f = await fixture();
+  await f.put(f.local, { outputDirectory: './wallpapers' });
+  expect((await f.load()).outputDirectory).toBe('./wallpapers');
+  expect(
+    (await f.load({ SHIN_WALLSLICE_OUTPUT_DIRECTORY: '/data/output' }))
+      .outputDirectory,
+  ).toBe('/data/output');
+  for (const outputDirectory of ['', ' ', 1, null, 'path\u0000secret']) {
+    await f.put(f.local, { outputDirectory });
+    await expect(
+      f.load({ SHIN_WALLSLICE_OUTPUT_DIRECTORY: '/valid' }),
+    ).rejects.toThrow('outputDirectory');
+  }
+});
+
+test('output configuration is read-only and relative paths stay relative to the process', async () => {
+  const f = await fixture();
+  await f.put(f.local, { outputDirectory: './output' });
+  await chmod(f.local, 0o444);
+  expect((await f.load()).outputDirectory).toBe('./output');
+  expect(
+    await import('node:fs/promises').then((fs) => fs.readFile(f.local, 'utf8')),
+  ).toBe(JSON.stringify({ outputDirectory: './output' }));
 });

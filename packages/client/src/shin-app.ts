@@ -14,10 +14,12 @@ import type {
   Preferences,
   NamingStatus,
   DetectionStatus,
+  SaveResult,
 } from '../../server/src/protocol.js';
 
 type Catalog = {
   aiEnabled?: boolean;
+  serverSavingEnabled?: boolean;
   devices: Device[];
   preferences: Preferences;
   preferenceError: string;
@@ -41,6 +43,8 @@ export class ShinApp extends LitElement {
     dirty: { state: true },
     ready: { state: true },
     oledProcessing: { state: true },
+    serverSavingEnabled: { state: true },
+    serverSave: { state: true },
   };
   page: 'input' | 'processing' | 'download' = 'input';
   devices: Device[] = [];
@@ -60,6 +64,9 @@ export class ShinApp extends LitElement {
   private manuallyPositioned = new Set<string>();
   naming: NamingStatus = { state: 'disabled' };
   aiEnabled = false;
+  serverSavingEnabled = false;
+  serverSave: SaveResult | undefined;
+  private saveSelection = '';
   nameEdited = false;
   private namingController?: AbortController;
   name = '';
@@ -108,6 +115,7 @@ export class ShinApp extends LitElement {
     try {
       const catalog = await this.api<Catalog>('/api/catalog');
       this.aiEnabled = catalog.aiEnabled ?? false;
+      this.serverSavingEnabled = catalog.serverSavingEnabled ?? false;
       this.devices = catalog.devices;
       this.prefs = {
         ...catalog.preferences,
@@ -323,6 +331,7 @@ export class ShinApp extends LitElement {
     return this.devices.filter((d) => this.prefs.devices.includes(d.id));
   }
   private schedule() {
+    this.serverSave = undefined;
     this.dirty = true;
     this.generation++;
     clearTimeout(this.timer);
@@ -378,6 +387,7 @@ export class ShinApp extends LitElement {
       this.manifest = undefined;
       this.crops = {};
       this.name = '';
+      this.serverSave = undefined;
       this.error = '';
       this.page = 'input';
       this.dirty = false;
@@ -424,6 +434,50 @@ export class ShinApp extends LitElement {
         .slice(0, 100)
         .replace(/[.\s-]+$/g, '') || 'wallpaper'
     );
+  }
+  private currentSaveSelection() {
+    return JSON.stringify([
+      this.job?.id,
+      this.manifest?.revision,
+      this.safeName(),
+      this.prefs.organizeIntoDeviceFolders,
+    ]);
+  }
+  private async saveToServer(replace = false) {
+    if (this.busy || this.dirty || !this.manifest || !this.job) return;
+    const selection = this.currentSaveSelection();
+    const confirmation =
+      replace && this.saveSelection === selection
+        ? this.serverSave?.confirmation
+        : undefined;
+    this.busy = 'Saving wallpapers to server…';
+    this.serverSave = undefined;
+    try {
+      const result = await this.api<SaveResult>(
+        `/api/jobs/${this.job.id}/save/${this.manifest.revision}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: this.safeName(),
+            organizeIntoDeviceFolders: this.prefs.organizeIntoDeviceFolders,
+            ...(confirmation ? { confirmation } : {}),
+          }),
+        },
+      );
+      this.saveSelection = selection;
+      this.serverSave = result;
+    } catch (error) {
+      this.serverSave = {
+        state: 'failed',
+        destination: '',
+        saved: [],
+        conflicts: [],
+        failed: [{ path: '', message: (error as Error).message }],
+      };
+    } finally {
+      this.busy = '';
+    }
   }
   static styles = css`
     :host {
@@ -904,6 +958,13 @@ export class ShinApp extends LitElement {
     }
     .download-actions {
       min-width: 0;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .save-feedback {
+      overflow-wrap: anywhere;
     }
     .oled-toast {
       position: fixed;
@@ -1340,9 +1401,11 @@ export class ShinApp extends LitElement {
                     >Wallpaper
                     name${this.naming.state === 'succeeded' && !this.nameEdited ? html`<wa-icon class="ai-indicator" src=${aiSparkles} label="AI Powered" title="AI Powered"></wa-icon>` : nothing}<input
                       type="text"
+                      ?disabled=${this.busy === 'Saving wallpapers to server…'}
                       .value=${this.name}
                       @input=${(e: Event) => {
                         this.nameEdited = true;
+                        this.serverSave = undefined;
                         this.name = (e.target as HTMLInputElement).value;
                       }}
                   /></label>
@@ -1350,8 +1413,10 @@ export class ShinApp extends LitElement {
                     <label class="folder-choice"
                       ><input
                         type="checkbox"
+                        ?disabled=${this.busy === 'Saving wallpapers to server…'}
                         .checked=${this.prefs.organizeIntoDeviceFolders}
                         @change=${(e: Event) => {
+                          this.serverSave = undefined;
                           this.prefs = {
                             ...this.prefs,
                             organizeIntoDeviceFolders: (
@@ -1369,8 +1434,71 @@ export class ShinApp extends LitElement {
                       @click=${() => this.download(`/api/jobs/${j.id}/zip/${this.manifest!.revision}?name=${encodeURIComponent(this.safeName())}&organizeIntoDeviceFolders=${this.prefs.organizeIntoDeviceFolders}`, `${this.safeName()}.zip`)}
                       >Download ZIP</wa-button
                     >
+                    ${this.serverSavingEnabled ? html`<wa-button appearance="outlined" ?disabled=${!usable} @click=${() => this.saveToServer()}>Save to server</wa-button>` : nothing}
                   </div>
                 </div>
+                <section
+                  class="save-feedback"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
+                  ${this.busy === 'Saving wallpapers to server…' ? html`<p role="status"><wa-spinner aria-hidden="true"></wa-spinner> Saving wallpapers to server…</p>` : nothing}
+                  ${
+                    this.serverSave
+                      ? html`
+                          <p role="status">
+                            ${this.serverSave.state === 'saved' ? 'Saved to' : this.serverSave.state === 'conflicts' ? 'Confirm replacement in' : 'Save incomplete.'}
+                            ${this.serverSave.destination}
+                          </p>
+                          ${
+                            this.serverSave.saved.length
+                              ? html`<p>Saved files:</p>
+                                  <ul>
+                                    ${this.serverSave.saved.map((path) => html`<li>${path}</li>`)}
+                                  </ul>`
+                              : nothing
+                          }
+                          ${
+                            this.serverSave.failed.length
+                              ? html`<div role="alert">
+                                  <p>Files not saved:</p>
+                                  <ul>
+                                    ${this.serverSave.failed.map((f) => html`<li>${f.path}: ${f.message}</li>`)}
+                                  </ul>
+                                </div>`
+                              : nothing
+                          }
+                          ${
+                            this.serverSave.state === 'conflicts' &&
+                            this.saveSelection === this.currentSaveSelection()
+                              ? html`
+                                  <p>
+                                    These files already exist. Replace them?
+                                  </p>
+                                  <ul>
+                                    ${this.serverSave.conflicts.map((path) => html`<li>${path}</li>`)}
+                                  </ul>
+                                  <wa-button
+                                    variant="brand"
+                                    ?disabled=${!usable}
+                                    @click=${() => this.saveToServer(true)}
+                                    >Replace</wa-button
+                                  >
+                                  <wa-button
+                                    appearance="outlined"
+                                    ?disabled=${!!this.busy}
+                                    @click=${() => {
+                                      this.serverSave = undefined;
+                                    }}
+                                    >Cancel</wa-button
+                                  >
+                                `
+                              : nothing
+                          }
+                        `
+                      : nothing
+                  }
+                </section>
                 <div class="cards">
                   ${this.selected.map((d) => {
                     const filename = `${this.safeName()}-${d.id}.png`;
@@ -1390,6 +1518,7 @@ export class ShinApp extends LitElement {
                 <div class="actions">
                   <wa-button
                     appearance="outlined"
+                    ?disabled=${!!this.busy}
                     @click=${() => {
                       this.page = 'processing';
                     }}

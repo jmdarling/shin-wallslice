@@ -7,7 +7,7 @@ import {
   versionFromTag,
 } from './release-policy.mjs';
 test('only stable canonical semantic versions can publish; package versions agree', () => {
-  assert.equal(validatePackages('v1.1.0'), '1.1.0');
+  assert.equal(validatePackages('v1.2.0'), '1.2.0');
   for (const tag of [
     '1.0.0',
     'v01.0.0',

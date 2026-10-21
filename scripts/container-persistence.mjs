@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 const image = process.argv[2] ?? 'shin-wallslice:local';
 const engine = process.argv[3] ?? 'docker';
 const run = (...args) =>
@@ -19,6 +20,8 @@ async function start(mount, root = false) {
     'run',
     '-d',
     '--memory=4g',
+    '--env',
+    'SHIN_WALLSLICE_OUTPUT_DIRECTORY=/data/output',
     ...(root ? ['--user=0:0'] : []),
     '--mount',
     mount,
@@ -58,12 +61,34 @@ function stop(id) {
 const get = `const c=await fetch('http://127.0.0.1:3000/api/catalog').then(r=>r.json());`;
 const modify = `${get} const p={...c.preferences,oled:true,threshold:37};const r=await fetch('http://127.0.0.1:3000/api/preferences',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify(p)});if(!r.ok)throw Error(await r.text());`;
 const verify = `${get}if(!c.preferences.oled||c.preferences.threshold!==37)throw Error('Preferences lost across replacement');`;
+const outputScript = readFileSync(
+  new URL('./container-server-output.mjs', import.meta.url),
+  'utf8',
+);
+function saveOutputs(id) {
+  // The script resolves dependencies relative to /app/scripts without adding it to the image.
+  run(
+    'exec',
+    id,
+    'node',
+    '--input-type=module',
+    '-e',
+    outputScript.replace(
+      "new URL('../packages/server/package.json', import.meta.url)",
+      "new URL('./packages/server/package.json', import.meta.url)",
+    ),
+  );
+}
+const verifyOutputs = `import {readFile} from 'node:fs/promises';import assert from 'node:assert/strict';const files=JSON.parse(await readFile('/data/output-verification.json','utf8'));for(const f of files)assert.equal((await readFile(f.path)).toString('base64'),f.contents);assert.equal(await readFile('/data/output/unrelated.txt','utf8'),'keep');console.log('Persistent output bytes retained after container replacement on '+process.arch);`;
+
 try {
   let id = await start(`type=volume,src=${volume},dst=/data`);
   run('exec', id, 'node', '--input-type=module', '-e', modify);
+  saveOutputs(id);
   stop(id);
   id = await start(`type=volume,src=${volume},dst=/data`);
   run('exec', id, 'node', '--input-type=module', '-e', verify);
+  run('exec', id, 'node', '--input-type=module', '-e', verifyOutputs);
   stop(id);
   // Create a fresh root-owned 0755 directory ON THE ENGINE HOST. This also works
   // with remote engines, where a client-side temporary bind path would be wrong.
@@ -94,10 +119,12 @@ try {
       '1234:1234 700',
     );
     run('exec', id, 'node', '--input-type=module', '-e', modify);
+    saveOutputs(id);
     stop(id);
     // Existing UID 1000 preferences survive the initializer on replacement.
     id = await start(`type=bind,src=${hostPath},dst=/data${bindLabel}`, true);
     run('exec', id, 'node', '--input-type=module', '-e', verify);
+    run('exec', id, 'node', '--input-type=module', '-e', verifyOutputs);
     stop(id);
   } finally {
     for (const id of ids) stop(id);
@@ -112,13 +139,13 @@ try {
       'sh',
       image,
       '-c',
-      'rm -f "$1/preferences.json"; rmdir "$1/untouched"; rmdir "$1"',
+      'rm -f "$1/preferences.json" "$1/output-verification.json"; rm -rf "$1/output"; rmdir "$1/untouched"; rmdir "$1"',
       'sh',
       `/host-tmp/${key}`,
     );
   }
   console.log(
-    'Named volume and root-owned 0755 bind mount: non-root PID 1, initialization, replacement, and persistent preferences passed.',
+    'Named volume and root-owned 0755 bind mount: non-root PID 1, initialization, replacement, persistent preferences, both server-save layouts, and retained output bytes passed.',
   );
 } finally {
   for (const id of ids) stop(id);

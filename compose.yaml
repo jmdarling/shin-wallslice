@@ -1,13 +1,19 @@
 services:
   wallslice:
-    image: ghcr.io/jmdarling/shin-wallslice:1.1.0
+    image: ghcr.io/jmdarling/shin-wallslice:1.2.0
     container_name: shin-wallslice
     restart: unless-stopped
     mem_limit: 4g
     ports:
       - '8080:3000'
+    # Optional server output (available in 1.2.0 and later).
+    # environment:
+    #   SHIN_WALLSLICE_OUTPUT_DIRECTORY: /data/output
     volumes:
       - wallslice-data:/data
+      # Optional dedicated host folder; prepare for UID/GID 1000 write/traverse.
+      # Without this mapping, enabled saving uses the existing data volume.
+      # - /srv/shin-wallslice-output:/data/output
 
 volumes:
   wallslice-data:

@@ -25,8 +25,6 @@ publication, account settings, and NAS verification.
    visibility to **Public** and confirm repository linkage/Actions access. Repository
    visibility does not prove package visibility. Expect initial anonymous verification
    to fail until this one-time change; use the exact-digest recovery below.
-6. Configure issue automation separately using [its guide](automation.md). It has no
-   access to the release job's package credentials.
 
 ## Publish the first release
 

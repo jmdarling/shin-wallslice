@@ -14,9 +14,8 @@ pnpm dev
 
 Use `codex/short-description` for agent branches and a descriptive branch for human
 work. Keep client/server TypeScript packages separate, use strict checks, and follow
-[AGENTS.md](AGENTS.md). A sufficiently specified issue can be implemented directly;
-version specs are for deliberate releases. Explicit generate-spec/implement-spec
-requests retain their own workflows and sign-off requirements.
+[AGENTS.md](AGENTS.md). Version specs describe deliberate releases. Explicit
+generate-spec/implement-spec requests retain their workflows and sign-off requirements.
 
 Run `pnpm check` before proposing changes. It runs lint, formatting, explicit type
 checks, server route tests, Chromium Lit tests, builds, and distribution checks.
@@ -33,5 +32,4 @@ or include them in logs, issues, fixtures, or PR descriptions. Human review and
 merge remain required, including agent changes to workflows and instructions.
 
 Maintainers: see [release operations](docs/maintainers/releases.md),
-[issue automation](docs/maintainers/automation.md), and
-[Community Applications submission](docs/maintainers/community-applications.md).
+and [Community Applications submission](docs/maintainers/community-applications.md).

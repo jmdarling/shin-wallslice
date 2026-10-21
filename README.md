@@ -565,8 +565,7 @@ image in the installation command. Rebuild/recreate after source changes. Local
 images receive no registry updates. Contributor setup, issue/PR conventions, and
 validation evidence are in [CONTRIBUTING.md](CONTRIBUTING.md). Maintainers should
 read [release operations](docs/maintainers/releases.md),
-[issue automation](docs/maintainers/automation.md), and
-[CA submission materials](docs/maintainers/community-applications.md).
+and [CA submission materials](docs/maintainers/community-applications.md).
 
 The client is Lit + Web Awesome with Vite. The server is Fastify + Sharp. Both packages use strict TypeScript and ES modules, Node.js 24 LTS, pnpm 11.25.0, and Vitest.
 

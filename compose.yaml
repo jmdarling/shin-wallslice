@@ -1,6 +1,6 @@
 services:
   wallslice:
-    image: ghcr.io/jmdarling/shin-wallslice:1.0.1
+    image: ghcr.io/jmdarling/shin-wallslice:1.1.0
     container_name: shin-wallslice
     restart: unless-stopped
     mem_limit: 4g

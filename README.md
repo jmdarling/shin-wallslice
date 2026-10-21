@@ -1,50 +1,377 @@
+<div align="center">
+
 # shin-wallslice
 
-One wallpaper for all your screens. Version 0.2.0 accepts a JPEG, PNG, or WebP, offers independent fixed-size crop positioning for six bundled devices, and exports lossless PNGs individually or together in a ZIP. Lit and Web Awesome provide the interface; Fastify and Sharp process images locally. No accounts, database, external AI service, or other container is required.
+**One wallpaper. Every device.**
 
-## Using the workflow
+Turn a favorite image into wallpapers that fit your phone, tablet, and computer.<br>
+Frame each crop, deepen the shadows, and download everything in one ZIP.
 
-1. Drop one image, paste an image from the clipboard, or choose a file.
-2. Select output devices. Smart (AI) frames the main subject when AI is enabled; Smart (entropy) uses local image entropy separately for each device. The five anchors position all selected crops together. Drag any crop independently, or focus its boundary and use arrow keys (Shift moves 10 pixels). Reset position restores that device to the current global method. Crops have fixed size and never leave the source. Softness warnings indicate upscaling.
-3. Optionally enable OLEDify: a pixel becomes true black when **all three RGB channels are at or below** the integer threshold. Other pixels retain their RGB values. The cutoff is applied after resizing, including in exported PNGs. Previews update automatically; progress appears while outputs are generated.
-4. Continue to Download, edit the base name, and download individual PNGs or the ZIP. Names are normalized into safe basenames. The ZIP defaults to `<name>-<device-id>.png` files at its root. Check “Organize into device folders” to use `<device-id>/<name>.png` instead; individual downloads always retain `<name>-<device-id>.png` names. Back preserves the current work; Start over discards it.
+[Get started](#get-started) · [See the workflow](#your-first-wallpaper) · [Configure](#configuration) · [Get help](#troubleshooting)
 
-The interface follows your browser’s light or dark color-scheme preference, including changes while the application is open. Browsers without a preference use light mode. Theme changes preserve the current workflow and image colors; there is no manual theme setting or saved theme preference.
+</div>
 
-Only preferences (device selections, global method/anchor, OLEDify enable/threshold, and device folder organization) survive reload or restart. They are shared by this single-user installation and stored in `preferences.json` under the configured data directory (`/data` in Docker). Existing preferences without a folder organization choice default to unchecked. Sources, crop positions, output files, and edited wallpaper names are temporary and never restored. Browser reload begins at Input. Abandoned jobs expire automatically.
+![A single dusk landscape exported as portrait, square, and widescreen wallpapers, with exact device dimensions](docs/images/device-outputs.png)
 
-## Development and verification
+_[View the comparison full size](docs/images/device-outputs.png). One original, three shapes. These are real PNG exports from shin-wallslice using center crops. [Download the example source](docs/images/dusk-ridges.png) to try it yourself._
 
-Use Node.js **24 LTS** (`.node-version` / `.nvmrc`) and pnpm **11.25.0**:
+shin-wallslice runs on your own server in a single container. Cropping and exports use local image processing; no account, database, or second container is required. Optional AI can suggest names and frame a detected subject through a vision service you configure.
+
+- **Fit your screens:** six bundled device presets, independent crop positioning, and exact output dimensions.
+- **Choose your framing:** local Smart (entropy), five anchors, or optional Smart (AI), with pointer, touch, and keyboard adjustments.
+- **Make shadows black:** OLEDify turns near-black pixels into true black with an adjustable threshold.
+- **Take the results:** lossless PNGs individually or in a ZIP, optionally organized into device folders.
+- **Feel at home:** automatic light/dark appearance and preferences remembered on your server.
+
+## Contents
+
+- [Get started](#get-started)
+  - [Docker run](#docker-run)
+  - [Docker Compose](#docker-compose)
+  - [Manual Unraid setup](#manual-unraid-setup)
+  - [Local Node.js](#local-nodejs)
+- [Your first wallpaper](#your-first-wallpaper)
+- [Devices and output sizes](#devices-and-output-sizes)
+- [Configuration](#configuration)
+- [Optional AI](#optional-ai)
+- [Memory, storage, and limits](#memory-storage-and-limits)
+- [Persistence and privacy](#persistence-and-privacy)
+- [Updates, backups, and removal](#updates-backups-and-removal)
+- [Troubleshooting](#troubleshooting)
+- [Development and verification](#development-and-verification)
+
+## Get started
+
+### Choose an installation
+
+| Path                                  | Best for                                              | You need                                                              |
+| ------------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------- |
+| [Docker run](#docker-run)             | A quick home-server installation                      | Git, Docker Engine or Docker Desktop, terminal access                 |
+| [Docker Compose](#docker-compose)     | A repeatable setup kept in one file                   | Git, Docker with the Compose plugin                                   |
+| [Manual Unraid](#manual-unraid-setup) | An installation managed through the Unraid Docker tab | An Unraid server with Docker enabled, a computer with Git and SSH/SCP |
+| [Local Node.js](#local-nodejs)        | Running directly on a computer without containers     | Git, Node.js 24 LTS, pnpm 11.25.0                                     |
+
+Allow **4 GiB of available application memory** and at least **4 GiB of free temporary storage**, plus room for the source checkout, dependencies, and container build. Container deployments support **Linux amd64 and arm64**. Build on the target architecture unless you have configured cross-platform emulation.
+
+All paths below build from source. There is currently no published container image or supplied Unraid Community Apps template. An internet connection is needed to obtain source, dependencies, and base images. Once installed, ordinary image processing works without an AI service.
+
+**Access:** this is a single-user application with shared preferences and no built-in login or per-user isolation. Use a trusted home network. The container examples publish to the host's network interfaces; do not forward that port directly to the internet. If you need remote access, provide authentication and HTTPS through your own access layer or use a private VPN.
+
+Terminal examples use POSIX shell syntax (Linux/macOS, or Git Bash on Windows). Adapt multiline commands if using PowerShell.
+
+### Docker run
+
+Install [Docker](https://docs.docker.com/get-started/get-docker/) and Git first. On Linux, your account must be able to run Docker commands. Run these commands in a terminal on the machine that will host the app:
+
+```sh
+git clone https://github.com/jmdarling/shin-wallslice.git
+cd shin-wallslice
+docker build -t shin-wallslice:local .
+docker run -d \
+  --name shin-wallslice \
+  --restart unless-stopped \
+  --memory=4g \
+  -p 8080:3000 \
+  --mount type=volume,src=shin-wallslice-data,dst=/data \
+  shin-wallslice:local
+```
+
+Open **[http://localhost:8080](http://localhost:8080)** on that machine. From another device, use `http://YOUR_SERVER_IP:8080`, replacing `YOUR_SERVER_IP` with the server's LAN address.
+
+Check startup:
+
+```sh
+curl --fail http://localhost:8080/api/health
+docker inspect --format '{{.State.Health.Status}}' shin-wallslice
+docker logs --tail 50 shin-wallslice
+```
+
+The health endpoint returns `{"status":"ok"}`. Docker health changes from `starting` to `healthy` after its first successful check, usually within 30 seconds. The browser should show **One wallpaper. Every device.**
+
+```sh
+docker stop shin-wallslice
+docker start shin-wallslice
+```
+
+The `/data` volume retains preferences across restarts and container replacement. Temporary images are deliberately not restored. Continue with [Your first wallpaper](#your-first-wallpaper).
+
+**Port already used?** Change only the left side of `-p`, for example `-p 8081:3000`, and open port 8081 in your browser. The right side remains 3000 unless you explicitly change the application's runtime port. `EXPOSE 3000` is image metadata; it does not override configuration.
+
+### Docker Compose
+
+Clone the source on the host as above. The repository includes this [compose.yaml](compose.yaml) in its root; if creating it yourself, save the complete example there, next to the Dockerfile:
+
+```yaml
+services:
+  wallslice:
+    build:
+      context: .
+    image: shin-wallslice:local
+    container_name: shin-wallslice
+    restart: unless-stopped
+    mem_limit: 4g
+    ports:
+      - '8080:3000'
+    volumes:
+      - wallslice-data:/data
+
+volumes:
+  wallslice-data:
+```
+
+From the repository root:
+
+```sh
+docker compose config
+docker compose up -d --build
+docker compose ps
+curl --fail http://localhost:8080/api/health
+docker compose logs --tail 50 wallslice
+```
+
+Open **[http://localhost:8080](http://localhost:8080)**, or `http://YOUR_SERVER_IP:8080` from your LAN. Expect `{"status":"ok"}` and the Input screen. The [Compose service reference](https://docs.docker.com/reference/compose-file/services/) describes the build, memory, and restart settings used here.
+
+```sh
+docker compose stop
+docker compose start
+# Rebuild after a source update, then replace the container:
+docker compose up -d --build
+# Remove the container and network, retaining the data volume:
+docker compose down
+```
+
+Use one installation method at a time: the run and Compose examples share a container name and port. Compose uses its own project-scoped data volume, usually `shin-wallslice_wallslice-data`; it does not automatically use the run example's `shin-wallslice-data` volume. Keep the checkout folder/project name stable, or use the same `docker compose -p YOUR_PROJECT` value for every command.
+
+For a port conflict, change `"8080:3000"` to `"8081:3000"` and recreate the service. For optional JSON configuration, add a read-only bind mount under this service's `volumes`, after creating the file:
+
+```yaml
+- ./config/local.json:/config/config.json:ro
+```
+
+That line is a fragment to add alongside `wallslice-data:/data`, not a replacement Compose file. See [Configuration](#configuration) before enabling AI.
+
+### Manual Unraid setup
+
+This path builds an image on your NAS and then creates a container in its Docker interface. A locally built image is not a registry release: Unraid's update/pull feature cannot rebuild it for you.
+
+**1. Copy the source from your computer.** Install Git and an SSH/SCP client on your computer. Enable SSH on Unraid if needed. In your computer's terminal, replace `YOUR_UNRAID_IP`:
+
+```sh
+git clone https://github.com/jmdarling/shin-wallslice.git
+scp -r shin-wallslice root@YOUR_UNRAID_IP:/mnt/user/appdata/shin-wallslice-source
+```
+
+Use a fresh clone so you do not copy local credentials or dependencies. The source directory is separate from persistent appdata. If your NAS uses another share/pool, substitute that path consistently.
+
+**2. Build on the NAS.** Open the Unraid web terminal or SSH into the NAS, then run:
+
+```sh
+cd /mnt/user/appdata/shin-wallslice-source
+docker build -t shin-wallslice:local .
+mkdir -p /mnt/user/appdata/shin-wallslice
+chown 1000:1000 /mnt/user/appdata/shin-wallslice
+chmod 750 /mnt/user/appdata/shin-wallslice
+```
+
+Only change ownership on this dedicated app directory. The container runs as UID/GID **1000:1000**; it does not implement `PUID`/`PGID` variables. Keep at least 4 GiB free in the Docker storage backing the writable container layer for default temporary files, and additional space for builds/images.
+
+**3. Add the container.** In the Unraid interface, go to **Docker → Add Container**, leave the template selection empty, and enable **Advanced View** where needed. Enter these values:
+
+| Field / added item | Value                                                                  |
+| ------------------ | ---------------------------------------------------------------------- |
+| Name               | `shin-wallslice`                                                       |
+| Repository         | `shin-wallslice:local` (the image just built on this NAS)              |
+| Network Type       | `Bridge`                                                               |
+| Privileged         | Off                                                                    |
+| Console shell      | `sh`                                                                   |
+| Extra Parameters   | `--memory=4g --pull=never`                                             |
+| WebUI              | `http://[IP]:[PORT:3000]/`                                             |
+| Port               | Container `3000`, host `8080`, TCP                                     |
+| Path               | Container `/data`, host `/mnt/user/appdata/shin-wallslice`, Read/Write |
+
+Use **Add another Path, Port, Variable, Label or Device** to create the port and path entries. Apply the form and enable the container's **Autostart** toggle. If your Unraid version attempts to pull the local image during creation, verify it exists with `docker image inspect shin-wallslice:local` and consult the creation log; there is no registry image to pull. The mapping concepts and controls are described in [Unraid's container guide](https://docs.unraid.net/unraid-os/using-unraid-to/run-docker-containers/managing-and-customizing-containers/).
+
+**4. Open and check.** Browse to `http://YOUR_UNRAID_IP:8080`, or click the container's WebUI action. The Input screen should appear. In the NAS terminal:
+
+```sh
+curl --fail http://127.0.0.1:8080/api/health
+docker logs --tail 50 shin-wallslice
+docker inspect --format '{{.State.Health.Status}}' shin-wallslice
+```
+
+Expect `{"status":"ok"}` and eventually `healthy`. Change the **host** port if 8080 is occupied. Leave the container port at 3000 unless changing `SHIN_WALLSLICE_PORT` too.
+
+**Optional configuration:** in the NAS terminal, create a dedicated configuration directory and a disabled-AI JSON file:
+
+```sh
+mkdir -p /mnt/user/appdata/shin-wallslice-config
+printf '%s\n' '{"ai":{"enabled":false}}' > /mnt/user/appdata/shin-wallslice-config/config.json
+chown 1000:1000 /mnt/user/appdata/shin-wallslice-config /mnt/user/appdata/shin-wallslice-config/config.json
+chmod 750 /mnt/user/appdata/shin-wallslice-config
+chmod 640 /mnt/user/appdata/shin-wallslice-config/config.json
+```
+
+This example creates a new file; do not run the `printf` command over an existing configuration you want to keep. Edit that JSON as needed. Add a Read Only path mapping from that **file** to `/config/config.json`. Alternatively, add the exact environment names from the [reference](#environment-variables) as Variable entries. Apply/recreate the container after editing mappings or variables; restart after changing JSON contents. Neither the source checkout nor the JSON configuration is mounted at `/data`.
+
+To update, copy updated source to the source directory, rebuild the local tag on the NAS, and recreate the container from its saved configuration so it uses the new image. Keep the `/data` mapping. See [Updates](#updates-backups-and-removal) for backups and the distinction between restarting and replacing a container.
+
+### Local Node.js
+
+Install [Node.js 24 LTS](https://nodejs.org/en/download) and Git. Confirm `node --version` reports `v24.x`, then install the pinned package manager and build:
 
 ```sh
 npm install --global pnpm@11.25.0
+git clone https://github.com/jmdarling/shin-wallslice.git
+cd shin-wallslice
 pnpm install --frozen-lockfile
-pnpm test:browser:install
-pnpm dev
+pnpm build
+pnpm start
 ```
 
-Open [localhost:5173](http://localhost:5173). Vite proxies `/api` to Fastify at `127.0.0.1:3000`. The server compiles TypeScript in watch mode and runs compiled JavaScript with Node's watch mode. Stop both packages with Ctrl+C. Keep port 3000 for the default proxy, or change `packages/client/vite.config.ts` when testing a different port.
+Keep that terminal open. Browse to **[http://localhost:3000](http://localhost:3000)**. Fastify serves the client and API through one Node.js process and one port. In a second terminal, `curl --fail http://localhost:3000/api/health` should return `{"status":"ok"}`. Stop with **Ctrl+C**; run `pnpm start` again from the repository root to restart. For unattended operation, manage this foreground command with your host's service manager, or use the container installation.
+
+Local defaults bind to `0.0.0.0` and store preferences in `packages/server/data/` and temporary files in `packages/server/tmp/` when launched through these pnpm commands. These paths are ignored by Git. A private [config/local.json](#configuration) may change them. To use a different port on a POSIX shell:
 
 ```sh
-pnpm check
+SHIN_WALLSLICE_PORT=3100 pnpm start
 ```
 
-| Command             | Purpose                                                                   |
-| ------------------- | ------------------------------------------------------------------------- |
-| `pnpm lint`         | ESLint with typescript-eslint                                             |
-| `pnpm format:check` | Prettier check (`pnpm format` applies formatting)                         |
-| `pnpm typecheck`    | Explicit strict TypeScript checks, including tests                        |
-| `pnpm test`         | Fastify injection tests and Lit Browser Mode tests in Playwright Chromium |
-| `pnpm build`        | Vite client build and TypeScript server compilation                       |
+In PowerShell, set `$env:SHIN_WALLSLICE_PORT = '3100'` before `pnpm start`. Open the matching port. Browser test tools are needed only for [development verification](#development-and-verification), not to run production.
 
-On Linux, Chromium may need OS libraries: `pnpm --filter @shin-wallslice/client exec playwright install --with-deps chromium`.
+## Your first wallpaper
 
-For production locally, run `pnpm build` then `pnpm start`, and open [localhost:3000](http://localhost:3000). Fastify serves the client and API through one process and port. `GET /api/health` returns `{"status":"ok"}`. Local defaults put `data/` and `tmp/` under the working directory (the server package when launched through pnpm); both are ignored by Git.
+Screenshots follow your light/dark preference where supported. Open a full-size capture for detail: [Input](docs/images/input-light.png) · [Processing](docs/images/processing-light.png) · [Download](docs/images/download-light.png).
 
-## Runtime configuration
+### 1. Choose an image
 
-Runtime settings load from bundled JSON defaults, one optional partial JSON override, then application-specific environment variables. The local `config/default.json` is:
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/input-dark.png">
+  <img alt="Input screen with the file picker and drop/paste area" src="docs/images/input-light.png" width="1440">
+</picture>
+
+Select **Choose File**, drop one image onto the page, or paste a copied image while on Input. Accepted formats are **still JPEG, PNG, and WebP**. Animated images are rejected. Paste requires an actual image on the clipboard; a copied URL or file reference may not contain image data. File selection is always an alternative.
+
+Choose a source with enough resolution for your largest output. Orientation is normalized before cropping. At default settings the decoded limit is about **56 megapixels**, including 7680 × 4320 and 8192 × 4320; the upload byte limit is **512 MiB**. A compressed file's size alone does not indicate whether its decoded pixels will fit.
+
+### 2. Frame each screen
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/processing-dark.png">
+  <img alt="Processing screen showing device choices, crop controls, and independent phone and tablet crop boundaries" src="docs/images/processing-light.png" width="1440">
+</picture>
+
+Select output devices in the left panel. Every crop has a fixed size and aspect ratio; position it to choose which part of the source to keep.
+
+| Control                      | What it does                                                                                          |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Smart (entropy)              | Finds a visually detailed region locally, separately for each device. No AI needed.                   |
+| Smart (AI)                   | Uses a detected main subject when AI is enabled. Entropy previews remain usable while detection runs. |
+| Corner / center selector     | Positions crops at top-left, top-right, center, bottom-left, or bottom-right.                         |
+| Drag a crop boundary         | Moves only that device's crop; touch dragging works too.                                              |
+| Arrow keys on a focused crop | Moves by one source pixel; hold Shift to move 10 pixels.                                              |
+| Reset position               | Restores only that device to the current method's starting position.                                  |
+
+**Changing the global method or anchor resets the positions of all selected devices.** Newly selected devices initialize from the current method. Crops stay inside the source and cannot be resized independently. A softness warning means that crop will be upscaled to reach the device's output dimensions.
+
+First use selects entropy when AI is disabled and AI when enabled. An explicit entropy choice remains entropy after enabling AI. Saved legacy Smart choices migrate using AI availability; anchors retain their selection. If AI is disabled later, a saved AI choice resolves to entropy. See [AI behavior](#what-to-expect-from-ai) for pending results and manual-edit protection.
+
+### 3. Optionally OLEDify the shadows
+
+Enable **Turn near-black colors into true black** and move **Threshold** (0–255; default 16). A pixel becomes RGB `0, 0, 0` only when **all three RGB channels are at or below the threshold**, after resizing. Other pixels retain their RGB values. For example, at 32, `(20, 25, 30)` becomes black but `(20, 25, 40)` does not.
+
+![The same widescreen export before OLEDify and after OLEDify at threshold 32, showing the foreground shadows becoming true black](docs/images/oledify-comparison.png)
+
+_[View the comparison full size](docs/images/oledify-comparison.png). Actual exports with identical framing, OLEDify off on the left and threshold 32 on the right. This is a pixel cutoff, not a global brightness adjustment; higher thresholds remove more shadow detail._
+
+Previews update automatically. Wait for generation to finish before continuing or downloading. Exports use the same settings and framing as the final previews.
+
+### 4. Name and download
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/download-dark.png">
+  <img alt="Download screen with the editable name, ZIP download, and final device previews" src="docs/images/download-light.png" width="1440">
+</picture>
+
+Choose **Next: Download**, edit **Wallpaper name**, then download all outputs as a ZIP or save individual PNGs. The base name is normalized into a safe filename: slashes and unsupported characters become hyphens, leading/trailing dots or spacing are removed, length is capped at 100 characters, and an empty result becomes `wallpaper`.
+
+For the name `Dusk Ridges`, individual files include `Dusk Ridges-iphone-18-pro-max.png`. ZIP organization changes only the archive's layout:
+
+| Option                       | Example ZIP entries inside `Dusk Ridges.zip`                                  |
+| ---------------------------- | ----------------------------------------------------------------------------- |
+| Unchecked (default)          | `Dusk Ridges-iphone-18-pro-max.png` and `Dusk Ridges-m5-ipad-pro-11-inch.png` |
+| Organize into device folders | `iphone-18-pro-max/Dusk Ridges.png` and `m5-ipad-pro-11-inch/Dusk Ridges.png` |
+
+Individual PNGs always retain the device suffix. Install the downloaded file as wallpaper using your device's normal wallpaper settings; shin-wallslice does not change device settings remotely. Outputs have exact pixel dimensions, but a device may still apply its own zoom or placement.
+
+**Back** preserves your current work. **Start over** discards the current image, positions, generated files, and edited name. Reload also starts at Input; only preferences survive. Appearance follows your browser/system light or dark preference, including changes while the app is open. There is no manual theme setting.
+
+## Devices and output sizes
+
+| Preset                        | Output pixels | Shape     |
+| ----------------------------- | ------------- | --------- |
+| iPhone 18 Pro Max             | 1320 × 2868   | Portrait  |
+| M5 iPad Pro 11-inch           | 2420 × 2420   | Square    |
+| M5 iPad Pro 13-inch           | 2752 × 2752   | Square    |
+| M1, 2020 MacBook Air          | 2560 × 1600   | Landscape |
+| 14-inch, Nov 2024 MacBook Pro | 3024 × 1964   | Landscape |
+| Generic 16:9 4K               | 3840 × 2160   | Landscape |
+
+Tablet outputs are intentionally square. You can use a preset on any device that suits its dimensions; model names identify the bundled presets rather than auto-detected hardware.
+
+Custom devices are currently a source-level change. Edit [devices.json](packages/server/src/devices.json), add a unique lowercase hyphenated ID, display name, and positive integer width/height, then rebuild the app/image. Dimensions are capped at 16384 per side and the complete catalog must fit processing/storage budgets. There is no runtime custom-device editor or catalog override.
+
+## Configuration
+
+**No configuration file is needed for a normal non-AI installation.** Docker uses `/data` and `/tmp/shin-wallslice`; local production uses relative data/tmp directories. All settings below are runtime settings, separate from Vite or other build-tool configuration.
+
+### Loading order
+
+1. Load bundled defaults.
+2. Select **one** optional JSON override: explicit `--config` first, otherwise `/config/config.json`, otherwise repository-root `config/local.json`.
+3. Apply supported `SHIN_WALLSLICE_` environment overrides.
+
+JSON overrides may be partial. Nested `ai` fields merge individually, so supplying a token does not erase the configured model. Different override files are never combined. Missing automatic files fall through; a missing explicit file fails. An unreadable or malformed selected file fails without trying another. Automatic repository-root discovery works independently of the process working directory.
+
+Unknown JSON settings and invalid supplied values fail startup even if an environment value would replace them. AI endpoint/model requirements are checked on the final effective configuration. Startup diagnostics identify problems without including supplied values or credentials. **Restart after configuration changes.** There is no settings editor, and the app never writes to the configuration file.
+
+### JSON examples
+
+A complete, minimal non-AI override is:
+
+```json
+{
+  "ai": { "enabled": false }
+}
+```
+
+For local use, save private overrides in `config/local.json` at the repository root. That exact file is ignored by Git and excluded from the Docker build context. The provided `config/local.example.json` is an **AI-enabled** example; edit it before using it. Dotenv files are not automatically loaded by the application.
+
+To select another existing file explicitly:
+
+```sh
+pnpm --filter @shin-wallslice/server start --config /absolute/path/config.json
+```
+
+Configured relative paths resolve against the **process working directory**, not the JSON file's directory. Under the pnpm server commands that is `packages/server`; under the image it is `/app`. Absolute paths make deployments less surprising.
+
+For Docker, create `config/local.json` first, then mount that file read-only. This is an alternative to the quick-start container; stop/remove that container before reusing its name or port:
+
+```sh
+docker run -d \
+  --name shin-wallslice \
+  --restart unless-stopped \
+  --memory=4g \
+  -p 8080:3000 \
+  --mount type=volume,src=shin-wallslice-data,dst=/data \
+  --mount type=bind,src="$(pwd)/config/local.json",dst=/config/config.json,readonly \
+  shin-wallslice:local
+```
+
+Run from the repository root. The file must exist and be readable by UID 1000; its parent directories must be traversable by that user. Protect files containing tokens from other users while granting that read access. The application does not need write access to `/config`. Do not place private files elsewhere in the build context and assume they will be ignored.
+
+### Defaults and validation
+
+These are the shipped local defaults:
 
 ```json
 {
@@ -61,13 +388,7 @@ Runtime settings load from bundled JSON defaults, one optional partial JSON over
 }
 ```
 
-Docker bundles `config/docker.json` as its defaults, with `dataDirectory` set to `/data` and `temporaryDirectory` set to `/tmp/shin-wallslice`; other defaults are identical.
-
-Select exactly one override file in this order: explicit `--config`, `/config/config.json`, then repository-root `config/local.json`. Automatic discovery is independent of the server working directory for both `pnpm dev` and `pnpm start`. Missing automatic files fall back to the next source or defaults; a missing explicit file fails. An unreadable or malformed selected file fails without fallback. Alternative files are never combined.
-
-JSON files now **partially override** defaults. Existing complete files still work; when migrating, remove unchanged fields if desired. Nested `ai` fields merge individually, so a JSON token alone preserves default AI enablement and a configured endpoint/model. Unknown settings and invalid supplied values fail startup even if an environment override would replace them. AI endpoint/model requirements are checked on the effective configuration. Diagnostics omit supplied values and credentials.
-
-Copy `config/local.example.json` to `config/local.json`, choose your endpoint/model, and enter a private token. The local file is ignored by Git and excluded from Docker context/images. Existing `.env` files are also excluded; dotenv files are **not automatically loaded**. Configuration files are read-only to the application. Relative configured paths still resolve against the process working directory. Restart to apply changes; there is no settings editor or configuration persistence.
+The image bundles the same defaults except `dataDirectory` is `/data` and `temporaryDirectory` is `/tmp/shin-wallslice`.
 
 | Setting               | Meaning and validation                                                                                                                                            |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -81,17 +402,9 @@ Copy `config/local.example.json` to `config/local.json`, choose your endpoint/mo
 | `jobTtlMinutes`       | Integer 1–1440; idle lifetime, default 30 minutes                                                                                                                 |
 | `maxJobs`             | Integer 1–16; upper bound on temporary jobs, further reduced by the storage budget                                                                                |
 
-Explicit local configuration:
-
-```sh
-pnpm --filter @shin-wallslice/server start --config /absolute/path/config.json
-```
-
-The explicit file takes precedence and must exist. Relative paths in JSON resolve against the process working directory.
-
 ### Environment variables
 
-Only the following `SHIN_WALLSLICE_` variables configure the application. Each supplied variable overrides its JSON field and preserves sibling fields. Unset variables preserve lower-priority values.
+Set these on the process or container. Unset variables preserve JSON/default values; each supplied variable overrides its own field and preserves sibling fields. The app recognizes only these names for runtime configuration.
 
 | Setting               | Environment variable                   | Parsing                                                                     |
 | --------------------- | -------------------------------------- | --------------------------------------------------------------------------- |
@@ -111,55 +424,249 @@ Only the following `SHIN_WALLSLICE_` variables configure the application. Each s
 
 Integers accept only unsigned decimal digits with no whitespace, sign, leading zeros (except `0`), exponent, fraction, or hex notation, and must satisfy their ranges. Strings are used as supplied; whitespace-only strings are invalid except for the token. Empty values are invalid for every type except `ai.token`. Boolean values are case-sensitive. Invalid input fails startup with a nonzero exit. Environment `SHIN_WALLSLICE_AI_ENABLED=false` prevents AI requests even when JSON enables AI. Local and container starts share these rules. Unrelated environment variables have no effect.
 
-### Memory and temporary storage
-
-The default decoded limit is **55,924,053 pixels** (about 56 MP), allowing both 7680×4320 and 8192×4320 sources with all six devices. Orientation is normalized once before calculating crop coordinates. Only still JPEG, PNG, and WebP are accepted; animated images are rejected.
-
-The decoded limit is `(memoryBudgetMiB - 768) × 1048576 / 24`, rounded down. This reserves 24 bytes per source pixel for decode, orientation, entropy and resizing buffers, plus 768 MiB for upload data, output buffers, ZIP assembly, and process overhead. The upload byte limit is one quarter of the memory budget (512 MiB by default), protecting the buffered upload stage without imposing a small arbitrary file limit. Metadata is inspected with Sharp's decoded-pixel limit before decoding. Image processing and ZIP creation run one operation at a time; additional work receives a retryable busy error. Sharp caching is disabled and its processing concurrency is one. The default is intended for **4 GiB of available application memory**; the planning setting is not an OS-enforced memory ceiling. Apply a container memory limit for deployment enforcement.
-
-Storage admission reserves the upload allowance, eight bytes per maximum source pixel, ten bytes per output pixel across the catalog, and 16 MiB overhead per job. The effective job capacity is the smaller of `maxJobs` and the number of reservations that fit in `temporaryStorageMiB` (three jobs with defaults). This pessimistic reservation covers normalized source PNGs, generated PNGs, and ZIP working space. Actual disk consumption is usually much lower. Provide at least the configured free storage; filesystem-full errors remain retryable. No unbounded render history is kept: each generation invalidates and deletes previous outputs before replacing them. Old URLs fail clearly instead of returning stale or incomplete files.
-
-Start over deletes the job immediately. Idle jobs are removed by a 30-second sweep after their configured lifetime; active image operations finish before cleanup. Expired jobs cannot be used. Shutdown removes the process's jobs; restart removes crash leftovers. Do not share the dedicated temporary directory between multiple running instances. Do not place unrelated files in its `wallslice-*` subdirectories. Preferences are retained separately.
-
-## Docker / home NAS deployment
+A complete non-AI environment-based example, using container port 3456 instead of 3000:
 
 ```sh
-docker build -t shin-wallslice:local .
-docker run --rm --name shin-wallslice --memory=4g -p 8080:3000 \
-  --mount type=volume,src=shin-wallslice-data,dst=/data \
-  shin-wallslice:local
-```
-
-Open [localhost:8080](http://localhost:8080). The single image uses Node.js 24 LTS and the non-root `node` user (UID/GID **1000**), with one exposed port. The built-in health check reads the effective environment-aware configuration. `/data` contains persistent flat-file preferences; mount a volume or a NAS share there to retain preferences across container replacement. Bind-mounted directories must be writable and traversable by UID/GID 1000 (for example, set ownership to `1000:1000` on the dedicated directory). Preference read/write failures appear in the interface with a retry action. Temporary storage must also be writable; `/tmp/shin-wallslice` is ephemeral by default. Budget at least 4 GiB of free temporary disk with the defaults.
-
-To override configuration, copy `config/local.example.json` to ignored `config/local.json`, edit the needed fields, then mount it read-only:
-
-```sh
-docker run --rm --name shin-wallslice --memory=4g -p 8080:3000 \
-  --mount type=volume,src=shin-wallslice-data,dst=/data \
-  --mount type=bind,src="$(pwd)/config/local.json",dst=/config/config.json,readonly \
-  shin-wallslice:local
-```
-
-The config must be readable by UID 1000 (for example mode 0644) and parent directories traversable. The application never writes to `/config`. If you change the configured port, update the container port mapping accordingly. `EXPOSE 3000` is metadata and does not override effective configuration.
-
-For Docker or NAS container settings, configure AI entirely through environment variables (placeholder credentials below). Map the effective container port and restart after changing settings:
-
-```sh
-docker run --rm --name shin-wallslice --memory=4g -p 8080:3456 \
+docker run -d \
+  --name shin-wallslice \
+  --restart unless-stopped \
+  --memory=4g \
+  -p 8080:3456 \
   --mount type=volume,src=shin-wallslice-data,dst=/data \
   -e SHIN_WALLSLICE_HOST=0.0.0.0 \
   -e SHIN_WALLSLICE_PORT=3456 \
-  -e SHIN_WALLSLICE_AI_ENABLED=true \
-  -e SHIN_WALLSLICE_AI_BASE_URL=https://api.openai.com/v1 \
-  -e SHIN_WALLSLICE_AI_MODEL=your-vision-capable-model \
-  -e SHIN_WALLSLICE_AI_TOKEN=replace-with-your-private-token \
+  -e SHIN_WALLSLICE_AI_ENABLED=false \
   shin-wallslice:local
 ```
 
-In Unraid or another NAS UI, add these names as container environment variables and enter the corresponding values. An environment token can also accompany a JSON endpoint/model. Environment variables keep keys out of tracked configuration, but users with access to container configuration can read them; they are not a secret vault. Avoid putting real credentials in shared command history. The server never writes credentials to preferences or other managed persistent data, client assets, API/health responses, logs, or diagnostics.
+This replaces the quick-start container, rather than running alongside it. The browser still uses port 8080. The built-in health check reads the effective configuration, including the overridden port.
 
-Build and exercise both supported architectures using Docker Buildx with emulation available:
+For Compose, add `environment:` under `services.wallslice` with the same variable names; quote string values such as `"false"`. Changing Compose variables requires `docker compose up -d` to recreate the service; a plain restart does not update the container environment.
+
+## Optional AI
+
+AI is **off by default**. Local cropping, OLEDify, manual names, and downloads do not require it.
+
+### Connect a vision service
+
+Choose a service/model that accepts **image input through an OpenAI-compatible Chat Completions API**. A text-only model or compatibility with another provider API is insufficient. Provider availability, cost, and image retention depend on your chosen service; shin-wallslice does not bundle a model or API subscription.
+
+This is a complete partial override for `config/local.json` locally, or your read-only `/config/config.json` mount in a container:
+
+```json
+{
+  "ai": {
+    "enabled": true,
+    "baseUrl": "http://YOUR_AI_SERVER_IP:1234/v1",
+    "model": "REPLACE_WITH_YOUR_VISION_MODEL_ID",
+    "token": "REPLACE_WITH_YOUR_PRIVATE_TOKEN"
+  }
+}
+```
+
+Replace the placeholders with your service's actual API base URL, model identifier, and token. For an unauthenticated local service, **omit `token`**. An empty environment token clears an inherited token. When supplied, it is sent as a server-side bearer token. Public services should use HTTPS; HTTP is supported for local/self-hosted endpoints.
+
+The server appends `/chat/completions`: `http://YOUR_AI_SERVER_IP:1234/v1` becomes `http://YOUR_AI_SERVER_IP:1234/v1/chat/completions`. Do not include that suffix twice. Base URLs must not contain credentials, query strings, fragments, or surrounding whitespace. Consult your provider's own documentation for its current base URL and vision model IDs.
+
+A container's `localhost` refers to **that container**, not your NAS or another model server. Prefer the AI server's reachable LAN address. On Docker Desktop, `host.docker.internal` can reach the host; on Linux Docker Engine you can add `--add-host=host.docker.internal:host-gateway` and use that name. The model service must listen on an address reachable from the container and permit the connection through its firewall. See [Docker's host networking guidance](https://docs.docker.com/reference/cli/docker/container/run/#add-host).
+
+Alternatively set `SHIN_WALLSLICE_AI_ENABLED=true`, `SHIN_WALLSLICE_AI_BASE_URL`, `SHIN_WALLSLICE_AI_MODEL`, and optionally `SHIN_WALLSLICE_AI_TOKEN` as container variables. In Unraid, use Variable entries with these exact names; in Compose, use an `environment:` mapping. You can combine a JSON endpoint/model with an environment token.
+
+Restart/recreate as appropriate, then upload an image to exercise the service. Provider availability is checked only after an accepted upload; a healthy app does not establish that AI works. A connection failure leaves local processing available and shows a nonblocking error with Retry. Setting `SHIN_WALLSLICE_AI_ENABLED=false` disables AI even when JSON enables it.
+
+### What leaves your server
+
+**Enabling AI automatically submits an image representation for both naming and subject detection after every accepted upload**, including paste and drag-and-drop, regardless of the selected crop method. Rejected images trigger neither task. Your configured provider receives these image requests; choosing entropy while AI remains enabled does not prevent submission.
+
+The representation is the full oriented source **before cropping or OLEDify**, resized without enlargement to fit 1024 × 1024, flattened onto white, and encoded as JPEG quality 80, at most 2 MiB. Preparation has a 30-second processing timeout. Each task has a 30-second total request timeout and a 64 KiB response limit. Redirects are rejected to avoid forwarding credentials. Tasks share one retained representation per temporary job, and there is no automatic retry loop.
+
+Connection settings and tokens stay server-side. They are not sent to the browser, saved in preferences, or included in health responses, client assets, or diagnostics. People who can inspect host/container configuration can still read environment secrets. Keep tokens out of Git, shared shell history, screenshots, and support reports. The ignored `config/local.json` is a convenience for private configuration, not a secret vault.
+
+### What to expect from AI
+
+| Task              | Normal behavior                                                                      | Pending or failure                                                                                                                              |
+| ----------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Naming            | Suggests roughly three meaningful words; may recognize a show/game when identifiable | Keep editing or downloading. A failure retains the current name and offers **Retry AI naming**.                                                 |
+| Subject detection | Frames the main subject or coherent group for each selected device                   | Entropy previews remain usable. A service failure offers **Retry subject detection**; no clear subject uses entropy with an inline explanation. |
+
+Recognition and framing are best effort. The app preserves the whole detected subject/group when it fits. Tighter crops prioritize a detected focal region, such as a person's face/head; without one, they center on the subject. Manual positioning remains available.
+
+A late detection result changes only untouched selected crops while AI is the active method. Dragging counts as an edit even if you return to the initial position. Reset position restores that device using the current method and makes it eligible for a pending result. Switching to entropy or an anchor prevents a late AI result from changing those crops; switching back uses the available result. A fallback does not silently replace your saved AI preference with entropy.
+
+A suggested name replaces the original/default only if you have **never edited the name field**. Clearing it or restoring the original text still counts as editing. Naming and detection run independently; retrying one does not restart the other. Results are reused within the job rather than re-requested when choosing devices, resetting crops, changing OLEDify, or navigating. Starting over, expiry, shutdown, or a new workflow prevents stale results from being applied later.
+
+When a crop changes, the app regenerates matching previews/exports before enabling downloads. An already initiated download retains the framing/name selected when it began.
+
+## Memory, storage, and limits
+
+The default **2048 MiB processing budget** targets a deployment with **4 GiB available application memory**. This budget is a planning input, not an OS-enforced ceiling; `--memory=4g` / Compose `mem_limit: 4g` enforces the container limit. Local production needs sufficient host memory too.
+
+| Resource                     | Default behavior                                                                   |
+| ---------------------------- | ---------------------------------------------------------------------------------- |
+| Decoded image                | At most 55,924,053 pixels (about 56 MP)                                            |
+| Upload                       | At most 512 MiB of compressed input                                                |
+| Temporary reservation budget | 4096 MiB; provide at least that much actual free disk                              |
+| Job capacity                 | Up to `maxJobs` (4), further restricted by storage reservations; defaults admit 3  |
+| Processing                   | One image/ZIP operation at a time; competing work may get a retryable busy message |
+| Idle expiry                  | 30 minutes, swept every 30 seconds; active processing finishes before cleanup      |
+
+The decoded-pixel limit is `floor((memoryBudgetMiB - 768) × 1048576 / 24)`. The application reserves 24 bytes per source pixel plus 768 MiB overhead; upload bytes are capped at one quarter of the memory budget. Metadata is checked before decoding, Sharp caching is disabled, and Sharp concurrency is one.
+
+Storage admission conservatively reserves the upload allowance, eight bytes per maximum source pixel, ten bytes per output pixel across the catalog, and 16 MiB per job. Actual usage is often smaller. Raising a reservation setting does **not** allocate disk or memory; provision the resources too. Choose memory/storage values together so at least one complete job fits, or startup fails.
+
+Generated outputs replace the previous generation; no unbounded render history is kept. Old URLs fail clearly rather than returning stale results. Start over deletes the job immediately. Shutdown removes temporary jobs, and restart removes crash leftovers under `wallslice-*` directories. Use a dedicated temporary directory, do not share it between running instances, and do not put unrelated files in those job subdirectories.
+
+Containers keep `/tmp/shin-wallslice` in their writable layer by default. For NAS systems with a small Docker storage image, you may map a dedicated writable host scratch directory to `/tmp/shin-wallslice`; grant UID/GID 1000 access. Keep it separate from `/data`. Do not add a small RAM-backed `/tmp` mount without accounting for the configured storage budget and memory limit.
+
+## Persistence and privacy
+
+| Retained in `/data/preferences.json` (container)                                           | Temporary only                                                                                                    |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| Device selections, global method/anchor, OLEDify enable/threshold, ZIP folder organization | Uploaded source, manual crop positions, edited name, previews, PNGs/ZIPs, AI suggestions/detection/representation |
+
+Preferences are shared by everyone using this installation. They survive reloads and restarts if the data directory is retained; an absent folder-organization choice defaults to unchecked. There are no accounts or separate per-user preferences. Reload begins at Input rather than restoring a job.
+
+Cropping and exports happen on your server. AI-disabled installations make no AI requests. Browser downloads remain wherever you save them even after the server deletes its temporary job. Back up original images and downloaded outputs yourself if you want to retain them; this app is not a persistent wallpaper library.
+
+The image runs as non-root `node` with UID/GID 1000. Named volumes are the easiest Docker option. For bind mounts, make only the dedicated data/scratch directories writable and traversable by that identity; do not solve errors with privileged mode or `chmod 777`. Read-only JSON mounts are supported.
+
+## Updates, backups, and removal
+
+### Update from source
+
+Back up data/private configuration first. From your checkout, obtain the desired source update (for a clean tracking branch, `git pull --ff-only`), then rebuild. If Git reports local changes or divergence, resolve them before proceeding; do not discard configuration or other work to force an update.
+
+**Docker run**, from the repository root:
+
+```sh
+git pull --ff-only
+docker build -t shin-wallslice:local .
+docker stop shin-wallslice
+docker rm shin-wallslice
+```
+
+Run the same `docker run` command used to install, with the same volume, mappings, environment variables, and optional configuration mount. Removing the container above leaves the named volume intact. A simple `docker restart` does not switch an existing container to a newly built image.
+
+**Compose**, from the same checkout/project:
+
+```sh
+git pull --ff-only
+docker compose up -d --build
+```
+
+**Unraid:** update source on your computer, copy the updated tracked source to the dedicated NAS source directory, and rebuild `shin-wallslice:local` there. Stop/remove the old container **without deleting appdata**, then use **Add Container** with its saved user template and the same mappings. Do not select a registry update/force-pull action for this local image. If your Docker storage is recreated, rebuild the image from the retained source before recreating the container.
+
+**Local Node.js:** stop the app, then run:
+
+```sh
+git pull --ff-only
+pnpm install --frozen-lockfile
+pnpm build
+pnpm start
+```
+
+After any update, check `/api/health` and open the app. Temporary workflows are lost on replacement/restart, so download your current outputs first.
+
+### Back up and restore
+
+Stop the app for a consistent backup. Retain **`preferences.json` from the effective data directory** and your **private JSON configuration** (and any separately stored environment secrets). No database is involved, and temporary jobs do not need backup.
+
+For the Docker run named volume, the following copies its contents to a host backup directory; run on the Docker host:
+
+```sh
+docker stop shin-wallslice
+mkdir -p wallslice-backup
+docker cp shin-wallslice:/data/. ./wallslice-backup/
+docker start shin-wallslice
+```
+
+For Compose use `docker compose stop wallslice` / `docker compose start wallslice`; the example's container name is also `shin-wallslice`, so the copy command is the same. Copy private configuration separately to a protected backup location. On Unraid back up the mapped appdata directory and config file; locally back up `packages/server/data` unless you changed it.
+
+Restore while stopped, using the same effective data path. For the named-volume example:
+
+```sh
+docker stop shin-wallslice
+docker cp ./wallslice-backup/. shin-wallslice:/data/
+# Restore ownership on this dedicated volume before starting:
+docker run --rm --user 0 \
+  --mount type=volume,src=shin-wallslice-data,dst=/data \
+  --entrypoint chown shin-wallslice:local -R 1000:1000 /data
+docker start shin-wallslice
+```
+
+The temporary ownership helper exits immediately; the application itself still runs as non-root. For Compose substitute its actual volume name, found with `docker volume ls` and container inspection. Restore private JSON separately and reinstate environment variables/mounts, then confirm preferences after startup. Restored preferences do not restore images, crop positions, or downloads.
+
+### Remove an installation
+
+Docker run: `docker stop shin-wallslice` then `docker rm shin-wallslice`. Compose: `docker compose down`. Unraid: stop and remove the container in its Docker interface. Local: stop the process; removing the checkout does not affect files downloaded elsewhere.
+
+These container commands retain persistent volumes/appdata. **Deleting data is a separate, irreversible step:** `docker volume rm shin-wallslice-data` deletes the run example's preferences, and `docker compose down --volumes` deletes Compose's data volume. Only remove dedicated Unraid/local data, private config, scratch, and source directories if you also want their contents deleted. Protect or securely remove old configuration backups containing secrets as appropriate.
+
+## Troubleshooting
+
+Start with health and logs. In the examples below use port 8080 for containers and 3000 for local production (or your chosen host port):
+
+```sh
+curl --fail http://localhost:8080/api/health
+docker logs --tail 100 shin-wallslice
+docker inspect --format '{{.State.Health.Status}}' shin-wallslice
+```
+
+Compose equivalents are `docker compose logs --tail 100 wallslice` and `docker compose ps`; local logs appear in the `pnpm start` terminal. Success is HTTP 200 with `{"status":"ok"}`. Health checks establish server readiness, not AI provider availability.
+
+| Symptom                                                 | Check and recovery                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Browser cannot connect                                  | Confirm the process/container is running and inspect logs. Check the host side of the port mapping, server LAN IP, and firewall. Another device must use the server's IP, not its own `localhost`.                                                                                                 |
+| Port already allocated / address in use                 | Change the Docker/Compose host port or stop the conflicting service. For local production change `SHIN_WALLSLICE_PORT`. If changing the container's runtime port, also change the mapping's container side.                                                                                        |
+| Container is unhealthy or exits                         | Allow the initial health-check interval, then inspect logs and startup/configuration errors. Confirm the bind host allows access (`0.0.0.0` in containers), available memory/disk, and file permissions.                                                                                           |
+| Configuration fails at startup                          | Check JSON syntax, exact supported keys and environment names, strict numeric/boolean syntax, and which single override file wins. An explicit missing file fails; an invalid supplied value cannot be hidden by a later override. Fix it and restart.                                             |
+| Mount is missing, is a directory, or cannot be read     | Create the JSON file before mounting it. Check source/destination spelling and UID 1000 read/traverse access. For remote engines, the mount source must exist on the engine host.                                                                                                                  |
+| Preferences cannot be saved or disappear                | Use the interface's Retry action after fixing data-directory write/traverse permissions. Confirm `/data` is mounted and you are using the same volume/project across replacement. Check for a configuration override changing the data path.                                                       |
+| Image rejected                                          | Use one valid still JPEG/PNG/WebP. Check both compressed byte size and decoded pixel count; animation and oversized/corrupt images are rejected. Resize/re-encode externally or increase budgets only with enough actual resources.                                                                |
+| Crop looks soft or cuts off the subject                 | Start with a larger source, change method/anchor, or drag the device's boundary. Exact output dimensions do not create missing source detail. AI recognition is best effort.                                                                                                                       |
+| Processing is busy                                      | Another operation is using the exclusive image/ZIP stage. Wait for it to finish, then retry. Avoid simultaneous operations in multiple tabs.                                                                                                                                                       |
+| Temporary storage is full / no job capacity             | Free space on the effective scratch filesystem. Start over in other active tabs or wait for abandoned jobs to expire. If increasing budgets, provide real capacity too. Do not delete live job files while processing.                                                                             |
+| Temporary wallpaper expired / outputs no longer current | For expiry or restart, start over and upload again. For stale outputs, wait for the current generation and retry from the app rather than reusing an old download URL.                                                                                                                             |
+| Pasting does nothing                                    | Ensure Input is active and the clipboard contains actual image data. Browser/OS clipboard formats vary; use Choose File or drag-and-drop instead.                                                                                                                                                  |
+| AI option missing                                       | AI defaults to disabled. Configure a vision endpoint/model and enable it, then restart/recreate. Check whether an environment `false` overrides JSON.                                                                                                                                              |
+| AI naming/detection fails                               | Check the server-reachable API base URL, appended `/chat/completions` path, image-capable model, credentials, provider rate limits, and firewall. `localhost` inside a container points to that container. Fix the service/configuration, restart if settings changed, then Retry or upload again. |
+| AI waits, finds no subject, or gives poor framing       | Requests time out after 30 seconds. No clear subject is a normal entropy fallback. Continue locally, move crops manually, or retry a failed task. Naming and detection can fail independently.                                                                                                     |
+| Memory kill or filesystem-full error                    | Check the host/container memory limit, effective planning budgets, free disk, and Docker writable-layer capacity. Reduce source dimensions or provide more resources; retry after recovery.                                                                                                        |
+
+When reporting a problem in [GitHub Issues](https://github.com/jmdarling/shin-wallslice/issues), include your source revision (`git rev-parse --short HEAD`), architecture, installation method, sanitized settings, exact error, and reproduction steps. Redact tokens, private endpoint details, and private images from logs/screenshots. Do not paste an entire `docker inspect` response: it can expose environment credentials. A minimal non-sensitive image and its dimensions are more useful than a private wallpaper.
+
+## Development and verification
+
+The client is Lit + Web Awesome with Vite. The server is Fastify + Sharp. Both packages use strict TypeScript and ES modules, Node.js 24 LTS, pnpm 11.25.0, and Vitest.
+
+From a source checkout with the prerequisites installed:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm test:browser:install
+pnpm dev
+```
+
+Open **[http://localhost:5173](http://localhost:5173)**. Vite proxies `/api` to Fastify at `127.0.0.1:3000`; keep that server port for the default proxy, or update `packages/client/vite.config.ts` for a different development port. The server compiles TypeScript in watch mode and Node restarts compiled JavaScript in watch mode. Ctrl+C stops both packages. Production uses `pnpm build` and `pnpm start`, with one Fastify port.
+
+On Linux, Chromium may also need OS libraries:
+
+```sh
+pnpm --filter @shin-wallslice/client exec playwright install --with-deps chromium
+```
+
+| Command             | Purpose                                                                   |
+| ------------------- | ------------------------------------------------------------------------- |
+| `pnpm lint`         | ESLint with typescript-eslint                                             |
+| `pnpm format:check` | Prettier validation (`pnpm format` applies changes)                       |
+| `pnpm typecheck`    | Explicit strict TypeScript checks, including tests                        |
+| `pnpm test`         | Fastify injection tests and Lit Browser Mode tests in Playwright Chromium |
+| `pnpm build`        | Vite production client and compiled server                                |
+| `pnpm check`        | All five checks above                                                     |
+
+### Container verification
+
+With Docker Buildx and emulation configured, build and exercise each supported architecture separately:
 
 ```sh
 docker buildx build --platform linux/amd64 --load -t shin-wallslice:amd64 .
@@ -168,126 +675,15 @@ docker buildx build --platform linux/arm64 --load -t shin-wallslice:arm64 .
 pnpm docker:smoke shin-wallslice:arm64
 ```
 
-The smoke script runs memory-limited containers, checks HTML/assets, non-root identity, health, partial JSON overrides, environment-only AI authentication, overridden-port health and invalid configuration. It completes both 8K workflows with all six presets and OLEDify, verifies exact PNG sizes, cutoff pixels, matching ZIP entries, job disposal, and flat-file preferences. It cleans up containers and fixtures. Temporary fixture paths must be shared with the container engine. To rerun only startup, assets, non-root identity, and configuration checks after a harness or deployment change, append `--configuration-only` after the engine argument (for example, `pnpm docker:smoke shin-wallslice:amd64 podman --configuration-only`). The default smoke run always includes both full 8K workflows.
+The smoke harness checks non-root execution, health, assets, JSON/environment configuration, controlled AI authentication, exact PNG dimensions, OLEDify, ZIP contents, preferences, and job disposal. It runs both 7680 × 4320 and 8192 × 4320 workflows with all presets. Fixtures and containers are cleaned up. Its temporary directory must be shared with a VM-backed engine.
 
-Podman is also supported; on macOS start your Podman machine first and put `/opt/podman/bin` on PATH:
+Podman users can substitute the engine explicitly. On macOS, start the Podman machine and ensure `podman` is on PATH:
 
 ```sh
 podman build --format docker --platform linux/arm64 -t shin-wallslice:arm64 .
 pnpm docker:smoke shin-wallslice:arm64 podman
-podman build --format docker --platform linux/amd64 -t shin-wallslice:amd64 .
-pnpm docker:smoke shin-wallslice:amd64 podman
 ```
 
-`--format docker` preserves the health check. Host temporary directories must be shared into the VM; set `TMPDIR` to a shared directory if necessary. Publishing images and an Unraid Community Apps template are outside this release.
+`--format docker` preserves the health check. Repeat with `linux/amd64` and its image tag to check that architecture. For startup/configuration-only verification, append `--configuration-only` after the engine argument; full runs remain the default.
 
-## Bundled device catalog
-
-`packages/server/src/devices.json` defines stable IDs, display names, and pixel dimensions. The initial six match `specs/v0.2.0.md`; tablet outputs are square. Add a unique lowercase hyphenated ID, name, and positive integer dimensions, then rebuild/release. The same selection, crop, preview, naming and export logic handles every preset. Individual dimensions are capped at 16384 pixels; the catalog must also fit the configured processing/storage budgets. The catalog is repository-managed and cannot be overridden by runtime configuration.
-
-## Optional AI naming and subject detection
-
-AI is disabled by default (`"ai": { "enabled": false }`). Older complete JSON
-configurations without `ai` remain valid and make no AI requests. To enable it,
-add this object to your private partial runtime JSON configuration:
-
-```json
-"ai": {
-  "enabled": true,
-  "baseUrl": "https://api.openai.com/v1",
-  "model": "your-vision-capable-model",
-  "token": "your-api-token"
-}
-```
-
-`baseUrl` is the API root: the server appends `/chat/completions` (for example,
-`http://nas-host:1234/v1` becomes `http://nas-host:1234/v1/chat/completions`).
-HTTP is supported for local self-hosted services. URLs cannot contain credentials,
-query strings, or fragments. `model` must identify a model that accepts image input
-through Chat Completions; compatibility with that API does not imply support for
-provider-specific APIs. `token` is optional for services without authentication;
-when supplied it is used as a server-side bearer token. Use the partial JSON file
-mounted read-only at `/config/config.json` in Docker as described above, then
-restart to apply changes. No credentials or connection settings are sent to the
-browser. Service availability is checked only after accepted uploads, so an unavailable
-service never prevents startup or local processing.
-
-**Enabling AI automatically sends an image representation to your configured
-service after every accepted upload**, including drag-and-drop and clipboard
-images. Naming and subject detection independently use the same full oriented source before crops or OLEDify, resized
-without enlargement to fit 1024 × 1024 pixels, flattened onto white, and encoded as
-JPEG at quality 80 (at most 2 MiB). Preparation has a 30-second Sharp processing timeout and runs within the existing exclusive
-image-processing stage and decoded-pixel limit; only this small representation is
-retained in each temporary job for Retry. Image text is treated as content rather
-than instructions. Naming aims for about three meaningful words and includes a
-recognizable show/game title only when identifiable; recognition is best effort.
-
-Requests have a 30-second total timeout and a 64 KiB response limit. Redirects
-are rejected to avoid forwarding credentials to another endpoint. There are no
-automatic retries. Pending or failed naming never blocks local processing, name
-editing, navigation, or downloads. Retry starts another request only after failure,
-with at most one naming request per job. A suggestion replaces the filename default
-(or clipboard `wallpaper` fallback) only if the name field has never been edited,
-even if an edit cleared it or restored its original value. Download uses the name
-current when clicked. Failed naming retains the current name and offers Retry;
-upstream error details and credentials are not exposed.
-
-Start over, expiry, and shutdown cancel outstanding AI work. Abandoned requests
-are bounded by the timeout and existing job capacity; reload starts a fresh workflow
-and cannot apply an old result. Suggestions and representations are temporary,
-share the job lifecycle, and are never persisted or restored after reload/restart.
-
-### Smart crop methods
-
-AI is optional. First use selects **Smart (AI)** when enabled and **Smart
-(entropy)** otherwise. Legacy saved Smart preferences migrate the same way;
-anchors retain their selection. The resolved preference is saved in the existing
-flat-file preferences. Explicit AI, entropy, and anchor selections survive Back,
-Start over, new images, reloads, and restarts with persistent data. Explicit entropy
-stays entropy when AI is enabled. With AI disabled the AI choice is unavailable;
-a saved AI selection resolves to entropy, and no service requests are made.
-
-Every accepted upload automatically starts one subject-detection task as well as
-naming, regardless of the crop method selected. Rejected uploads start neither.
-Detection uses the configured vision model and connection with the same optional
-bearer token, 30-second request timeout, 64 KiB response bound, and redirect
-protection described above. It analyzes the bounded full oriented representation,
-not a device crop or OLEDified output. Normalized bounds map directly to the
-oriented source dimensions, avoiding distortion from rounded representation sizes.
-Image preparation uses the existing decoded-pixel budget and exclusive processing
-stage; each job retains at most one shared JPEG of at most 2 MiB for both tasks.
-
-Detection asks for the main subject's bounds, including a coherent group when
-appropriate, or an explicit no-clear-subject response for abstract patterns.
-Validated bounds frame each fixed-size device crop within source limits. Crops
-contain the full subject or group when it fits. For tighter crops, detection also
-identifies an optional focal region, such as the entire face/head for a person or
-important details across a group. For prominent people or illustrated characters,
-held weapons/equipment and nearby props are secondary to the person and face; a
-standalone object can still be the main subject in an object-focused image. Framing prioritizes that region while preserving
-as much of the remaining subject as possible. Without a clear focal region, it
-centers the subject bounds. Focal bounds must lie within the subject bounds. Recognition and framing are
-best effort; manual adjustment remains available.
-
-Processing opens while detection runs, using entropy previews. A visible status
-explains pending previews or a service failure. Progress messages disappear when
-work completes successfully. A no-clear-subject result is explained beside the crop
-method instead of in a persistent toast. Detection never blocks positioning, navigation, name editing, or downloads.
-Late results update only untouched selected crops while AI is active. Any manual
-positioning counts as an edit even if it returns to the original location. Changing
-the global method resets selected positions; Reset position restores only its device
-and makes it eligible for a pending result. New devices use the current method.
-Changes regenerate matching previews and exports; downloads wait for those outputs.
-A download already initiated retains its framing.
-
-No clear subject uses per-device entropy crops with an explanation. Connection,
-authentication, rate-limit, vision, timeout, preparation, and invalid-response
-failures also use entropy for eligible crops, with a nonblocking message and
-**Retry subject detection**. Manual edits and the saved AI preference remain intact.
-Retry starts only one concurrent detection attempt and never restarts naming;
-there is no automatic retry loop. A failed preparation can be attempted again.
-Naming and detection succeed or fail independently. Results are reused across
-devices, method changes, resets, OLEDify, navigation, and downloads. They share the
-temporary-job lifecycle, are cancelled or bounded when abandoned, and are not
-persisted across reloads or restarts. Credentials and upstream error bodies are
-never included in detection status or diagnostics.
+The original example wallpaper and screenshot provenance are documented in [docs/images/README.md](docs/images/README.md). Documentation uses real application captures and generated outputs rather than UI mockups.

@@ -25,6 +25,7 @@ export interface Job {
   width: number;
   height: number;
   smart: Record<string, Crop>;
+  oledAnalysis?: OledAnalysis;
   naming?: NamingStatus;
   detection?: DetectionStatus;
 }
@@ -56,3 +57,13 @@ export type DetectionStatus =
   | { state: 'disabled' | 'pending' | 'no-subject' }
   | { state: 'succeeded'; crops: Record<string, Crop> }
   | { state: 'failed'; message: string };
+
+export interface OledAnalysis {
+  state: 'pending' | 'local' | 'skipped' | 'succeeded' | 'failed';
+  candidate: boolean;
+  darkPercentage?: number;
+  oled: boolean;
+  threshold: number;
+  evaluated: { cutoff: number; acceptable: boolean }[];
+  message?: string;
+}

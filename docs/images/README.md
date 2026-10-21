@@ -48,3 +48,15 @@ names only through the app's explicit Replace control. Do not use a production
 instance with private active jobs for documentation verification.
 
 [Verification and additional captures](../design/v1.2.0/verification.json).
+
+## v1.3.0 automatic OLEDify
+
+Processing and Download light/dark captures now include local recommendation
+feedback. They use the updated development app with AI and server saving enabled;
+Dusk Ridges is a noncandidate (13.367% near-black), so OLEDify stays off at cutoff
+16 and the additional vision search is skipped. Naming/detection still follow
+their existing submission rules. Capture preferences were kept local to the
+browser. The original threshold-32 export comparison remains accurately labeled
+and uses identical framing. Input captures are retained from the earlier
+AI-disabled session. See [v1.3.0 evidence](../design/v1.3.0/README.md) for
+1440/390/320px light/dark captures, live original/trial evaluation, and limitations.

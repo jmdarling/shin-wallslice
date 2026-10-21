@@ -153,3 +153,20 @@ changes on **real Unraid 7.2.3**, using a dedicated appdata directory, and recor
 Record failures and observations; container simulation does not count as this test.
 
 For v1.2.0, also save both layouts, cancel and confirm conflicts, then replace the container retaining the output mapping and verify the PNG files remain.
+
+## Automatic OLEDify (v1.3.0 source builds and later releases)
+
+No AI setup is required for local automatic defaults. To tune them, add Variables
+in Unraid: `SHIN_WALLSLICE_OLED_MINIMUM_DARK_PERCENTAGE` (default 15, finite
+0–100 percentage points, fractions allowed), `SHIN_WALLSLICE_OLED_NEAR_BLACK_CUTOFF`
+(default 32, integer 0–255), and `SHIN_WALLSLICE_OLED_MAX_VISION_REQUESTS`
+(default 8, integer 1–8). Alternatively mount partial read-only JSON with
+`oledMinimumDarkPercentage`, `oledNearBlackCutoff`, and `oledMaxVisionRequests`.
+Apply/restart after changes. Remove these JSON keys when rolling back below 1.3.0.
+
+Only candidates submit the additional bounded original/trial comparisons when AI
+is enabled, increasing provider cost and latency. The provider must accept two
+images in one request. Local cutoff 16 stays usable while pending or failed;
+manual edits protect both settings. A new upload resets OLEDify defaults even
+when old enable/threshold preferences are retained. See the
+[comparison preparation and limits](../README.md#what-leaves-your-server).

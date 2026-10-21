@@ -5,7 +5,11 @@ import '@awesome.me/webawesome/dist/styles/webawesome.css';
 import './style.css';
 import { followBrowserTheme } from './theme.js';
 import { CropEditor } from './crop-editor.js';
-import type { NamingStatus, Crop } from '../../server/src/protocol.js';
+import type {
+  NamingStatus,
+  Crop,
+  OledAnalysis,
+} from '../../server/src/protocol.js';
 const nativeFetch = globalThis.fetch;
 const pixel =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jz1kAAAAASUVORK5CYII=';
@@ -20,6 +24,8 @@ const smart = {
   laptop: { left: 100, top: 0, width: 400, height: 200 },
 };
 let stopTheme: (() => void) | undefined;
+let oledInitial: OledAnalysis | undefined;
+let oledResponse: () => Promise<Response> = async () => Response.json({});
 let namingEnabled = false;
 let namingResponse: () => Promise<Response> = async () =>
   Response.json({ state: 'disabled' });
@@ -44,6 +50,8 @@ let renderBodies: {
   threshold: number;
 }[] = [];
 beforeEach(() => {
+  oledInitial = undefined;
+  oledResponse = async () => Response.json({});
   namingEnabled = false;
   serverSavingEnabled = false;
   saveBodies = [];
@@ -92,6 +100,7 @@ beforeEach(() => {
             { status: 400 },
           );
         return Response.json({
+          oledAnalysis: oledInitial,
           id: 'job',
           width: 600,
           height: 200,
@@ -100,6 +109,7 @@ beforeEach(() => {
           detection: { state: namingEnabled ? 'pending' : 'disabled' },
         });
       }
+      if (input.endsWith('/oled-analysis')) return oledResponse();
       if (input.endsWith('/detection')) return detectionResponse();
       if (input.includes('/save/')) {
         saveBodies.push(
@@ -750,7 +760,14 @@ test('threshold toast spans debounce and successive renders, preserves crops and
 });
 
 test('latest threshold failure clears the toast and exposes error and working Retry', async () => {
-  preferences.oled = true;
+  oledInitial = {
+    state: 'local',
+    candidate: true,
+    oled: true,
+    threshold: 16,
+    evaluated: [],
+    darkPercentage: 50,
+  };
   const a = await app();
   picker(a, [file()]);
   await processed(a);
@@ -1651,3 +1668,125 @@ test('name, layout and rendering changes discard overwrite approval; stale outpu
     .element(page.getByRole('button', { name: 'Save to server', exact: true }))
     .toBeDisabled();
 });
+
+const pendingOled: OledAnalysis = {
+  state: 'pending',
+  candidate: true,
+  darkPercentage: 60,
+  oled: true,
+  threshold: 16,
+  evaluated: [],
+};
+test('per-image local defaults replace saved OLED preferences and remain usable while AI is pending', async () => {
+  oledInitial = { ...pendingOled };
+  oledResponse = async () => Response.json(pendingOled);
+  preferences.oled = false;
+  preferences.threshold = 200;
+  const a = await app();
+  picker(a, [file()]);
+  await processed(a);
+  expect(a.prefs.oled).toBe(true);
+  expect(a.prefs.threshold).toBe(16);
+  expect(a.shadowRoot!.textContent).toContain('AI is comparing cutoffs');
+  expect(a.shadowRoot!.textContent).toContain(
+    'Local fallback: on at cutoff 16.',
+  );
+  expect(a.shadowRoot!.textContent).not.toContain(
+    'Recommended on at cutoff 16.',
+  );
+  await page.getByRole('button', { name: 'Next: Download' }).click();
+  expect(a.page).toBe('download');
+  await page.getByRole('button', { name: 'Start over', exact: true }).click();
+  await vi.waitFor(() => expect(a.page).toBe('input'));
+  oledInitial = {
+    ...pendingOled,
+    state: 'skipped',
+    candidate: false,
+    oled: false,
+    darkPercentage: 0,
+  };
+  await a.updateComplete;
+  picker(a, [file('bright.png')]);
+  await processed(a);
+  expect(a.prefs.oled).toBe(false);
+  expect(a.prefs.threshold).toBe(16);
+});
+test.each([true, false])(
+  'automatic OLED completion updates current previews, including off=%s',
+  async (off) => {
+    oledInitial = { ...pendingOled };
+    let finish: ((r: Response) => void) | undefined;
+    oledResponse = () =>
+      new Promise<Response>((r) => {
+        finish = r;
+      });
+    const a = await app();
+    picker(a, [file()]);
+    await processed(a);
+    const first = a.manifest;
+    finish!(
+      Response.json({
+        ...pendingOled,
+        state: 'succeeded',
+        oled: !off,
+        threshold: off ? 16 : 42,
+      }),
+    );
+    await vi.waitFor(() => expect(a.oledAnalysis?.state).toBe('succeeded'));
+    await vi.waitFor(() => expect(a.manifest).not.toBe(first));
+    await vi.waitFor(() => expect(a.dirty).toBe(false));
+    expect(a.shadowRoot!.textContent).toContain('AI recommendation:');
+    expect(a.shadowRoot!.textContent).not.toContain('Local fallback:');
+    expect(renderBodies.at(-1)).toMatchObject({
+      oled: !off,
+      threshold: off ? 16 : 42,
+    });
+  },
+);
+test.each(['threshold', 'switch'])(
+  'manual %s edit then restore protects both OLED settings from completion and Retry; new image resets protection',
+  async (control) => {
+    oledInitial = { ...pendingOled };
+    let finish: ((r: Response) => void) | undefined;
+    oledResponse = () =>
+      new Promise<Response>((r) => {
+        finish = r;
+      });
+    const a = await app();
+    picker(a, [file()]);
+    await processed(a);
+    if (control === 'threshold') {
+      threshold(a, 50);
+      threshold(a, 16);
+    } else {
+      checked(a, 'True black shadows');
+      await a.updateComplete;
+      checked(a, 'True black shadows');
+    }
+    finish!(
+      Response.json({
+        ...pendingOled,
+        state: 'failed',
+        message: 'Controlled failure',
+      }),
+    );
+    await vi.waitFor(() => expect(a.oledAnalysis?.state).toBe('failed'));
+    await page.getByRole('button', { name: 'Retry OLEDify analysis' }).click();
+    await vi.waitFor(() => expect(a.busy).toBe(''));
+    finish!(Response.json({ ...pendingOled, state: 'succeeded', oled: false }));
+    await vi.waitFor(() => expect(a.oledAnalysis?.state).toBe('succeeded'));
+    expect(a.prefs.oled).toBe(true);
+    expect(a.prefs.threshold).toBe(16);
+    expect(a.shadowRoot!.textContent).toContain(
+      'manual settings are protected',
+    );
+    await vi.waitFor(() => expect(a.busy).toBe(''));
+    await page.getByRole('button', { name: 'Start over', exact: true }).click();
+    await vi.waitFor(() => expect(a.page).toBe('input'));
+    await a.updateComplete;
+    oledInitial = { ...pendingOled, state: 'succeeded', oled: false };
+    picker(a, [file('replacement.png')]);
+    await processed(a);
+    expect(a.prefs.oled).toBe(false);
+  },
+);

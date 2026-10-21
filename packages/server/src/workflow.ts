@@ -28,6 +28,13 @@ import { AiConnection } from './ai.js';
 import { detectSubject, subjectCrop } from './detection.js';
 import type { DetectionStatus } from './protocol.js';
 import { suggestName } from './naming.js';
+import {
+  classifySource,
+  prepareComparison,
+  searchCutoff,
+  type Comparison,
+} from './oled-analysis.js';
+import type { OledAnalysis } from './protocol.js';
 import { ServerOutput } from './server-output.js';
 import type { NamingStatus } from './protocol.js';
 
@@ -90,6 +97,9 @@ function preferences(value: unknown): Preferences {
   };
 }
 interface StoredJob extends Job {
+  oledAnalysis: OledAnalysis;
+  oledController?: AbortController;
+  comparison?: Comparison;
   naming: NamingStatus;
   detection: DetectionStatus;
   detectionController?: AbortController;
@@ -182,6 +192,54 @@ export async function registerWorkflow(
         delete job.detectionController;
       });
   };
+  const startOled = (job: StoredJob) => {
+    if (
+      !connection ||
+      !job.oledAnalysis.candidate ||
+      job.oledController ||
+      job.oledAnalysis.state === 'succeeded'
+    )
+      return;
+    const controller = new AbortController();
+    job.oledController = controller;
+    job.oledAnalysis = { ...job.oledAnalysis, state: 'pending' };
+    // Includes preparation and all requests: at most 8 × 30s plus preparation.
+    const timeout = setTimeout(() => controller.abort(), 270_000);
+    void (async () => {
+      if (!job.comparison)
+        job.comparison = await exclusive(() =>
+          prepareComparison(join(job.directory, 'source.png')),
+        );
+      return searchCutoff(
+        connection,
+        job.comparison,
+        config.oledMaxVisionRequests ?? 8,
+        controller.signal,
+      );
+    })()
+      .then((result) => {
+        if (!controller.signal.aborted)
+          job.oledAnalysis = {
+            ...job.oledAnalysis,
+            ...result,
+            state: 'succeeded',
+          };
+      })
+      .catch(() => {
+        // Discarded jobs are no longer observable; timeouts on live jobs offer Retry.
+        if (jobs.has(job.id))
+          job.oledAnalysis = {
+            ...job.oledAnalysis,
+            state: 'failed',
+            message:
+              'AI OLEDify analysis failed. Keeping the local recommendation. Check the service and vision model, then Retry.',
+          };
+      })
+      .finally(() => {
+        clearTimeout(timeout);
+        delete job.oledController;
+      });
+  };
   const MiB = 1024 * 1024;
   const maxPixels = Math.floor(((config.memoryBudgetMiB - 768) * MiB) / 24);
   const uploadLimit = Math.floor((config.memoryBudgetMiB * MiB) / 4);
@@ -266,6 +324,7 @@ export async function registerWorkflow(
   const discard = async (id: string) => {
     const j = jobs.get(id);
     if (j) {
+      j.oledController?.abort();
       j.namingController?.abort();
       j.detectionController?.abort();
       jobs.delete(id);
@@ -285,6 +344,7 @@ export async function registerWorkflow(
   app.addHook('onClose', async () => {
     clearInterval(timer);
     for (const job of jobs.values()) {
+      job.oledController?.abort();
       job.namingController?.abort();
       job.detectionController?.abort();
     }
@@ -293,6 +353,7 @@ export async function registerWorkflow(
   const getJob = (id: string) => {
     const j = jobs.get(id);
     if (!j || Date.now() - j.touched > config.jobTtlMinutes * 60000) {
+      j?.oledController?.abort();
       j?.namingController?.abort();
       j?.detectionController?.abort();
       fail(
@@ -458,6 +519,15 @@ export async function registerWorkflow(
           const job: StoredJob = {
             id,
             directory,
+            oledAnalysis: {
+              state: 'failed',
+              candidate: false,
+              oled: false,
+              threshold: 16,
+              evaluated: [],
+              message:
+                'Local OLEDify analysis failed. Manual controls remain available.',
+            },
             naming: { state: connection ? 'pending' : 'disabled' },
             detection: { state: connection ? 'pending' : 'disabled' },
             width: normalized.width!,
@@ -467,6 +537,34 @@ export async function registerWorkflow(
           };
           for (const d of devices)
             job.smart[d.id] = await smartCrop(source, job.width, job.height, d);
+          try {
+            const local = await classifySource(
+              source,
+              config.oledMinimumDarkPercentage ?? 15,
+              config.oledNearBlackCutoff ?? 32,
+            );
+            job.oledAnalysis = {
+              ...local,
+              state: local.candidate
+                ? connection
+                  ? 'pending'
+                  : 'local'
+                : 'skipped',
+              oled: local.candidate,
+              threshold: 16,
+              evaluated: [],
+            };
+            if (connection && local.candidate)
+              job.comparison = await prepareComparison(source);
+          } catch {
+            if (job.oledAnalysis.state === 'pending')
+              job.oledAnalysis = {
+                ...job.oledAnalysis,
+                state: 'failed',
+                message:
+                  'AI comparison preparation failed. Keeping the local recommendation. Retry is available.',
+              };
+          }
           if (connection) {
             try {
               job.aiImage = await prepareImage(source);
@@ -477,11 +575,13 @@ export async function registerWorkflow(
           jobs.set(id, job);
           startNaming(job);
           startDetection(job);
+          if (job.oledAnalysis.state === 'pending') startOled(job);
           return {
             id,
             width: job.width,
             height: job.height,
             smart: job.smart,
+            oledAnalysis: job.oledAnalysis,
             naming: job.naming,
             detection: job.detection,
           };
@@ -490,6 +590,43 @@ export async function registerWorkflow(
           throw error;
         }
       }, request.id),
+  );
+  app.get<{ Params: { id: string } }>(
+    '/api/jobs/:id/oled-analysis',
+    async (request, reply) => {
+      reply.header('Cache-Control', 'no-store');
+      return getJob(request.params.id).oledAnalysis;
+    },
+  );
+  app.post<{ Params: { id: string } }>(
+    '/api/jobs/:id/oled-analysis',
+    async (request) => {
+      const job = getJob(request.params.id);
+      if (job.oledAnalysis.state === 'failed') {
+        if (!job.oledAnalysis.darkPercentage && !job.oledAnalysis.candidate) {
+          try {
+            const local = await exclusive(() =>
+              classifySource(
+                join(job.directory, 'source.png'),
+                config.oledMinimumDarkPercentage ?? 15,
+                config.oledNearBlackCutoff ?? 32,
+              ),
+            );
+            job.oledAnalysis = {
+              ...local,
+              state: local.candidate ? 'local' : 'skipped',
+              oled: local.candidate,
+              threshold: 16,
+              evaluated: [],
+            };
+          } catch {
+            return job.oledAnalysis;
+          }
+        }
+        startOled(job);
+      }
+      return job.oledAnalysis;
+    },
   );
   app.get<{ Params: { id: string } }>(
     '/api/jobs/:id/naming',

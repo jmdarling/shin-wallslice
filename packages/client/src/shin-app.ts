@@ -13,6 +13,7 @@ import type {
   Manifest,
   Preferences,
   NamingStatus,
+  OledAnalysis,
   DetectionStatus,
   SaveResult,
 } from '../../server/src/protocol.js';
@@ -26,6 +27,7 @@ type Catalog = {
 };
 export class ShinApp extends LitElement {
   static properties = {
+    oledAnalysis: { state: true },
     naming: { state: true },
     detection: { state: true },
     aiEnabled: { state: true },
@@ -62,6 +64,9 @@ export class ShinApp extends LitElement {
   detection: DetectionStatus = { state: 'disabled' };
   private detectionController?: AbortController;
   private manuallyPositioned = new Set<string>();
+  oledAnalysis: OledAnalysis | undefined;
+  private oledManual = false;
+  private oledController?: AbortController;
   naming: NamingStatus = { state: 'disabled' };
   aiEnabled = false;
   serverSavingEnabled = false;
@@ -95,6 +100,7 @@ export class ShinApp extends LitElement {
     super.disconnectedCallback();
     document.removeEventListener('paste', this.paste);
     clearTimeout(this.timer);
+    this.oledController?.abort();
     this.namingController?.abort();
     this.detectionController?.abort();
   }
@@ -179,6 +185,14 @@ export class ShinApp extends LitElement {
         file.name && !(clipboard && file.name === 'image.png')
           ? file.name.replace(/\.[^.]+$/, '')
           : 'wallpaper';
+      this.oledManual = false;
+      this.oledAnalysis = this.job.oledAnalysis;
+      this.prefs = {
+        ...this.prefs,
+        oled: this.oledAnalysis?.oled ?? false,
+        threshold: 16,
+      };
+      void this.watchOled(this.job.id);
       this.nameEdited = false;
       this.detection = this.job.detection ?? { state: 'disabled' };
       void this.watchDetection(this.job.id);
@@ -192,6 +206,82 @@ export class ShinApp extends LitElement {
       this.busy = '';
       if (this.job) this.schedule();
     }
+  }
+  private async watchOled(id: string, retry = false) {
+    this.oledController?.abort();
+    const controller = new AbortController();
+    this.oledController = controller;
+    const current = () => !controller.signal.aborted && this.job?.id === id;
+    const accept = (status: OledAnalysis) => {
+      this.oledAnalysis = status;
+      if (
+        status.state !== 'pending' &&
+        status.state !== 'failed' &&
+        !this.oledManual
+      ) {
+        if (
+          this.prefs.oled !== status.oled ||
+          this.prefs.threshold !== status.threshold
+        ) {
+          this.prefs = {
+            ...this.prefs,
+            oled: status.oled,
+            threshold: status.threshold,
+          };
+          this.schedule();
+        }
+      }
+    };
+    try {
+      if (this.oledAnalysis?.state === 'succeeded') accept(this.oledAnalysis);
+      if (retry) {
+        const status = await this.api<OledAnalysis>(
+          `/api/jobs/${id}/oled-analysis`,
+          { method: 'POST', signal: controller.signal },
+        );
+        if (!current()) return;
+        accept(status);
+      }
+      while (current() && this.oledAnalysis?.state === 'pending') {
+        const status = await this.api<OledAnalysis>(
+          `/api/jobs/${id}/oled-analysis`,
+          { signal: controller.signal },
+        );
+        if (!current()) return;
+        accept(status);
+        if (status.state === 'pending')
+          await new Promise<void>((resolve) => {
+            const done = () => {
+              clearTimeout(timer);
+              controller.signal.removeEventListener('abort', done);
+              resolve();
+            };
+            const timer = setTimeout(done, 750);
+            controller.signal.addEventListener('abort', done, { once: true });
+          });
+      }
+    } catch {
+      if (current() && this.oledAnalysis)
+        this.oledAnalysis = {
+          ...this.oledAnalysis,
+          state: 'failed',
+          message:
+            'OLEDify analysis is unavailable. Keeping current settings. Retry is available.',
+        };
+    }
+  }
+  private oledFeedback() {
+    const status = this.oledAnalysis;
+    if (!status) return nothing;
+    return html`<p class="meta" role="status" aria-live="polite">
+      ${status.darkPercentage !== undefined ? `Local check: ${status.darkPercentage.toFixed(1)}% near-black pixels. ${status.candidate ? 'Qualifies for OLEDify analysis.' : 'OLEDify not recommended.'}` : 'Local analysis unavailable.'}
+      ${status.state === 'pending' ? 'AI is comparing cutoffs… Local fallback: on at cutoff 16. You can continue and download now.' : nothing}
+      ${status.state === 'succeeded' ? `AI recommendation: ${status.oled ? `on at cutoff ${status.threshold}` : 'leave OLEDify off'}. Best effort; inspect the preview.` : nothing}
+      ${status.state === 'local' ? 'AI is disabled. Local fallback: on at cutoff 16.' : nothing}
+      ${status.state === 'skipped' ? 'AI comparison skipped.' : nothing}
+      ${status.state === 'failed' ? html`${status.candidate ? 'Local fallback: on at cutoff 16.' : nothing} ${status.message} <wa-button size="s" appearance="outlined" @click=${() => this.job && this.watchOled(this.job.id, true)}>Retry OLEDify analysis</wa-button>` : nothing}
+      ${this.oledManual ? 'Your manual settings are protected; recommendations will not be applied.' : nothing}
+    </p>`;
   }
   private async watchNaming(id: string, retry = false) {
     this.namingController?.abort();
@@ -379,6 +469,9 @@ export class ShinApp extends LitElement {
         await this.api(`/api/jobs/${this.job.id}`, { method: 'DELETE' });
       this.namingController?.abort();
       this.detectionController?.abort();
+      this.oledController?.abort();
+      this.oledAnalysis = undefined;
+      this.oledManual = false;
       this.detection = { state: 'disabled' };
       this.naming = { state: 'disabled' };
       this.nameEdited = false;
@@ -1084,6 +1177,7 @@ export class ShinApp extends LitElement {
       <main class=${this.page === 'input' ? 'input' : ''}>
         ${this.error ? html`<div class="message" role="alert">${this.error} <wa-button appearance="outlined" size="s" @click=${() => (this.job ? this.renderPreviews() : this.load())}>Retry</wa-button></div>` : nothing}
         ${this.preferenceError ? html`<div class="message" role="alert">${this.preferenceError}<wa-button appearance="outlined" size="s" @click=${() => this.save()}>Retry saving preferences</wa-button></div>` : nothing}
+        ${this.page === 'download' ? this.oledFeedback() : nothing}
         ${this.busy && !this.oledProcessing ? html`<div class="progress" role="status"><wa-spinner></wa-spinner>${this.busy}</div>` : nothing}
         ${
           this.page === 'download' &&
@@ -1144,7 +1238,7 @@ export class ShinApp extends LitElement {
                         }}
                     /></label>
                     <p>JPEG, PNG, or WebP</p>
-                    ${this.aiEnabled ? html`<p class="disclosure">AI enabled: an image representation is automatically sent to the configured AI service.</p>` : nothing}
+                    ${this.aiEnabled ? html`<p class="disclosure">AI enabled: an image representation is automatically sent to the configured AI service for naming and subject detection. Local OLEDify candidates also submit multiple original/trial comparisons, up to the configured search limit. This can increase provider cost and latency.</p>` : nothing}
                   </div>
                   <figure class="example">
                     <div class="example-image">
@@ -1284,6 +1378,7 @@ export class ShinApp extends LitElement {
                           type="checkbox"
                           .checked=${this.prefs.oled}
                           @change=${(e: Event) => {
+                            this.oledManual = true;
                             this.prefs = {
                               ...this.prefs,
                               oled: (e.target as HTMLInputElement).checked,
@@ -1293,7 +1388,7 @@ export class ShinApp extends LitElement {
                           }}
                         />
                         True black shadows</label
-                      ><label for="threshold"
+                      >${this.oledFeedback()}<label for="threshold"
                         >Threshold: ${this.prefs.threshold}</label
                       ><input
                         id="threshold"
@@ -1304,6 +1399,7 @@ export class ShinApp extends LitElement {
                         .value=${String(this.prefs.threshold)}
                         ?disabled=${!this.prefs.oled}
                         @input=${(e: Event) => {
+                          this.oledManual = true;
                           const threshold = Number(
                             (e.target as HTMLInputElement).value,
                           );

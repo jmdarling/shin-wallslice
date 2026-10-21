@@ -105,6 +105,9 @@ test('nested merging preserves siblings and supports complete legacy files', asy
 test('every environment setting overrides JSON and environment-only AI is supported', async () => {
   const f = await fixture();
   const values = {
+    oledMinimumDarkPercentage: 23.5,
+    oledNearBlackCutoff: 40,
+    oledMaxVisionRequests: 3,
     host: '127.0.0.1',
     port: 3456,
     logLevel: 'warn',
@@ -345,4 +348,37 @@ test('output configuration is read-only and relative paths stay relative to the 
   expect(
     await import('node:fs/promises').then((fs) => fs.readFile(f.local, 'utf8')),
   ).toBe(JSON.stringify({ outputDirectory: './output' }));
+});
+
+test('OLED settings support partial read-only JSON, decimal percent units and strict environment bounds', async () => {
+  const f = await fixture();
+  await f.put(f.local, { oledMinimumDarkPercentage: 20.5 });
+  await chmod(f.local, 0o444);
+  expect(
+    await f.load({
+      SHIN_WALLSLICE_OLED_NEAR_BLACK_CUTOFF: '0',
+      SHIN_WALLSLICE_OLED_MAX_VISION_REQUESTS: '1',
+    }),
+  ).toMatchObject({
+    oledMinimumDarkPercentage: 20.5,
+    oledNearBlackCutoff: 0,
+    oledMaxVisionRequests: 1,
+  });
+  await chmod(f.local, 0o644);
+  for (const value of [
+    { oledMinimumDarkPercentage: -1 },
+    { oledMinimumDarkPercentage: 101 },
+    { oledNearBlackCutoff: 1.5 },
+    { oledNearBlackCutoff: 256 },
+    { oledMaxVisionRequests: 0 },
+    { oledMaxVisionRequests: 9 },
+  ]) {
+    await f.put(f.local, value);
+    await expect(f.load()).rejects.toThrow('Configuration error');
+  }
+  await f.put(f.local, {});
+  for (const raw of ['NaN', 'Infinity', '-1', '100.1', ' 20'])
+    await expect(
+      f.load({ SHIN_WALLSLICE_OLED_MINIMUM_DARK_PERCENTAGE: raw }),
+    ).rejects.toThrow();
 });

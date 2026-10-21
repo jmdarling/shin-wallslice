@@ -47,10 +47,10 @@ shin-wallslice runs on your own server in a single container. Cropping and expor
 **Unraid:** [import the supplied template and Apply](docs/unraid.md). Community
 Applications listing is pending. No source checkout or build is needed.
 
-**Version 1.0.1 is available as a public image** for Linux amd64 and arm64. The
+**Version 1.1.0 is available as a public image** for Linux amd64 and arm64. The
 commands below install it without registry login. See the
-[release](https://github.com/jmdarling/shin-wallslice/releases/tag/v1.0.1) and
-[1.0.1 changes](docs/maintainers/v1.0.1-release-notes.md). The release records the
+[release](https://github.com/jmdarling/shin-wallslice/releases/tag/v1.1.0) and
+[1.1.0 changes](docs/maintainers/v1.1.0-release-notes.md). The release records the
 exact digest, native runtime checks, SBOM/provenance, and vulnerability reports.
 
 Allow **4 GiB application RAM** and **4 GiB free writable temporary disk**. One
@@ -73,7 +73,7 @@ docker run -d \
   --memory=4g \
   -p 8080:3000 \
   --mount type=volume,src=shin-wallslice-data,dst=/data \
-  ghcr.io/jmdarling/shin-wallslice:1.0.1
+  ghcr.io/jmdarling/shin-wallslice:1.1.0
 ```
 
 Open [http://localhost:8080](http://localhost:8080), or
@@ -100,7 +100,7 @@ is needed. Its contents are:
 ```yaml
 services:
   wallslice:
-    image: ghcr.io/jmdarling/shin-wallslice:1.0.1
+    image: ghcr.io/jmdarling/shin-wallslice:1.1.0
     container_name: shin-wallslice
     restart: unless-stopped
     mem_limit: 4g
@@ -292,7 +292,7 @@ docker run -d \
   -p 8080:3000 \
   --mount type=volume,src=shin-wallslice-data,dst=/data \
   --mount type=bind,src="$(pwd)/config/local.json",dst=/config/config.json,readonly \
-  ghcr.io/jmdarling/shin-wallslice:1.0.1
+  ghcr.io/jmdarling/shin-wallslice:1.1.0
 ```
 
 Use the absolute path to your private JSON file in the mount source. The file must exist and be readable by UID 1000; its parent directories must be traversable by that user. Protect files containing tokens from other users while granting that read access. The application does not need write access to `/config`. Do not place private files elsewhere in the build context and assume they will be ignored.
@@ -364,7 +364,7 @@ docker run -d \
   -e SHIN_WALLSLICE_HOST=0.0.0.0 \
   -e SHIN_WALLSLICE_PORT=3456 \
   -e SHIN_WALLSLICE_AI_ENABLED=false \
-  ghcr.io/jmdarling/shin-wallslice:1.0.1
+  ghcr.io/jmdarling/shin-wallslice:1.1.0
 ```
 
 This replaces the quick-start container, rather than running alongside it. The browser still uses port 8080. The built-in health check reads the effective configuration, including the overridden port.
@@ -463,16 +463,16 @@ The image defaults to non-root `node` with UID/GID 1000. The [Unraid template](d
 ### Update and roll back
 
 Back up preferences/private configuration and download active outputs first.
-Examples pin `:1.0.1` for reproducibility. To upgrade, choose a newer verified exact
+Examples pin `:1.1.0` for reproducibility. To upgrade, choose a newer verified exact
 version from the release notes, replace the image tag in your run/Compose settings,
 and recreate using the same data volume, ports, and optional configuration.
-Alternatively `:1`, `:1.0`, or `:latest` track their stable release series.
+Alternatively `:1`, `:1.1`, or `:latest` track their stable release series.
 Publication makes images available; it never automatically updates your server.
 
 For Docker run:
 
 ```sh
-docker pull ghcr.io/jmdarling/shin-wallslice:1.0.1
+docker pull ghcr.io/jmdarling/shin-wallslice:1.1.0
 docker stop shin-wallslice
 docker rm shin-wallslice
 ```
@@ -483,10 +483,10 @@ image tag, then `docker compose pull` and `docker compose up -d` from the same p
 With Unraid use Check for Updates → Update, retaining appdata. To pin or roll back,
 choose a previously verified exact version/digest in Repository and Apply.
 
-For this first public release there is no prior public version; retain your prior
-local image if migrating from source. Later releases describe compatibility and
-rollback in their release notes. After replacement check health, WebUI, and saved
-preferences. See [source builds and development](#development-and-verification) for
+Version 1.1.0 retains the 1.0.1 configuration and preferences format. To roll back,
+choose `ghcr.io/jmdarling/shin-wallslice:1.0.1` and recreate with the same data mount
+and settings. Download active outputs before switching versions. After replacement
+check health, WebUI, and saved preferences. See [source builds and development](#development-and-verification) for
 local-only updates.
 
 ### Back up and restore
@@ -512,7 +512,7 @@ docker cp ./wallslice-backup/. shin-wallslice:/data/
 # Restore ownership on this dedicated volume before starting:
 docker run --rm --user 0 \
   --mount type=volume,src=shin-wallslice-data,dst=/data \
-  ghcr.io/jmdarling/shin-wallslice:1.0.1 true
+  ghcr.io/jmdarling/shin-wallslice:1.1.0 true
 docker start shin-wallslice
 ```
 

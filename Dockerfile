@@ -19,7 +19,7 @@ COPY packages/server/package.json packages/server/package.json
 RUN pnpm install --prod --frozen-lockfile --filter @shin-wallslice/server...
 
 FROM node:24-trixie-slim AS runtime
-ARG VERSION=1.0.0
+ARG VERSION=1.1.0
 ARG REVISION=unknown
 LABEL org.opencontainers.image.source="https://github.com/jmdarling/shin-wallslice" \
       org.opencontainers.image.version=$VERSION \

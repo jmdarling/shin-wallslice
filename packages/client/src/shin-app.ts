@@ -12,6 +12,7 @@ import type {
   Manifest,
   Preferences,
   NamingStatus,
+  DetectionStatus,
 } from '../../server/src/protocol.js';
 
 type Catalog = {
@@ -23,6 +24,7 @@ type Catalog = {
 export class ShinApp extends LitElement {
   static properties = {
     naming: { state: true },
+    detection: { state: true },
     aiEnabled: { state: true },
     nameEdited: { state: true },
     page: { state: true },
@@ -52,6 +54,9 @@ export class ShinApp extends LitElement {
   job: Job | undefined;
   crops: Record<string, Crop> = {};
   manifest: Manifest | undefined;
+  detection: DetectionStatus = { state: 'disabled' };
+  private detectionController?: AbortController;
+  private manuallyPositioned = new Set<string>();
   naming: NamingStatus = { state: 'disabled' };
   aiEnabled = false;
   nameEdited = false;
@@ -83,6 +88,7 @@ export class ShinApp extends LitElement {
     document.removeEventListener('paste', this.paste);
     clearTimeout(this.timer);
     this.namingController?.abort();
+    this.detectionController?.abort();
   }
   private async api<T>(path: string, init?: RequestInit): Promise<T> {
     const r = await fetch(path, init);
@@ -102,7 +108,17 @@ export class ShinApp extends LitElement {
       const catalog = await this.api<Catalog>('/api/catalog');
       this.aiEnabled = catalog.aiEnabled ?? false;
       this.devices = catalog.devices;
-      this.prefs = catalog.preferences;
+      this.prefs = {
+        ...catalog.preferences,
+        method:
+          catalog.preferences.method === 'smart'
+            ? this.aiEnabled
+              ? 'ai'
+              : 'entropy'
+            : catalog.preferences.method === 'ai' && !this.aiEnabled
+              ? 'entropy'
+              : catalog.preferences.method,
+      };
       this.preferenceError = catalog.preferenceError;
       this.ready = true;
     } catch (e) {
@@ -155,6 +171,8 @@ export class ShinApp extends LitElement {
           ? file.name.replace(/\.[^.]+$/, '')
           : 'wallpaper';
       this.nameEdited = false;
+      this.detection = this.job.detection ?? { state: 'disabled' };
+      void this.watchDetection(this.job.id);
       this.naming = this.job.naming ?? { state: 'disabled' };
       void this.watchNaming(this.job.id);
       this.page = 'processing';
@@ -208,9 +226,70 @@ export class ShinApp extends LitElement {
         };
     }
   }
+  private async watchDetection(id: string, retry = false) {
+    this.detectionController?.abort();
+    const controller = new AbortController();
+    this.detectionController = controller;
+    const current = () => !controller.signal.aborted && this.job?.id === id;
+    const accept = (status: DetectionStatus) => {
+      this.detection = status;
+      if (status.state === 'succeeded' && this.prefs.method === 'ai') {
+        let changed = false;
+        const crops = { ...this.crops };
+        for (const d of this.selected) {
+          if (!this.manuallyPositioned.has(d.id)) {
+            crops[d.id] = { ...status.crops[d.id]! };
+            changed = true;
+          }
+        }
+        if (changed) {
+          this.crops = crops;
+          this.schedule();
+        }
+      }
+    };
+    try {
+      if (retry) {
+        this.detection = { state: 'pending' };
+        const status = await this.api<DetectionStatus>(
+          `/api/jobs/${id}/detection`,
+          { method: 'POST', signal: controller.signal },
+        );
+        if (!current()) return;
+        accept(status);
+      }
+      while (current() && this.detection.state === 'pending') {
+        const status = await this.api<DetectionStatus>(
+          `/api/jobs/${id}/detection`,
+          { signal: controller.signal },
+        );
+        if (!current()) return;
+        accept(status);
+        if (status.state === 'pending')
+          await new Promise<void>((resolve) => {
+            const done = () => {
+              clearTimeout(timer);
+              controller.signal.removeEventListener('abort', done);
+              resolve();
+            };
+            const timer = setTimeout(done, 750);
+            controller.signal.addEventListener('abort', done, { once: true });
+          });
+      }
+    } catch {
+      if (current())
+        this.detection = {
+          state: 'failed',
+          message:
+            'AI subject detection is unavailable. Using entropy crops. You can continue or retry.',
+        };
+    }
+  }
   private position(d: Device): Crop {
     const j = this.job!;
-    if (this.prefs.method === 'smart') return { ...j.smart[d.id]! };
+    if (this.prefs.method === 'ai' && this.detection.state === 'succeeded')
+      return { ...this.detection.crops[d.id]! };
+    if (this.prefs.method !== 'anchor') return { ...j.smart[d.id]! };
     const c = j.smart[d.id]!;
     return {
       ...c,
@@ -233,6 +312,7 @@ export class ShinApp extends LitElement {
     };
   }
   private resetAll() {
+    this.manuallyPositioned.clear();
     this.crops = Object.fromEntries(
       this.selected.map((d) => [d.id, this.position(d)]),
     );
@@ -288,6 +368,8 @@ export class ShinApp extends LitElement {
       if (this.job)
         await this.api(`/api/jobs/${this.job.id}`, { method: 'DELETE' });
       this.namingController?.abort();
+      this.detectionController?.abort();
+      this.detection = { state: 'disabled' };
       this.naming = { state: 'disabled' };
       this.nameEdited = false;
       this.generation++;
@@ -540,6 +622,15 @@ export class ShinApp extends LitElement {
     .crop-choice:hover {
       background: var(--app-selected);
     }
+    .smart-choices {
+      display: grid;
+      gap: 0.5rem;
+    }
+    .smart-choices:has(> :nth-child(2)) .smart-choice {
+      height: 64px;
+      grid-template-columns: auto auto;
+      gap: 0.5rem;
+    }
     .smart-choice {
       width: 134px;
       height: 134px;
@@ -790,6 +881,27 @@ export class ShinApp extends LitElement {
             : nothing
         }
         ${
+          this.page !== 'input' &&
+          this.prefs.method === 'ai' &&
+          (this.detection.state === 'pending' ||
+            this.detection.state === 'failed')
+            ? html`<div class="message" role="status" aria-live="polite">
+                ${
+                  this.detection.state === 'pending'
+                    ? 'Finding the main subject… Current previews use entropy. You can position crops and download now.'
+                    : this.detection.state === 'failed'
+                      ? html`${this.detection.message}
+                          <wa-button
+                            size="s"
+                            @click=${() => this.job && this.watchDetection(this.job.id, true)}
+                            >Retry subject detection</wa-button
+                          >`
+                      : nothing
+                }
+              </div>`
+            : nothing
+        }
+        ${
           this.page === 'input'
             ? html`<div class="eyebrow">A home for every screen</div>
                 <h1>One wallpaper.<br />Every device.</h1>
@@ -819,7 +931,7 @@ export class ShinApp extends LitElement {
                       }}
                   /></label>
                   <p>JPEG, PNG, or WebP · processed locally on your server</p>
-                  ${this.aiEnabled ? html`<p>AI naming is enabled. After upload, an image representation is automatically sent to the configured AI service.</p>` : nothing}
+                  ${this.aiEnabled ? html`<p>AI naming and subject detection are enabled. After upload, an image representation is automatically sent to the configured AI service.</p>` : nothing}
                 </div>`
             : nothing
         }
@@ -849,6 +961,7 @@ export class ShinApp extends LitElement {
                                           (id) => id !== d.id,
                                         ),
                                   };
+                                  this.manuallyPositioned.delete(d.id);
                                   if (checked)
                                     this.crops = {
                                       ...this.crops,
@@ -870,26 +983,37 @@ export class ShinApp extends LitElement {
                     <fieldset>
                       <legend>Crop method</legend>
                       <div class="crop-method">
-                        <label class="crop-choice smart-choice">
-                          <input
-                            type="radio"
-                            name="method"
-                            aria-label="Smart"
-                            .checked=${this.prefs.method === 'smart'}
-                            @change=${() => {
-                              this.prefs = { ...this.prefs, method: 'smart' };
-                              this.save();
-                              this.resetAll();
-                            }}
-                          />
-                          <wa-icon
-                            src=${aiSparkles}
-                            aria-hidden="true"
-                          ></wa-icon>
-                          <span class="smart-label"
-                            >Smart<small>(entropy)</small></span
-                          ></label
-                        >
+                        <div class="smart-choices">
+                          ${(['ai', 'entropy'] as const)
+                            .filter(
+                              (method) => method !== 'ai' || this.aiEnabled,
+                            )
+                            .map(
+                              (method) =>
+                                html` <label class="crop-choice smart-choice">
+                                  <input
+                                    type="radio"
+                                    name="method"
+                                    aria-label=${`Smart (${method === 'ai' ? 'AI' : 'entropy'})`}
+                                    .checked=${this.prefs.method === method}
+                                    @change=${() => {
+                                      this.prefs = { ...this.prefs, method };
+                                      this.save();
+                                      this.resetAll();
+                                    }}
+                                  />
+                                  <wa-icon
+                                    src=${aiSparkles}
+                                    aria-hidden="true"
+                                  ></wa-icon>
+                                  <span class="smart-label"
+                                    >Smart<small
+                                      >(${method === 'ai' ? 'AI' : 'entropy'})</small
+                                    ></span
+                                  >
+                                </label>`,
+                            )}
+                        </div>
                         <span class="crop-or" aria-hidden="true">or</span>
                         <div class="anchors">
                           ${(
@@ -928,6 +1052,7 @@ export class ShinApp extends LitElement {
                           )}
                         </div>
                       </div>
+                      ${this.prefs.method === 'ai' && this.detection.state === 'no-subject' ? html`<p class="meta" role="note">No clear subject found. Using entropy crops for this image.</p>` : nothing}
                     </fieldset>
                     <fieldset>
                       <legend>OLEDify</legend>
@@ -992,6 +1117,7 @@ export class ShinApp extends LitElement {
                                   .imageHeight=${j.height}
                                   .label=${d.name}
                                   @crop-change=${(e: CustomEvent<Crop>) => {
+                                    this.manuallyPositioned.add(d.id);
                                     this.crops = {
                                       ...this.crops,
                                       [d.id]: e.detail,
@@ -1010,6 +1136,7 @@ export class ShinApp extends LitElement {
                           <wa-button
                             size="s"
                             @click=${() => {
+                              this.manuallyPositioned.delete(d.id);
                               this.crops = {
                                 ...this.crops,
                                 [d.id]: this.position(d),

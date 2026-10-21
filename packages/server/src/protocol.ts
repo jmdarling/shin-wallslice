@@ -8,7 +8,7 @@ export type Anchor =
   'top-left' | 'top-right' | 'center' | 'bottom-left' | 'bottom-right';
 export interface Preferences {
   devices: string[];
-  method: 'smart' | 'anchor';
+  method: 'smart' | 'ai' | 'entropy' | 'anchor';
   anchor: Anchor;
   oled: boolean;
   threshold: number;
@@ -26,6 +26,7 @@ export interface Job {
   height: number;
   smart: Record<string, Crop>;
   naming?: NamingStatus;
+  detection?: DetectionStatus;
 }
 export interface RenderSettings {
   crops: Record<string, Crop>;
@@ -41,4 +42,9 @@ export interface Manifest {
 export type NamingStatus =
   | { state: 'disabled' | 'pending' }
   | { state: 'succeeded'; name: string }
+  | { state: 'failed'; message: string };
+
+export type DetectionStatus =
+  | { state: 'disabled' | 'pending' | 'no-subject' }
+  | { state: 'succeeded'; crops: Record<string, Crop> }
   | { state: 'failed'; message: string };

@@ -23,6 +23,8 @@ let stopTheme: (() => void) | undefined;
 let namingEnabled = false;
 let namingResponse: () => Promise<Response> = async () =>
   Response.json({ state: 'disabled' });
+let detectionResponse: () => Promise<Response> = async () =>
+  Response.json({ state: 'disabled' });
 let failUpload = false;
 let renderCount = 0;
 let preferences = {
@@ -40,6 +42,7 @@ let renderBodies: {
 }[] = [];
 beforeEach(() => {
   namingEnabled = false;
+  detectionResponse = async () => Response.json({ state: 'disabled' });
   namingResponse = async () => Response.json({ state: 'disabled' });
   failUpload = false;
   renderCount = 0;
@@ -80,8 +83,10 @@ beforeEach(() => {
           height: 200,
           smart,
           naming: { state: namingEnabled ? 'pending' : 'disabled' },
+          detection: { state: namingEnabled ? 'pending' : 'disabled' },
         });
       }
+      if (input.endsWith('/detection')) return detectionResponse();
       if (input.endsWith('/naming')) return namingResponse();
       if (input.endsWith('/render')) {
         renderCount++;
@@ -151,7 +156,7 @@ test('Input has a labeled picker and accepts one file, shows the source and sele
   expect(a.shadowRoot!.querySelector('img')!.alt).toBe(
     'Source wallpaper preview',
   );
-  expect(a.prefs.method).toBe('smart');
+  expect(a.prefs.method).toBe('entropy');
 });
 test('drop and clipboard paste each open Processing, multiple files and corrupt uploads allow retry', async () => {
   const a = await app();
@@ -214,7 +219,9 @@ test('global anchors reset positions, manual edits remain independent, reset aff
   reset.click();
   expect(a.crops.phone!.left).toBe(500);
   expect(a.crops.tablet!.left).toBe(400);
-  await page.getByRole('radio', { name: 'Smart', exact: true }).click();
+  await page
+    .getByRole('radio', { name: 'Smart (entropy)', exact: true })
+    .click();
   expect(a.crops.phone!.left).toBe(250);
 });
 test('spatial crop radios expose names, select every anchor directly, and support native keyboard navigation', async () => {
@@ -222,7 +229,7 @@ test('spatial crop radios expose names, select every anchor directly, and suppor
   picker(a, [file()]);
   await processed(a);
   const names = [
-    'Smart',
+    'Smart (entropy)',
     'top left',
     'top right',
     'center',
@@ -234,7 +241,7 @@ test('spatial crop radios expose names, select every anchor directly, and suppor
   ];
   expect(radios()).toHaveLength(6);
   await expect
-    .element(page.getByRole('radio', { name: 'Smart', exact: true }))
+    .element(page.getByRole('radio', { name: 'Smart (entropy)', exact: true }))
     .toBeChecked();
   for (const [index, name] of names.entries()) {
     const radio = page.getByRole('radio', { name, exact: true });
@@ -248,21 +255,23 @@ test('spatial crop radios expose names, select every anchor directly, and suppor
         ? 1
         : 0.5;
     expect(a.crops.phone).toEqual(
-      name === 'Smart'
+      name === 'Smart (entropy)'
         ? smart.phone
         : { ...smart.phone, left: 500 * horizontal },
     );
     expect(a.crops.tablet).toEqual(
-      name === 'Smart'
+      name === 'Smart (entropy)'
         ? smart.tablet
         : { ...smart.tablet, left: 400 * horizontal },
     );
   }
-  await page.getByRole('radio', { name: 'Smart', exact: true }).click();
+  await page
+    .getByRole('radio', { name: 'Smart (entropy)', exact: true })
+    .click();
   expect(a.prefs.anchor).toBe('bottom-right');
   expect(radios().filter((r) => r.checked)).toEqual([radios()[0]]);
   radios()[0]!.focus();
-  for (const name of [...names.slice(1), 'Smart']) {
+  for (const name of [...names.slice(1), 'Smart (entropy)']) {
     await userEvent.keyboard('{ArrowRight}');
     await a.updateComplete;
     await expect
@@ -299,7 +308,7 @@ for (const choice of [
     const verify = async () => {
       await a.updateComplete;
       const selected = page.getByRole('radio', {
-        name: choice === 'smart' ? 'Smart' : choice.replace('-', ' '),
+        name: choice === 'smart' ? 'Smart (entropy)' : choice.replace('-', ' '),
         exact: true,
       });
       await expect.element(selected).toBeChecked();
@@ -1132,4 +1141,296 @@ test('clipboard default is replaced by a suggestion; rejected uploads never requ
   await expect
     .element(page.getByRole('img', { name: 'AI Powered', exact: true }))
     .toBeVisible();
+});
+
+const aiCrops = {
+  phone: { ...smart.phone, left: 30 },
+  tablet: { ...smart.tablet, left: 40 },
+  laptop: { ...smart.laptop, left: 50 },
+};
+function delayedDetection() {
+  namingEnabled = true;
+  let resolve!: (response: Response) => void;
+  detectionResponse = () =>
+    new Promise<Response>((r) => {
+      resolve = r;
+    });
+  return () => resolve(Response.json({ state: 'succeeded', crops: aiCrops }));
+}
+function moveCrop(a: ShinApp, index: number, left: number) {
+  const editor = a.shadowRoot!.querySelectorAll('crop-editor')[index]!;
+  editor.dispatchEvent(
+    new CustomEvent('crop-change', {
+      detail: { ...(index === 0 ? a.crops.phone : a.crops.tablet), left },
+      bubbles: true,
+      composed: true,
+    }),
+  );
+  editor.dispatchEvent(
+    new CustomEvent('crop-commit', { bubbles: true, composed: true }),
+  );
+}
+test('AI default has entropy previews; late success preserves a manual edit even returned to original, and exports current crops', async () => {
+  const finish = delayedDetection();
+  const a = await app();
+  picker(a, [file()]);
+  await processed(a);
+  expect(a.prefs.method).toBe('ai');
+  expect(a.crops).toEqual({ phone: smart.phone, tablet: smart.tablet });
+  expect(a.shadowRoot!.textContent).toContain('Current previews use entropy');
+  moveCrop(a, 0, 100);
+  await a.updateComplete;
+  moveCrop(a, 0, smart.phone.left);
+  finish();
+  await vi.waitFor(() => expect(a.detection.state).toBe('succeeded'));
+  expect(a.crops.phone).toEqual(smart.phone);
+  expect(a.crops.tablet).toEqual(aiCrops.tablet);
+  await vi.waitFor(() => expect(a.dirty).toBe(false));
+  expect(renderBodies.at(-1)!.crops).toEqual(a.crops);
+  expect(a.shadowRoot!.querySelector('.message[role=status]')).toBeNull();
+  await page.getByRole('button', { name: 'Next:' }).click();
+  expect(a.page).toBe('download');
+  expect(a.shadowRoot!.querySelector('.message[role=status]')).toBeNull();
+  expect(renderBodies.at(-1)!.crops).toEqual(a.crops);
+  await page.getByRole('button', { name: 'Back to Processing' }).click();
+  const reset = [
+    ...a.shadowRoot!.querySelectorAll<HTMLElement>('wa-button'),
+  ].find((b) => b.textContent?.trim() === 'Reset position')!;
+  reset.click();
+  expect(a.crops.phone).toEqual(aiCrops.phone);
+  checked(a, 'Laptop');
+  expect(a.crops.laptop).toEqual(aiCrops.laptop);
+});
+test.each(['entropy', 'anchor'])(
+  'late detection while %s is active leaves positions unchanged; switching back uses available AI result',
+  async (method) => {
+    const finish = delayedDetection();
+    const a = await app();
+    picker(a, [file()]);
+    await processed(a);
+    await page
+      .getByRole('radio', {
+        name: method === 'entropy' ? 'Smart (entropy)' : 'top left',
+        exact: true,
+      })
+      .click();
+    const previous = structuredClone(a.crops);
+    finish();
+    await vi.waitFor(() => expect(a.detection.state).toBe('succeeded'));
+    expect(a.crops).toEqual(previous);
+    await page.getByRole('radio', { name: 'Smart (AI)', exact: true }).click();
+    expect(a.crops).toEqual({ phone: aiCrops.phone, tablet: aiCrops.tablet });
+  },
+);
+test('reset while pending makes crop eligible; failure retry preserves other manual edits and does not restart naming', async () => {
+  let finish = delayedDetection();
+  const a = await app();
+  picker(a, [file()]);
+  await processed(a);
+  moveCrop(a, 0, 100);
+  await a.updateComplete;
+  const reset = [
+    ...a.shadowRoot!.querySelectorAll<HTMLElement>('wa-button'),
+  ].find((b) => b.textContent?.trim() === 'Reset position')!;
+  reset.click();
+  moveCrop(a, 1, 300);
+  finish();
+  await vi.waitFor(() => expect(a.detection.state).toBe('succeeded'));
+  expect(a.crops.phone).toEqual(aiCrops.phone);
+  expect(a.crops.tablet!.left).toBe(300);
+  // Exercise a service failure and explicit retry on a fresh upload.
+  await vi.waitFor(() => expect(a.busy).toBe(''));
+  await page.getByRole('button', { name: 'Start over', exact: true }).click();
+  detectionResponse = async () =>
+    Response.json({ state: 'failed', message: 'Using entropy crops.' });
+  picker(a, [file()]);
+  await processed(a);
+  await vi.waitFor(() => expect(a.detection.state).toBe('failed'));
+  expect(a.prefs.method).toBe('ai');
+  moveCrop(a, 1, 300);
+  finish = delayedDetection();
+  const namingPosts = () =>
+    vi
+      .mocked(fetch)
+      .mock.calls.filter(
+        ([url, init]) =>
+          String(url).endsWith('/naming') && init?.method === 'POST',
+      ).length;
+  const before = namingPosts();
+  await page.getByRole('button', { name: 'Retry subject detection' }).click();
+  await vi.waitFor(() => expect(a.detection.state).toBe('pending'));
+  finish();
+  await vi.waitFor(() => expect(a.detection.state).toBe('succeeded'));
+  expect(a.crops.phone).toEqual(aiCrops.phone);
+  expect(a.crops.tablet!.left).toBe(300);
+  expect(namingPosts()).toBe(before);
+});
+test('no clear subject is explained and uses entropy; stale detection after start over cannot change new work', async () => {
+  const finish = delayedDetection();
+  const a = await app();
+  picker(a, [file()]);
+  await processed(a);
+  await page.getByRole('button', { name: 'Next:' }).click();
+  expect(a.detection.state).toBe('pending');
+  await page.getByRole('button', { name: 'Start over', exact: true }).click();
+  detectionResponse = async () => Response.json({ state: 'no-subject' });
+  picker(a, [file()]);
+  await processed(a);
+  await vi.waitFor(() => expect(a.detection.state).toBe('no-subject'));
+  finish();
+  await a.updateComplete;
+  expect(a.crops).toEqual({ phone: smart.phone, tablet: smart.tablet });
+  expect(a.shadowRoot!.querySelector('[role=note]')!.textContent).toContain(
+    'No clear subject',
+  );
+  expect(a.shadowRoot!.querySelector('.message[role=status]')).toBeNull();
+});
+test.each(['ai', 'entropy', 'smart', 'anchor'])(
+  'enabled preference %s resolves and survives navigation, new images and reload',
+  async (method) => {
+    namingEnabled = true;
+    preferences.method = method;
+    let a = await app();
+    const expected = method === 'smart' ? 'ai' : method;
+    picker(a, [file()]);
+    await processed(a);
+    expect(a.prefs.method).toBe(expected);
+    // Explicitly selecting the preference persists the resolved method.
+    await page
+      .getByRole('radio', {
+        name:
+          expected === 'anchor'
+            ? 'center'
+            : `Smart (${expected === 'ai' ? 'AI' : 'entropy'})`,
+        exact: true,
+      })
+      .click();
+    await page.getByRole('button', { name: 'Next:' }).click();
+    await page.getByRole('button', { name: 'Back to Processing' }).click();
+    expect(a.prefs.method).toBe(expected);
+    await page.getByRole('button', { name: 'Start over', exact: true }).click();
+    picker(a, [file()]);
+    await processed(a);
+    expect(a.prefs.method).toBe(expected);
+    a.remove();
+    a = await app();
+    expect(a.prefs.method).toBe(expected);
+  },
+);
+test('saved AI falls back to entropy when disabled and never polls detection', async () => {
+  preferences.method = 'ai';
+  const a = await app();
+  picker(a, [file()]);
+  await processed(a);
+  expect(a.prefs.method).toBe('entropy');
+  expect(a.shadowRoot!.querySelector('[aria-label="Smart (AI)"]')).toBeNull();
+  expect(
+    vi
+      .mocked(fetch)
+      .mock.calls.some(([url]) => String(url).endsWith('/detection')),
+  ).toBe(false);
+});
+for (const theme of ['light', 'dark'])
+  for (const width of [280, 390, 1280]) {
+    test(`AI controls have nonoverlapping touch targets and keyboard focus at ${width}px in ${theme}`, async () => {
+      namingEnabled = true;
+      await page.viewport(width, 900);
+      document.documentElement.classList.add(`wa-${theme}`);
+      try {
+        const a = await app();
+        picker(a, [file()]);
+        await processed(a);
+        const labels = [
+          ...a.shadowRoot!.querySelectorAll<HTMLElement>('.crop-choice'),
+        ];
+        expect(labels).toHaveLength(7);
+        for (const label of labels) {
+          const rect = label.getBoundingClientRect();
+          expect(rect.width).toBeGreaterThanOrEqual(44);
+          expect(rect.height).toBeGreaterThanOrEqual(44);
+          expect(rect.left).toBeGreaterThanOrEqual(0);
+          expect(rect.right).toBeLessThanOrEqual(width);
+          for (const other of labels.filter((l) => l !== label)) {
+            const b = other.getBoundingClientRect();
+            expect(
+              rect.right <= b.left ||
+                rect.left >= b.right ||
+                rect.bottom <= b.top ||
+                rect.top >= b.bottom,
+            ).toBe(true);
+          }
+        }
+        expect(document.documentElement.scrollWidth).toBe(width);
+        const radio = a.shadowRoot!.querySelector<HTMLInputElement>(
+          '[aria-label="Smart (AI)"]',
+        )!;
+        radio.focus();
+        await userEvent.keyboard('{ArrowRight}');
+        await a.updateComplete;
+        await expect
+          .element(
+            page.getByRole('radio', { name: 'Smart (entropy)', exact: true }),
+          )
+          .toBeChecked();
+        expect(
+          getComputedStyle(a.shadowRoot!.activeElement!.closest('label')!)
+            .outlineStyle,
+        ).toBe('solid');
+        expect(
+          getComputedStyle(
+            a.shadowRoot!.activeElement!.closest('label')!,
+            '::after',
+          ).content,
+        ).toBe('"✓"');
+      } finally {
+        await page.viewport(1280, 900);
+      }
+    });
+  }
+
+test('late AI result on Download invalidates previous previews and exports until matching render completes', async () => {
+  const finish = delayedDetection();
+  const a = await app();
+  picker(a, [file()]);
+  await processed(a);
+  await page.getByRole('button', { name: 'Next:' }).click();
+  const original = globalThis.fetch;
+  let release!: (response: Response) => void;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((input: string, init?: RequestInit) => {
+      if (input.endsWith('/render')) {
+        renderBodies.push(JSON.parse(init!.body as string));
+        return new Promise<Response>((resolve) => {
+          release = resolve;
+        });
+      }
+      return original(input, init);
+    }),
+  );
+  finish();
+  await vi.waitFor(() => expect(a.detection.state).toBe('succeeded'));
+  expect(a.dirty).toBe(true);
+  await a.updateComplete;
+  await expect
+    .element(page.getByRole('button', { name: 'Download all:' }))
+    .toBeDisabled();
+  expect(a.shadowRoot!.querySelectorAll('img.output')).toHaveLength(0);
+  await vi.waitFor(() => expect(release).toBeDefined());
+  expect(renderBodies.at(-1)!.crops).toEqual({
+    phone: aiCrops.phone,
+    tablet: aiCrops.tablet,
+  });
+  release(
+    Response.json({
+      revision: 'ai-final',
+      source: pixel,
+      outputs: { phone: pixel, tablet: pixel },
+    }),
+  );
+  await vi.waitFor(() => expect(a.dirty).toBe(false));
+  await expect
+    .element(page.getByRole('button', { name: 'Download all:' }))
+    .toBeEnabled();
+  expect(a.manifest!.revision).toBe('ai-final');
 });

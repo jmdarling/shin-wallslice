@@ -5,7 +5,7 @@ One wallpaper for all your screens. Version 0.2.0 accepts a JPEG, PNG, or WebP, 
 ## Using the workflow
 
 1. Drop one image, paste an image from the clipboard, or choose a file.
-2. Select output devices. Smart starts each crop using image entropy; the five anchors position all selected crops together. Drag any crop independently, or focus its boundary and use arrow keys (Shift moves 10 pixels). Reset position restores that device to the current global method. Crops have fixed size and never leave the source. Softness warnings indicate upscaling.
+2. Select output devices. Smart (AI) frames the main subject when AI is enabled; Smart (entropy) uses local image entropy separately for each device. The five anchors position all selected crops together. Drag any crop independently, or focus its boundary and use arrow keys (Shift moves 10 pixels). Reset position restores that device to the current global method. Crops have fixed size and never leave the source. Softness warnings indicate upscaling.
 3. Optionally enable OLEDify: a pixel becomes true black when **all three RGB channels are at or below** the integer threshold. Other pixels retain their RGB values. The cutoff is applied after resizing, including in exported PNGs. Previews update automatically; progress appears while outputs are generated.
 4. Continue to Download, edit the base name, and download individual PNGs or the ZIP. Names are normalized into safe basenames. The ZIP defaults to `<name>-<device-id>.png` files at its root. Check “Organize into device folders” to use `<device-id>/<name>.png` instead; individual downloads always retain `<name>-<device-id>.png` names. Back preserves the current work; Start over discards it.
 
@@ -185,7 +185,7 @@ pnpm docker:smoke shin-wallslice:amd64 podman
 
 `packages/server/src/devices.json` defines stable IDs, display names, and pixel dimensions. The initial six match `specs/v0.2.0.md`; tablet outputs are square. Add a unique lowercase hyphenated ID, name, and positive integer dimensions, then rebuild/release. The same selection, crop, preview, naming and export logic handles every preset. Individual dimensions are capped at 16384 pixels; the catalog must also fit the configured processing/storage budgets. The catalog is repository-managed and cannot be overridden by runtime configuration.
 
-## Optional AI wallpaper naming
+## Optional AI naming and subject detection
 
 AI is disabled by default (`"ai": { "enabled": false }`). Older complete JSON
 configurations without `ai` remain valid and make no AI requests. To enable it,
@@ -209,14 +209,14 @@ provider-specific APIs. `token` is optional for services without authentication;
 when supplied it is used as a server-side bearer token. Use the partial JSON file
 mounted read-only at `/config/config.json` in Docker as described above, then
 restart to apply changes. No credentials or connection settings are sent to the
-browser. Service availability is checked only when naming, so an unavailable
+browser. Service availability is checked only after accepted uploads, so an unavailable
 service never prevents startup or local processing.
 
 **Enabling AI automatically sends an image representation to your configured
 service after every accepted upload**, including drag-and-drop and clipboard
-images. Naming uses the full oriented source before crops or OLEDify, resized
+images. Naming and subject detection independently use the same full oriented source before crops or OLEDify, resized
 without enlargement to fit 1024 × 1024 pixels, flattened onto white, and encoded as
-JPEG at quality 80 (at most 2 MiB). Preparation runs within the existing exclusive
+JPEG at quality 80 (at most 2 MiB). Preparation has a 30-second Sharp processing timeout and runs within the existing exclusive
 image-processing stage and decoded-pixel limit; only this small representation is
 retained in each temporary job for Retry. Image text is treated as content rather
 than instructions. Naming aims for about three meaningful words and includes a
@@ -236,3 +236,58 @@ Start over, expiry, and shutdown cancel outstanding AI work. Abandoned requests
 are bounded by the timeout and existing job capacity; reload starts a fresh workflow
 and cannot apply an old result. Suggestions and representations are temporary,
 share the job lifecycle, and are never persisted or restored after reload/restart.
+
+### Smart crop methods
+
+AI is optional. First use selects **Smart (AI)** when enabled and **Smart
+(entropy)** otherwise. Legacy saved Smart preferences migrate the same way;
+anchors retain their selection. The resolved preference is saved in the existing
+flat-file preferences. Explicit AI, entropy, and anchor selections survive Back,
+Start over, new images, reloads, and restarts with persistent data. Explicit entropy
+stays entropy when AI is enabled. With AI disabled the AI choice is unavailable;
+a saved AI selection resolves to entropy, and no service requests are made.
+
+Every accepted upload automatically starts one subject-detection task as well as
+naming, regardless of the crop method selected. Rejected uploads start neither.
+Detection uses the configured vision model and connection with the same optional
+bearer token, 30-second request timeout, 64 KiB response bound, and redirect
+protection described above. It analyzes the bounded full oriented representation,
+not a device crop or OLEDified output. Normalized bounds map directly to the
+oriented source dimensions, avoiding distortion from rounded representation sizes.
+Image preparation uses the existing decoded-pixel budget and exclusive processing
+stage; each job retains at most one shared JPEG of at most 2 MiB for both tasks.
+
+Detection asks for the main subject's bounds, including a coherent group when
+appropriate, or an explicit no-clear-subject response for abstract patterns.
+Validated bounds frame each fixed-size device crop within source limits. Crops
+contain the full subject or group when it fits. For tighter crops, detection also
+identifies an optional focal region, such as the entire face/head for a person or
+important details across a group. For prominent people or illustrated characters,
+held weapons/equipment and nearby props are secondary to the person and face; a
+standalone object can still be the main subject in an object-focused image. Framing prioritizes that region while preserving
+as much of the remaining subject as possible. Without a clear focal region, it
+centers the subject bounds. Focal bounds must lie within the subject bounds. Recognition and framing are
+best effort; manual adjustment remains available.
+
+Processing opens while detection runs, using entropy previews. A visible status
+explains pending previews or a service failure. Progress messages disappear when
+work completes successfully. A no-clear-subject result is explained beside the crop
+method instead of in a persistent toast. Detection never blocks positioning, navigation, name editing, or downloads.
+Late results update only untouched selected crops while AI is active. Any manual
+positioning counts as an edit even if it returns to the original location. Changing
+the global method resets selected positions; Reset position restores only its device
+and makes it eligible for a pending result. New devices use the current method.
+Changes regenerate matching previews and exports; downloads wait for those outputs.
+A download already initiated retains its framing.
+
+No clear subject uses per-device entropy crops with an explanation. Connection,
+authentication, rate-limit, vision, timeout, preparation, and invalid-response
+failures also use entropy for eligible crops, with a nonblocking message and
+**Retry subject detection**. Manual edits and the saved AI preference remain intact.
+Retry starts only one concurrent detection attempt and never restarts naming;
+there is no automatic retry loop. A failed preparation can be attempted again.
+Naming and detection succeed or fail independently. Results are reused across
+devices, method changes, resets, OLEDify, navigation, and downloads. They share the
+temporary-job lifecycle, are cancelled or bounded when abandoned, and are not
+persisted across reloads or restarts. Credentials and upstream error bodies are
+never included in detection status or diagnostics.

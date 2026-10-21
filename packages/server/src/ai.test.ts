@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import sharp from 'sharp';
 import { afterEach, expect, test, vi } from 'vitest';
 import { AiConnection, AI_RESPONSE_BYTES, AI_TIMEOUT_MS } from './ai.js';
+import { detectionPrompt } from './detection.js';
 import { namingPrompt, normalizeSuggestion } from './naming.js';
 import { loadConfig, validateConfig } from './config.js';
 import { createServer } from 'node:http';
@@ -31,6 +32,15 @@ function response(content: unknown = 'Zelda Moonlit Forest', extra = {}) {
   });
 }
 async function setup(config: AiConfig | undefined = ai) {
+  // These tests isolate naming; detection has its own controlled integration suite.
+  const namingFetch = globalThis.fetch;
+  if (vi.isMockFunction(namingFetch))
+    vi.stubGlobal('fetch', (url: string, init: RequestInit) => {
+      const body = JSON.parse(init.body as string);
+      if (body.messages?.[0]?.content === detectionPrompt)
+        return Promise.resolve(response('{"subject":null}'));
+      return namingFetch(url, init);
+    });
   const root = await mkdtemp(join(tmpdir(), 'wallslice-ai-'));
   cleanups.push(() => rm(root, { force: true, recursive: true }));
   const app = buildApp({
@@ -112,7 +122,7 @@ test('environment-only configuration authenticates to a controlled provider and 
       name: 'moonlit-mountain-lake',
     }),
   );
-  expect(requests).toBe(1);
+  expect(requests).toBe(2);
   for (const path of [
     '/api/health',
     '/api/catalog',
@@ -131,7 +141,7 @@ test('environment-only configuration authenticates to a controlled provider and 
   expect((await upload(await setup(disabled.ai))).naming).toEqual({
     state: 'disabled',
   });
-  expect(requests).toBe(1);
+  expect(requests).toBe(2);
 });
 test('old configs remain valid; invalid AI settings and malformed JSON never disclose tokens', () => {
   const old: Partial<typeof defaults> = { ...defaults };

@@ -366,7 +366,10 @@ test('legacy preferences default to root ZIP layout and invalid folder preferenc
   cleanups.push(() => restarted.close());
   const catalog = (await restarted.inject('/api/catalog')).json();
   expect(catalog.preferenceError).toBe('');
-  expect(catalog.preferences).toEqual(defaultPreferences);
+  expect(catalog.preferences).toEqual({
+    ...defaultPreferences,
+    method: 'entropy',
+  });
   expect(
     (
       await restarted.inject({

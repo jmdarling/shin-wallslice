@@ -24,6 +24,8 @@ import type {
 } from './protocol.js';
 import { cropSize, renderImage, safeName, smartCrop } from './imaging.js';
 import { AiConnection } from './ai.js';
+import { detectSubject, subjectCrop } from './detection.js';
+import type { DetectionStatus } from './protocol.js';
 import { suggestName } from './naming.js';
 import type { NamingStatus } from './protocol.js';
 
@@ -58,7 +60,7 @@ function preferences(value: unknown): Preferences {
     !Array.isArray(p.devices) ||
     p.devices.some((id) => !devices.some((d) => d.id === id)) ||
     new Set(p.devices).size !== p.devices.length ||
-    !['smart', 'anchor'].includes(p.method) ||
+    !['smart', 'ai', 'entropy', 'anchor'].includes(p.method) ||
     ![
       'top-left',
       'top-right',
@@ -87,7 +89,9 @@ function preferences(value: unknown): Preferences {
 }
 interface StoredJob extends Job {
   naming: NamingStatus;
-  namingImage?: Buffer;
+  detection: DetectionStatus;
+  detectionController?: AbortController;
+  aiImage?: Buffer;
   namingController?: AbortController;
   directory: string;
   touched: number;
@@ -105,14 +109,14 @@ export async function registerWorkflow(
   const startNaming = (job: StoredJob) => {
     if (!connection || job.namingController || job.naming.state === 'succeeded')
       return;
-    if (!job.namingImage) {
+    if (!job.aiImage) {
       job.naming = { state: 'failed', message: namingFailure };
       return;
     }
     const controller = new AbortController();
     job.namingController = controller;
     job.naming = { state: 'pending' };
-    void suggestName(connection, job.namingImage, controller.signal)
+    void suggestName(connection, job.aiImage, controller.signal)
       .then((name) => {
         if (!controller.signal.aborted)
           job.naming = { state: 'succeeded', name };
@@ -123,6 +127,57 @@ export async function registerWorkflow(
       })
       .finally(() => {
         delete job.namingController;
+      });
+  };
+  const startDetection = (job: StoredJob, retry = false) => {
+    if (
+      !connection ||
+      job.detectionController ||
+      job.detection.state === 'succeeded' ||
+      job.detection.state === 'no-subject'
+    )
+      return;
+    const failure = () => {
+      job.detection = {
+        state: 'failed',
+        message:
+          'AI subject detection is unavailable. Using entropy crops. You can continue or retry.',
+      };
+    };
+    if (!job.aiImage && !retry) {
+      failure();
+      return;
+    }
+    const controller = new AbortController();
+    job.detectionController = controller;
+    job.detection = { state: 'pending' };
+    void (async () => {
+      if (!job.aiImage)
+        job.aiImage = await exclusive(() =>
+          prepareImage(join(job.directory, 'source.png')),
+        );
+      if (controller.signal.aborted) throw new Error('Cancelled');
+      return detectSubject(connection, job.aiImage, controller.signal);
+    })()
+      .then((bounds) => {
+        if (controller.signal.aborted) return;
+        job.detection = bounds
+          ? {
+              state: 'succeeded',
+              crops: Object.fromEntries(
+                devices.map((d) => [
+                  d.id,
+                  subjectCrop(job.width, job.height, d, bounds),
+                ]),
+              ),
+            }
+          : { state: 'no-subject' };
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) failure();
+      })
+      .finally(() => {
+        delete job.detectionController;
       });
   };
   const MiB = 1024 * 1024;
@@ -166,10 +221,22 @@ export async function registerWorkflow(
       busy = false;
     }
   };
+  const prepareImage = async (source: string) => {
+    const image = await sharp(source, { limitInputPixels: maxPixels })
+      .timeout({ seconds: 30 })
+      .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
+      .flatten({ background: '#ffffff' })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+    if (image.length > 2 * MiB)
+      throw new Error('Image representation exceeds size limit');
+    return image;
+  };
   const discard = async (id: string) => {
     const j = jobs.get(id);
     if (j) {
       j.namingController?.abort();
+      j.detectionController?.abort();
       jobs.delete(id);
       await rm(j.directory, { recursive: true, force: true });
     }
@@ -186,13 +253,17 @@ export async function registerWorkflow(
   timer.unref();
   app.addHook('onClose', async () => {
     clearInterval(timer);
-    for (const job of jobs.values()) job.namingController?.abort();
+    for (const job of jobs.values()) {
+      job.namingController?.abort();
+      job.detectionController?.abort();
+    }
     await rm(root, { recursive: true, force: true });
   });
   const getJob = (id: string) => {
     const j = jobs.get(id);
     if (!j || Date.now() - j.touched > config.jobTtlMinutes * 60000) {
       j?.namingController?.abort();
+      j?.detectionController?.abort();
       fail(
         'This temporary wallpaper expired. Start over and choose the image again.',
         404,
@@ -210,6 +281,17 @@ export async function registerWorkflow(
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
       preferenceError = `Could not read preferences: ${(error as Error).message}. Retry saving your preferences.`;
   }
+  if (saved.method === 'smart' || (saved.method === 'ai' && !connection)) {
+    saved.method = connection ? 'ai' : 'entropy';
+    try {
+      await mkdir(config.dataDirectory, { recursive: true });
+      await writeFile(`${preferencePath}.tmp`, JSON.stringify(saved));
+      await rename(`${preferencePath}.tmp`, preferencePath);
+    } catch {
+      preferenceError ||=
+        'Could not save migrated preferences. Retry saving your preferences.';
+    }
+  }
   app.get('/api/catalog', async () => ({
     devices,
     aiEnabled: !!connection,
@@ -220,6 +302,8 @@ export async function registerWorkflow(
   let saving = Promise.resolve();
   app.put('/api/preferences', async (request) => {
     const next = preferences(request.body);
+    if (next.method === 'smart') next.method = connection ? 'ai' : 'entropy';
+    if (next.method === 'ai' && !connection) next.method = 'entropy';
     const operation = saving
       .catch(() => {})
       .then(async () => {
@@ -343,6 +427,7 @@ export async function registerWorkflow(
             id,
             directory,
             naming: { state: connection ? 'pending' : 'disabled' },
+            detection: { state: connection ? 'pending' : 'disabled' },
             width: normalized.width!,
             height: normalized.height!,
             smart: {},
@@ -352,25 +437,21 @@ export async function registerWorkflow(
             job.smart[d.id] = await smartCrop(source, job.width, job.height, d);
           if (connection) {
             try {
-              // Full oriented source, bounded to 1024x1024, before cropping or OLEDify.
-              const image = await sharp(source, { limitInputPixels: maxPixels })
-                .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
-                .flatten({ background: '#ffffff' })
-                .jpeg({ quality: 80 })
-                .toBuffer();
-              if (image.length <= 2 * MiB) job.namingImage = image;
+              job.aiImage = await prepareImage(source);
             } catch {
-              /* Naming preparation must never reject a valid local upload. */
+              /* AI preparation must never reject a valid local upload. */
             }
           }
           jobs.set(id, job);
           startNaming(job);
+          startDetection(job);
           return {
             id,
             width: job.width,
             height: job.height,
             smart: job.smart,
             naming: job.naming,
+            detection: job.detection,
           };
         } catch (error) {
           await rm(directory, { recursive: true, force: true });
@@ -391,6 +472,21 @@ export async function registerWorkflow(
       const job = getJob(request.params.id);
       if (job.naming.state === 'failed') startNaming(job);
       return job.naming;
+    },
+  );
+  app.get<{ Params: { id: string } }>(
+    '/api/jobs/:id/detection',
+    async (request, reply) => {
+      reply.header('Cache-Control', 'no-store');
+      return getJob(request.params.id).detection;
+    },
+  );
+  app.post<{ Params: { id: string } }>(
+    '/api/jobs/:id/detection',
+    async (request) => {
+      const job = getJob(request.params.id);
+      if (job.detection.state === 'failed') startDetection(job, true);
+      return job.detection;
     },
   );
   app.delete<{ Params: { id: string } }>('/api/jobs/:id', async (request) =>

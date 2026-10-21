@@ -29,3 +29,22 @@ side-by-side comparisons, and verification evidence live in
 The output-only examples remain accurate and were retained.
 The Input example uses the same CC0 source artwork, bundled as an SVG in the
 client; the upload/export verification uses the original PNG.
+
+## v1.2.0 server output
+
+The Download light/dark captures were refreshed from the running implementation
+with server saving enabled. Input and Processing remain accurate and were retained;
+the historical v1.1.0 design captures remain historical evidence. The source,
+presets, center crops, and OLEDify settings above are unchanged.
+
+Reproduce using the documented `pnpm dev` command with
+`SHIN_WALLSLICE_OUTPUT_DIRECTORY=/tmp/shin-wallslice-v120-review/output`, AI disabled,
+and isolated data/scratch directories; then run `node scripts/verify-server-output.mjs`.
+The script captures light/dark at 1440, 390, and 320px, checks control overflow,
+compares actual saved PNGs to final-preview bytes, cancels conflicts, exercises
+both layouts, and checks persistence after Start over. It writes only its sample
+wallpapers into the configured output directory. It replaces existing sample
+names only through the app's explicit Replace control. Do not use a production
+instance with private active jobs for documentation verification.
+
+[Verification and additional captures](../design/v1.2.0/verification.json).

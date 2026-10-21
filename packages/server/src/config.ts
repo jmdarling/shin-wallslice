@@ -12,6 +12,7 @@ export interface RuntimeConfig {
   ai?: AiConfig;
   dataDirectory: string;
   temporaryDirectory: string;
+  outputDirectory?: string;
   memoryBudgetMiB: number;
   temporaryStorageMiB: number;
   jobTtlMinutes: number;
@@ -38,6 +39,7 @@ export function validateConfig(value: unknown): RuntimeConfig {
         'logLevel',
         'dataDirectory',
         'temporaryDirectory',
+        'outputDirectory',
         'memoryBudgetMiB',
         'temporaryStorageMiB',
         'jobTtlMinutes',
@@ -60,6 +62,17 @@ export function validateConfig(value: unknown): RuntimeConfig {
     if (typeof config[key] !== 'string' || !(config[key] as string).trim())
       throw new Error(`${key} must be a nonempty path`);
   }
+  if (
+    config.outputDirectory !== undefined &&
+    (typeof config.outputDirectory !== 'string' ||
+      !config.outputDirectory.trim() ||
+      [...config.outputDirectory].some(
+        (character) => character.charCodeAt(0) < 32,
+      ))
+  )
+    throw new Error(
+      'outputDirectory must be a nonempty path without control characters',
+    );
   for (const [key, min, max] of [
     ['memoryBudgetMiB', 1024, 3072],
     ['temporaryStorageMiB', 1024, 65536],
@@ -130,6 +143,7 @@ export const environmentSettings = {
   logLevel: 'LOG_LEVEL',
   dataDirectory: 'DATA_DIRECTORY',
   temporaryDirectory: 'TEMPORARY_DIRECTORY',
+  outputDirectory: 'OUTPUT_DIRECTORY',
   memoryBudgetMiB: 'MEMORY_BUDGET_MIB',
   temporaryStorageMiB: 'TEMPORARY_STORAGE_MIB',
   jobTtlMinutes: 'JOB_TTL_MINUTES',

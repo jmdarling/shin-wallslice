@@ -5,7 +5,7 @@
 **One wallpaper. Every device.**
 
 Turn a favorite image into wallpapers that fit your phone, tablet, and computer.<br>
-Frame each crop, deepen the shadows, and download everything in one ZIP.
+Frame each crop, deepen the shadows, and download or save the results to your server.
 
 [Get started](#get-started) · [See the workflow](#your-first-wallpaper) · [Configure](#configuration) · [Get help](#troubleshooting)
 
@@ -20,7 +20,7 @@ shin-wallslice runs on your own server in a single container. Cropping and expor
 - **Fit your screens:** six bundled device presets, independent crop positioning, and exact output dimensions.
 - **Choose your framing:** local Smart (entropy), five anchors, or optional Smart (AI), with pointer, touch, and keyboard adjustments.
 - **Make shadows black:** OLEDify turns near-black pixels into true black with an adjustable threshold.
-- **Take the results:** lossless PNGs individually or in a ZIP, optionally organized into device folders.
+- **Take the results:** lossless PNGs individually or in a ZIP, optionally organized into device folders. Configure an output directory to save the same files directly to your server, with confirmation before replacement.
 - **Feel at home:** automatic light/dark appearance and preferences remembered on your server.
 
 ## Contents
@@ -47,10 +47,10 @@ shin-wallslice runs on your own server in a single container. Cropping and expor
 **Unraid:** [import the supplied template and Apply](docs/unraid.md). Community
 Applications listing is pending. No source checkout or build is needed.
 
-**Version 1.1.0 is available as a public image** for Linux amd64 and arm64. The
+**Install version 1.2.0** for Linux amd64 and arm64. The
 commands below install it without registry login. See the
-[release](https://github.com/jmdarling/shin-wallslice/releases/tag/v1.1.0) and
-[1.1.0 changes](docs/maintainers/v1.1.0-release-notes.md). The release records the
+[release](https://github.com/jmdarling/shin-wallslice/releases/tag/v1.2.0) and
+[1.2.0 changes](docs/maintainers/v1.2.0-release-notes.md). The release records the
 exact digest, native runtime checks, SBOM/provenance, and vulnerability reports.
 
 Allow **4 GiB application RAM** and **4 GiB free writable temporary disk**. One
@@ -73,7 +73,7 @@ docker run -d \
   --memory=4g \
   -p 8080:3000 \
   --mount type=volume,src=shin-wallslice-data,dst=/data \
-  ghcr.io/jmdarling/shin-wallslice:1.1.0
+  ghcr.io/jmdarling/shin-wallslice:1.2.0
 ```
 
 Open [http://localhost:8080](http://localhost:8080), or
@@ -100,7 +100,7 @@ is needed. Its contents are:
 ```yaml
 services:
   wallslice:
-    image: ghcr.io/jmdarling/shin-wallslice:1.1.0
+    image: ghcr.io/jmdarling/shin-wallslice:1.2.0
     container_name: shin-wallslice
     restart: unless-stopped
     mem_limit: 4g
@@ -213,7 +213,7 @@ _[View the comparison full size](docs/images/oledify-comparison.png). Actual exp
 
 Previews update automatically. Wait for generation to finish before continuing or downloading. Exports use the same settings and framing as the final previews.
 
-### 4. Name and download
+### 4. Name, download, or save
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/download-dark.png">
@@ -247,6 +247,75 @@ Individual PNGs always retain the device suffix. Install the downloaded file as 
 Tablet outputs are intentionally square. You can use a preset on any device that suits its dimensions; model names identify the bundled presets rather than auto-detected hardware.
 
 Custom devices are currently a source-level change. Edit [devices.json](packages/server/src/devices.json), add a unique lowercase hyphenated ID, display name, and positive integer width/height, then rebuild the app/image. Dimensions are capped at 16384 per side and the complete catalog must fit processing/storage budgets. There is no runtime custom-device editor or catalog override.
+
+### Save wallpapers to your server
+
+Server saving is optional and disabled by default, and requires version **1.2.0
+or later**. Update an older installation before enabling it. Local source builds
+can use `docker build -t shin-wallslice:local .` and substitute
+`shin-wallslice:local` in the Docker command, Compose `image`, or Unraid Repository.
+
+Set a partial JSON override (read-only mounts work):
+
+```json
+{
+  "outputDirectory": "/data/output"
+}
+```
+
+Or add `--env SHIN_WALLSLICE_OUTPUT_DIRECTORY=/data/output` to `docker run`
+**before the image name**. The existing `/data` volume then retains saved PNGs.
+For a dedicated host directory, first prepare **only that directory** on the
+Docker host, then add these arguments before the image:
+
+```sh
+# Run on the Linux Docker host. Use a dedicated, previously empty directory.
+sudo install -d -o 1000 -g 1000 -m 0750 /srv/shin-wallslice-output
+```
+
+```sh
+--env SHIN_WALLSLICE_OUTPUT_DIRECTORY=/data/output \
+--mount type=bind,src=/srv/shin-wallslice-output,dst=/data/output
+```
+
+For Compose, uncomment the optional output environment setting in
+[compose.yaml](compose.yaml). To store outputs in a dedicated host folder, also
+uncomment its `/data/output` bind mapping and prepare that folder as above. Keep
+the existing `/data` mount for preferences. Container paths such as `/data/output`
+are seen by Node inside the container; `/srv/shin-wallslice-output` is a host path
+and belongs only on the host side of the mapping. UID/GID 1000 needs write and
+traverse permission. The initializer does not recursively change output ownership.
+[Unraid setup](docs/unraid.md#optional-server-output) covers equivalent mappings.
+
+For local Node.js, use `SHIN_WALLSLICE_OUTPUT_DIRECTORY=./output pnpm dev` (or
+`pnpm start` after building), or set `outputDirectory` in private
+`config/local.json`. Relative paths follow the server process working directory,
+so this example writes beneath `packages/server/output`. Prefer an absolute path
+for unattended operation. Keep outputs outside temporary storage; startup rejects
+nested output and temporary directories to protect persistent PNGs.
+
+On Download, **Save to server** appears beside **Download ZIP** only when
+configured. It writes the current completed selection, current safe name, and
+current folder choice. Previews, settings changes, navigation, and downloads never
+trigger a save. No browser destination-path input is offered.
+
+- Organization off: `<safe-name>-<device-id>.png`, directly in the output directory.
+- Organization on: `<device-id>/<safe-name>.png` beneath that directory.
+
+No ZIP or wallpaper wrapper folder is written. Existing filenames are listed
+before **any PNG from that save** is written. Choose **Replace** to approve those
+conflicts, or **Cancel** to leave files unchanged. Changed files or selections
+require fresh review. Directories, symbolic links, special files, and hard links
+cannot be replaced as ordinary PNGs; move them aside yourself before retrying.
+
+Wait for the result: success lists the destination and saved relative paths.
+A failed save lists files saved and files not saved; the operation can partially
+complete. Fix the mount, permission, or free-space problem, then choose Save again
+and review any conflicts from the successful part. Browser downloads remain
+available. Saved PNGs survive job expiry, Start over, restart, and container
+replacement with their output mount retained. Later saves preserve unrelated
+files and outputs for unselected devices. Back up and remove saved outputs
+explicitly; temporary cleanup never manages this directory.
 
 ## Configuration
 
@@ -292,7 +361,7 @@ docker run -d \
   -p 8080:3000 \
   --mount type=volume,src=shin-wallslice-data,dst=/data \
   --mount type=bind,src="$(pwd)/config/local.json",dst=/config/config.json,readonly \
-  ghcr.io/jmdarling/shin-wallslice:1.1.0
+  ghcr.io/jmdarling/shin-wallslice:1.2.0
 ```
 
 Use the absolute path to your private JSON file in the mount source. The file must exist and be readable by UID 1000; its parent directories must be traversable by that user. Protect files containing tokens from other users while granting that read access. The application does not need write access to `/config`. Do not place private files elsewhere in the build context and assume they will be ignored.
@@ -316,19 +385,20 @@ These are the shipped local defaults:
 }
 ```
 
-The image bundles the same defaults except `dataDirectory` is `/data` and `temporaryDirectory` is `/tmp/shin-wallslice`.
+The optional `outputDirectory` setting is intentionally omitted from defaults. The image bundles the same defaults except `dataDirectory` is `/data` and `temporaryDirectory` is `/tmp/shin-wallslice`.
 
-| Setting               | Meaning and validation                                                                                                                                            |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `host`                | Nonempty bind address; use `0.0.0.0` for container IPv4 port mapping                                                                                              |
-| `port`                | Integer 1–65535; must be available and permitted for the runtime user                                                                                             |
-| `logLevel`            | `fatal`, `error`, `warn`, `info`, `debug`, `trace`, or `silent`                                                                                                   |
-| `dataDirectory`       | Nonempty writable path; stores only `preferences.json`, replaced atomically                                                                                       |
-| `temporaryDirectory`  | Nonempty writable **dedicated application directory**, separate from the data directory; restart deletes its `wallslice-*` directories, including crash leftovers |
-| `memoryBudgetMiB`     | Integer 1024–3072; processing memory planning budget, default 2048 MiB for a deployment with 4 GiB available                                                      |
-| `temporaryStorageMiB` | Integer 1024–65536; conservative storage reservation budget, default 4096 MiB; must cover at least one complete job                                               |
-| `jobTtlMinutes`       | Integer 1–1440; idle lifetime, default 30 minutes                                                                                                                 |
-| `maxJobs`             | Integer 1–16; upper bound on temporary jobs, further reduced by the storage budget                                                                                |
+| Setting               | Meaning and validation                                                                                                                                                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `host`                | Nonempty bind address; use `0.0.0.0` for container IPv4 port mapping                                                                                                                                                                 |
+| `port`                | Integer 1–65535; must be available and permitted for the runtime user                                                                                                                                                                |
+| `logLevel`            | `fatal`, `error`, `warn`, `info`, `debug`, `trace`, or `silent`                                                                                                                                                                      |
+| `dataDirectory`       | Nonempty writable path; stores only `preferences.json`, replaced atomically                                                                                                                                                          |
+| `outputDirectory`     | Optional nonempty path without control characters; omitted by default (server saving disabled). Missing directories are created on save; inaccessible/full destinations report save errors. Must be separate from temporary storage. |
+| `temporaryDirectory`  | Nonempty writable **dedicated application directory**, separate from the data directory; restart deletes its `wallslice-*` directories, including crash leftovers                                                                    |
+| `memoryBudgetMiB`     | Integer 1024–3072; processing memory planning budget, default 2048 MiB for a deployment with 4 GiB available                                                                                                                         |
+| `temporaryStorageMiB` | Integer 1024–65536; conservative storage reservation budget, default 4096 MiB; must cover at least one complete job                                                                                                                  |
+| `jobTtlMinutes`       | Integer 1–1440; idle lifetime, default 30 minutes                                                                                                                                                                                    |
+| `maxJobs`             | Integer 1–16; upper bound on temporary jobs, further reduced by the storage budget                                                                                                                                                   |
 
 ### Environment variables
 
@@ -340,6 +410,7 @@ Set these on the process or container. Unset variables preserve JSON/default val
 | `port`                | `SHIN_WALLSLICE_PORT`                  | Integer 1–65535                                                             |
 | `logLevel`            | `SHIN_WALLSLICE_LOG_LEVEL`             | Exact lowercase level listed above                                          |
 | `dataDirectory`       | `SHIN_WALLSLICE_DATA_DIRECTORY`        | Nonempty path                                                               |
+| `outputDirectory`     | `SHIN_WALLSLICE_OUTPUT_DIRECTORY`      | Nonempty path; omit to disable saving                                       |
 | `temporaryDirectory`  | `SHIN_WALLSLICE_TEMPORARY_DIRECTORY`   | Nonempty path                                                               |
 | `memoryBudgetMiB`     | `SHIN_WALLSLICE_MEMORY_BUDGET_MIB`     | Integer 1024–3072                                                           |
 | `temporaryStorageMiB` | `SHIN_WALLSLICE_TEMPORARY_STORAGE_MIB` | Integer 1024–65536                                                          |
@@ -364,7 +435,7 @@ docker run -d \
   -e SHIN_WALLSLICE_HOST=0.0.0.0 \
   -e SHIN_WALLSLICE_PORT=3456 \
   -e SHIN_WALLSLICE_AI_ENABLED=false \
-  ghcr.io/jmdarling/shin-wallslice:1.1.0
+  ghcr.io/jmdarling/shin-wallslice:1.2.0
 ```
 
 This replaces the quick-start container, rather than running alongside it. The browser still uses port 8080. The built-in health check reads the effective configuration, including the overridden port.
@@ -454,7 +525,9 @@ Containers keep `/tmp/shin-wallslice` in their writable layer by default. For NA
 
 Preferences are shared by everyone using this installation. They survive reloads and restarts if the data directory is retained; an absent folder-organization choice defaults to unchecked. There are no accounts or separate per-user preferences. Reload begins at Input rather than restoring a job.
 
-Cropping and exports happen on your server. AI-disabled installations make no AI requests. Browser downloads remain wherever you save them even after the server deletes its temporary job. Back up original images and downloaded outputs yourself if you want to retain them; this app is not a persistent wallpaper library.
+When configured, explicitly saved PNGs persist in `outputDirectory` (commonly `/data/output`), independently of temporary jobs. The PNGs/ZIPs in the temporary column above refer to job working files. Retain and back up the output mount when replacing containers; deleting a data volume also deletes outputs stored beneath it. A dedicated output bind mount requires a separate backup.
+
+Cropping and exports happen on your server. AI-disabled installations make no AI requests. Browser downloads remain wherever you save them even after the server deletes its temporary job. Back up original images, downloaded outputs, and server-saved PNGs yourself if you want to retain them; this app is not a persistent wallpaper library.
 
 The image defaults to non-root `node` with UID/GID 1000. The [Unraid template](docs/unraid.md#identity-and-first-run-permissions) uses a bounded startup initializer for fresh host bind mounts before dropping to that identity. Named volumes are the easiest Docker option. For bind mounts, make only the dedicated data/scratch directories writable and traversable by that identity; do not solve errors with privileged mode or `chmod 777`. Read-only JSON mounts are supported.
 
@@ -462,17 +535,17 @@ The image defaults to non-root `node` with UID/GID 1000. The [Unraid template](d
 
 ### Update and roll back
 
-Back up preferences/private configuration and download active outputs first.
-Examples pin `:1.1.0` for reproducibility. To upgrade, choose a newer verified exact
+Back up preferences, private configuration, and any persistent output directories; download or save active outputs first.
+Examples pin `:1.2.0` for reproducibility. To upgrade, choose a newer verified exact
 version from the release notes, replace the image tag in your run/Compose settings,
 and recreate using the same data volume, ports, and optional configuration.
-Alternatively `:1`, `:1.1`, or `:latest` track their stable release series.
+Alternatively `:1`, `:1.2`, or `:latest` track their stable release series.
 Publication makes images available; it never automatically updates your server.
 
 For Docker run:
 
 ```sh
-docker pull ghcr.io/jmdarling/shin-wallslice:1.1.0
+docker pull ghcr.io/jmdarling/shin-wallslice:1.2.0
 docker stop shin-wallslice
 docker rm shin-wallslice
 ```
@@ -483,15 +556,18 @@ image tag, then `docker compose pull` and `docker compose up -d` from the same p
 With Unraid use Check for Updates → Update, retaining appdata. To pin or roll back,
 choose a previously verified exact version/digest in Repository and Apply.
 
-Version 1.1.0 retains the 1.0.1 configuration and preferences format. To roll back,
-choose `ghcr.io/jmdarling/shin-wallslice:1.0.1` and recreate with the same data mount
-and settings. Download active outputs before switching versions. After replacement
+Version 1.2.0 adds optional `outputDirectory` configuration; existing preferences
+remain compatible. To roll back, choose `ghcr.io/jmdarling/shin-wallslice:1.1.0`,
+remove `outputDirectory` from JSON and `SHIN_WALLSLICE_OUTPUT_DIRECTORY` from the
+environment, and recreate with the same data/output mounts and other settings.
+Older versions reject the new JSON key. Retained saved PNGs remain ordinary files,
+even though the older app cannot save more. Download active outputs before switching versions. After replacement
 check health, WebUI, and saved preferences. See [source builds and development](#development-and-verification) for
 local-only updates.
 
 ### Back up and restore
 
-Stop the app for a consistent backup. Retain **`preferences.json` from the effective data directory** and your **private JSON configuration** (and any separately stored environment secrets). No database is involved, and temporary jobs do not need backup.
+Stop the app for a consistent backup. Retain **`preferences.json` from the effective data directory**, any **server output directory**, and your **private JSON configuration** (and any separately stored environment secrets). No database is involved, and temporary jobs do not need backup.
 
 For the Docker run named volume, the following copies its contents to a host backup directory; run on the Docker host:
 
@@ -512,7 +588,7 @@ docker cp ./wallslice-backup/. shin-wallslice:/data/
 # Restore ownership on this dedicated volume before starting:
 docker run --rm --user 0 \
   --mount type=volume,src=shin-wallslice-data,dst=/data \
-  ghcr.io/jmdarling/shin-wallslice:1.1.0 true
+  ghcr.io/jmdarling/shin-wallslice:1.2.0 true
 docker start shin-wallslice
 ```
 
@@ -522,7 +598,7 @@ The bounded initializer repairs only the mount root and preferences file, then e
 
 Docker run: `docker stop shin-wallslice` then `docker rm shin-wallslice`. Compose: `docker compose down`. Unraid: stop and remove the container in its Docker interface. Local: stop the process; removing the checkout does not affect files downloaded elsewhere.
 
-These container commands retain persistent volumes/appdata. **Deleting data is a separate, irreversible step:** `docker volume rm shin-wallslice-data` deletes the run example's preferences, and `docker compose down --volumes` deletes Compose's data volume. Only remove dedicated Unraid/local data, private config, scratch, and source directories if you also want their contents deleted. Protect or securely remove old configuration backups containing secrets as appropriate.
+These container commands retain persistent volumes/appdata. **Deleting data is a separate, irreversible step:** `docker volume rm shin-wallslice-data` deletes the run example's preferences and any output stored there, and `docker compose down --volumes` deletes Compose's data volume. Only remove dedicated Unraid/local data, private config, scratch, and source directories if you also want their contents deleted. Protect or securely remove old configuration backups containing secrets as appropriate.
 
 ## Troubleshooting
 
@@ -536,24 +612,26 @@ docker inspect --format '{{.State.Health.Status}}' shin-wallslice
 
 Compose equivalents are `docker compose logs --tail 100 wallslice` and `docker compose ps`; local logs appear in the `pnpm start` terminal. Success is HTTP 200 with `{"status":"ok"}`. Health checks establish server readiness, not AI provider availability.
 
-| Symptom                                                 | Check and recovery                                                                                                                                                                                                                                                                                 |
-| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Browser cannot connect                                  | Confirm the process/container is running and inspect logs. Check the host side of the port mapping, server LAN IP, and firewall. Another device must use the server's IP, not its own `localhost`.                                                                                                 |
-| Port already allocated / address in use                 | Change the Docker/Compose host port or stop the conflicting service. For local production change `SHIN_WALLSLICE_PORT`. If changing the container's runtime port, also change the mapping's container side.                                                                                        |
-| Container is unhealthy or exits                         | Allow the initial health-check interval, then inspect logs and startup/configuration errors. Confirm the bind host allows access (`0.0.0.0` in containers), available memory/disk, and file permissions.                                                                                           |
-| Configuration fails at startup                          | Check JSON syntax, exact supported keys and environment names, strict numeric/boolean syntax, and which single override file wins. An explicit missing file fails; an invalid supplied value cannot be hidden by a later override. Fix it and restart.                                             |
-| Mount is missing, is a directory, or cannot be read     | Create the JSON file before mounting it. Check source/destination spelling and UID 1000 read/traverse access. For remote engines, the mount source must exist on the engine host.                                                                                                                  |
-| Preferences cannot be saved or disappear                | Use the interface's Retry action after fixing data-directory write/traverse permissions. Confirm `/data` is mounted and you are using the same volume/project across replacement. Check for a configuration override changing the data path.                                                       |
-| Image rejected                                          | Use one valid still JPEG/PNG/WebP. Check both compressed byte size and decoded pixel count; animation and oversized/corrupt images are rejected. Resize/re-encode externally or increase budgets only with enough actual resources.                                                                |
-| Crop looks soft or cuts off the subject                 | Start with a larger source, change method/anchor, or drag the device's boundary. Exact output dimensions do not create missing source detail. AI recognition is best effort.                                                                                                                       |
-| Processing is busy                                      | Another operation is using the exclusive image/ZIP stage. Wait for it to finish, then retry. Avoid simultaneous operations in multiple tabs.                                                                                                                                                       |
-| Temporary storage is full / no job capacity             | Free space on the effective scratch filesystem. Start over in other active tabs or wait for abandoned jobs to expire. If increasing budgets, provide real capacity too. Do not delete live job files while processing.                                                                             |
-| Temporary wallpaper expired / outputs no longer current | For expiry or restart, start over and upload again. For stale outputs, wait for the current generation and retry from the app rather than reusing an old download URL.                                                                                                                             |
-| Pasting does nothing                                    | Ensure Input is active and the clipboard contains actual image data. Browser/OS clipboard formats vary; use Choose File or drag-and-drop instead.                                                                                                                                                  |
-| AI option missing                                       | AI defaults to disabled. Configure a vision endpoint/model and enable it, then restart/recreate. Check whether an environment `false` overrides JSON.                                                                                                                                              |
-| AI naming/detection fails                               | Check the server-reachable API base URL, appended `/chat/completions` path, image-capable model, credentials, provider rate limits, and firewall. `localhost` inside a container points to that container. Fix the service/configuration, restart if settings changed, then Retry or upload again. |
-| AI waits, finds no subject, or gives poor framing       | Requests time out after 30 seconds. No clear subject is a normal entropy fallback. Continue locally, move crops manually, or retry a failed task. Naming and detection can fail independently.                                                                                                     |
-| Memory kill or filesystem-full error                    | Check the host/container memory limit, effective planning budgets, free disk, and Docker writable-layer capacity. Reduce source dimensions or provide more resources; retry after recovery.                                                                                                        |
+| Symptom                                                 | Check and recovery                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Browser cannot connect                                  | Confirm the process/container is running and inspect logs. Check the host side of the port mapping, server LAN IP, and firewall. Another device must use the server's IP, not its own `localhost`.                                                                                                                                                             |
+| Port already allocated / address in use                 | Change the Docker/Compose host port or stop the conflicting service. For local production change `SHIN_WALLSLICE_PORT`. If changing the container's runtime port, also change the mapping's container side.                                                                                                                                                    |
+| Container is unhealthy or exits                         | Allow the initial health-check interval, then inspect logs and startup/configuration errors. Confirm the bind host allows access (`0.0.0.0` in containers), available memory/disk, and file permissions.                                                                                                                                                       |
+| Configuration fails at startup                          | Check JSON syntax, exact supported keys and environment names, strict numeric/boolean syntax, and which single override file wins. An explicit missing file fails; an invalid supplied value cannot be hidden by a later override. Fix it and restart.                                                                                                         |
+| Mount is missing, is a directory, or cannot be read     | Create the JSON file before mounting it. Check source/destination spelling and UID 1000 read/traverse access. For remote engines, the mount source must exist on the engine host.                                                                                                                                                                              |
+| Server saving missing                                   | Configure `outputDirectory` or `SHIN_WALLSLICE_OUTPUT_DIRECTORY` and restart; use a build containing v1.2.0. The action is intentionally hidden when unset.                                                                                                                                                                                                    |
+| Server save fails or is partial                         | Read the saved/not-saved paths in the result. Confirm the host mount is present, read-write, has free space, and grants UID/GID 1000 write/traverse permissions on the dedicated directory. Do not recursively change unrelated host ownership. Retry Save and review existing files; downloads still work. Move conflicting directories/links aside manually. |
+| Preferences cannot be saved or disappear                | Use the interface's Retry action after fixing data-directory write/traverse permissions. Confirm `/data` is mounted and you are using the same volume/project across replacement. Check for a configuration override changing the data path.                                                                                                                   |
+| Image rejected                                          | Use one valid still JPEG/PNG/WebP. Check both compressed byte size and decoded pixel count; animation and oversized/corrupt images are rejected. Resize/re-encode externally or increase budgets only with enough actual resources.                                                                                                                            |
+| Crop looks soft or cuts off the subject                 | Start with a larger source, change method/anchor, or drag the device's boundary. Exact output dimensions do not create missing source detail. AI recognition is best effort.                                                                                                                                                                                   |
+| Processing is busy                                      | Another operation is using the exclusive image/ZIP stage. Wait for it to finish, then retry. Avoid simultaneous operations in multiple tabs.                                                                                                                                                                                                                   |
+| Temporary storage is full / no job capacity             | Free space on the effective scratch filesystem. Start over in other active tabs or wait for abandoned jobs to expire. If increasing budgets, provide real capacity too. Do not delete live job files while processing.                                                                                                                                         |
+| Temporary wallpaper expired / outputs no longer current | For expiry or restart, start over and upload again. For stale outputs, wait for the current generation and retry from the app rather than reusing an old download URL.                                                                                                                                                                                         |
+| Pasting does nothing                                    | Ensure Input is active and the clipboard contains actual image data. Browser/OS clipboard formats vary; use Choose File or drag-and-drop instead.                                                                                                                                                                                                              |
+| AI option missing                                       | AI defaults to disabled. Configure a vision endpoint/model and enable it, then restart/recreate. Check whether an environment `false` overrides JSON.                                                                                                                                                                                                          |
+| AI naming/detection fails                               | Check the server-reachable API base URL, appended `/chat/completions` path, image-capable model, credentials, provider rate limits, and firewall. `localhost` inside a container points to that container. Fix the service/configuration, restart if settings changed, then Retry or upload again.                                                             |
+| AI waits, finds no subject, or gives poor framing       | Requests time out after 30 seconds. No clear subject is a normal entropy fallback. Continue locally, move crops manually, or retry a failed task. Naming and detection can fail independently.                                                                                                                                                                 |
+| Memory kill or filesystem-full error                    | Check the host/container memory limit, effective planning budgets, free disk, and Docker writable-layer capacity. Reduce source dimensions or provide more resources; retry after recovery.                                                                                                                                                                    |
 
 When reporting a problem in [GitHub Issues](https://github.com/jmdarling/shin-wallslice/issues), include your source revision (`git rev-parse --short HEAD`), architecture, installation method, sanitized settings, exact error, and reproduction steps. Redact tokens, private endpoint details, and private images from logs/screenshots. Do not paste an entire `docker inspect` response: it can expose environment credentials. A minimal non-sensitive image and its dimensions are more useful than a private wallpaper.
 
@@ -610,6 +688,8 @@ pnpm docker:smoke shin-wallslice:amd64
 docker buildx build --platform linux/arm64 --load -t shin-wallslice:arm64 .
 pnpm docker:smoke shin-wallslice:arm64
 ```
+
+The persistence harness additionally checks both server-save layouts, replacement confirmation, matching PNG bytes, Start over, and output retention after replacement on a dedicated host bind mount. Run it for each architecture with `node scripts/container-persistence.mjs IMAGE ENGINE`.
 
 The smoke harness checks non-root execution, health, assets, JSON/environment configuration, controlled AI authentication, exact PNG dimensions, OLEDify, ZIP contents, preferences, and job disposal. It runs both 7680 × 4320 and 8192 × 4320 workflows with all presets. Fixtures and containers are cleaned up. Its temporary directory must be shared with a VM-backed engine.
 

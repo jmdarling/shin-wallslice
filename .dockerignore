@@ -16,3 +16,6 @@ tmp
 config/local.json
 **/.env
 **/.env.*
+
+# Optional local persistent wallpapers
+packages/server/output

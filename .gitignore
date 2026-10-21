@@ -159,3 +159,6 @@ tmp/
 
 # Private runtime configuration
 config/local.json
+
+# Optional local server-saved wallpapers
+/packages/server/output/

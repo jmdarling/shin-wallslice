@@ -1,4 +1,5 @@
 {
+  "outputDirectory": "./output",
   "ai": {
     "enabled": true,
     "baseUrl": "https://api.openai.com/v1",

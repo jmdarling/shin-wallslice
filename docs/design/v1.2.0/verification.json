@@ -1,0 +1,17 @@
+{
+  "url": "http://127.0.0.1:5173",
+  "verified": [
+    "Download controls fit 1440, 390, 320px in light/dark; real application captures refreshed.",
+    "Actual UI save completed and every saved PNG equals its final-preview download byte for byte.",
+    "Actual conflict list and Cancel preserved all saved bytes.",
+    "Organized UI save matches preview bytes; Start over retained outputs."
+  ],
+  "captures": [
+    "download-1440-light.png",
+    "download-1440-dark.png",
+    "download-390-light.png",
+    "download-390-dark.png",
+    "download-320-light.png",
+    "download-320-dark.png"
+  ]
+}

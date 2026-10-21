@@ -26,6 +26,9 @@ let namingResponse: () => Promise<Response> = async () =>
 let detectionResponse: () => Promise<Response> = async () =>
   Response.json({ state: 'disabled' });
 let failUpload = false;
+let serverSavingEnabled = false;
+let saveBodies: Record<string, unknown>[] = [];
+let saveResponse: () => Promise<Response> = async () => Response.json({});
 let renderCount = 0;
 let preferences = {
   devices: ['phone', 'tablet'],
@@ -42,6 +45,16 @@ let renderBodies: {
 }[] = [];
 beforeEach(() => {
   namingEnabled = false;
+  serverSavingEnabled = false;
+  saveBodies = [];
+  saveResponse = async () =>
+    Response.json({
+      state: 'saved',
+      destination: '/data/output',
+      saved: ['view-phone.png', 'view-tablet.png'],
+      conflicts: [],
+      failed: [],
+    });
   detectionResponse = async () => Response.json({ state: 'disabled' });
   namingResponse = async () => Response.json({ state: 'disabled' });
   failUpload = false;
@@ -66,6 +79,7 @@ beforeEach(() => {
           preferences,
           preferenceError: '',
           aiEnabled: namingEnabled,
+          serverSavingEnabled,
         });
       if (input === '/api/preferences') {
         preferences = JSON.parse(init!.body as string);
@@ -87,6 +101,12 @@ beforeEach(() => {
         });
       }
       if (input.endsWith('/detection')) return detectionResponse();
+      if (input.includes('/save/')) {
+        saveBodies.push(
+          JSON.parse(init!.body as string) as Record<string, unknown>,
+        );
+        return saveResponse();
+      }
       if (input.endsWith('/naming')) return namingResponse();
       if (input.endsWith('/render')) {
         renderCount++;
@@ -1464,4 +1484,170 @@ test('late AI result on Download invalidates previous previews and exports until
     .element(page.getByRole('button', { name: 'Download ZIP' }))
     .toBeEnabled();
   expect(a.manifest!.revision).toBe('ai-final');
+});
+
+async function downloadScreen(enabled = true) {
+  serverSavingEnabled = enabled;
+  const a = await app();
+  picker(a, [file()]);
+  await processed(a);
+  await page.getByRole('button', { name: 'Next: Download' }).click();
+  return a;
+}
+
+test('server saving is unavailable when unconfigured and no path input is offered', async () => {
+  const a = await downloadScreen(false);
+  expect(a.shadowRoot!.textContent).not.toContain('Save to server');
+  expect(a.shadowRoot!.querySelectorAll('input[type=text]')).toHaveLength(1);
+  expect(saveBodies).toHaveLength(0);
+});
+
+for (const width of [320, 1440]) {
+  for (const appearance of ['light', 'dark']) {
+    test(`save feedback, replacement and cancel remain accessible at ${width}px in ${appearance}`, async () => {
+      await page.viewport(width, 900);
+      document.documentElement.classList.add(`wa-${appearance}`);
+      const a = await downloadScreen();
+      expect(saveBodies).toHaveLength(0);
+      await page.getByRole('textbox', { name: 'Wallpaper name' }).fill('...');
+      saveResponse = async () =>
+        Response.json({
+          state: 'conflicts',
+          destination: '/data/output',
+          saved: [],
+          conflicts: ['wallpaper-phone.png'],
+          failed: [],
+          confirmation: 'review',
+        });
+      await page
+        .getByRole('button', { name: 'Save to server', exact: true })
+        .click();
+      await vi.waitFor(() => expect(a.serverSave?.state).toBe('conflicts'));
+      expect(saveBodies[0]).toEqual({
+        name: 'wallpaper',
+        organizeIntoDeviceFolders: false,
+      });
+      expect(
+        a
+          .shadowRoot!.querySelector('.save-feedback')!
+          .getAttribute('aria-live'),
+      ).toBe('polite');
+      expect(a.shadowRoot!.textContent).toContain('wallpaper-phone.png');
+      await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+      expect(saveBodies).toHaveLength(1);
+      await page
+        .getByRole('button', { name: 'Save to server', exact: true })
+        .click();
+      await vi.waitFor(() => expect(a.serverSave?.state).toBe('conflicts'));
+      saveResponse = async () =>
+        Response.json({
+          state: 'saved',
+          destination: '/data/output',
+          saved: ['wallpaper-phone.png', 'wallpaper-tablet.png'],
+          failed: [],
+          conflicts: [],
+        });
+      // Keyboard activation on the explicit replacement control.
+      const replace = a.shadowRoot!.querySelector(
+        '.save-feedback wa-button',
+      ) as HTMLElement;
+      replace.focus();
+      await userEvent.keyboard('{Enter}');
+      await vi.waitFor(() => expect(a.serverSave?.state).toBe('saved'));
+      expect(saveBodies[2]!.confirmation).toBe('review');
+      expect(a.shadowRoot!.textContent).toContain('Saved to');
+      expect(a.shadowRoot!.textContent).toContain('/data/output');
+      expect(document.documentElement.scrollWidth).toBe(width);
+      for (const control of a.shadowRoot!.querySelectorAll('wa-button')) {
+        const rect = control.getBoundingClientRect();
+        expect(rect.right).toBeLessThanOrEqual(width);
+        expect(rect.left).toBeGreaterThanOrEqual(0);
+      }
+    });
+  }
+}
+
+test('save snapshots layout/name, prevents duplicate submissions, and reports partial failure', async () => {
+  const a = await downloadScreen();
+  await page
+    .getByRole('checkbox', { name: 'Organize into device folders' })
+    .click();
+  let finish!: (response: Response) => void;
+  saveResponse = () =>
+    new Promise((resolve) => {
+      finish = resolve;
+    });
+  await page
+    .getByRole('button', { name: 'Save to server', exact: true })
+    .click();
+  await vi.waitFor(() => expect(saveBodies).toHaveLength(1));
+  expect(saveBodies[0]!.organizeIntoDeviceFolders).toBe(true);
+  expect(a.busy).toContain('Saving');
+  const button = page.getByRole('button', {
+    name: 'Save to server',
+    exact: true,
+  });
+  await expect.element(button).toBeDisabled();
+  expect(
+    (a.shadowRoot!.querySelector('input[type=text]') as HTMLInputElement)
+      .disabled,
+  ).toBe(true);
+  finish(
+    Response.json({
+      state: 'failed',
+      destination: '/data/output',
+      saved: ['phone/view.png'],
+      conflicts: [],
+      failed: [
+        {
+          path: 'tablet/view.png',
+          message: 'Destination storage is full. Free space and retry.',
+        },
+      ],
+    }),
+  );
+  await vi.waitFor(() => expect(a.serverSave?.state).toBe('failed'));
+  expect(a.shadowRoot!.textContent).toContain('Save incomplete.');
+  expect(a.shadowRoot!.textContent).toContain('phone/view.png');
+  expect(
+    a.shadowRoot!.querySelector('.save-feedback [role=alert]')!.textContent,
+  ).toContain('tablet/view.png');
+  expect(a.shadowRoot!.textContent).toContain('Free space and retry');
+  await expect.element(button).not.toBeDisabled();
+  await page.getByRole('button', { name: 'Back to Processing' }).click();
+  await page.getByRole('button', { name: 'Start over' }).click();
+  await vi.waitFor(() => expect(a.page).toBe('input'));
+});
+
+test('name, layout and rendering changes discard overwrite approval; stale outputs cannot save', async () => {
+  const a = await downloadScreen();
+  saveResponse = async () =>
+    Response.json({
+      state: 'conflicts',
+      destination: '/data/output',
+      saved: [],
+      conflicts: ['view-phone.png'],
+      failed: [],
+      confirmation: 'review',
+    });
+  await page
+    .getByRole('button', { name: 'Save to server', exact: true })
+    .click();
+  await vi.waitFor(() => expect(a.serverSave?.state).toBe('conflicts'));
+  await page.getByRole('textbox', { name: 'Wallpaper name' }).fill('new');
+  expect(a.serverSave).toBeUndefined();
+  await page
+    .getByRole('button', { name: 'Save to server', exact: true })
+    .click();
+  await vi.waitFor(() => expect(a.serverSave?.state).toBe('conflicts'));
+  expect(saveBodies[1]).not.toHaveProperty('confirmation');
+  await page
+    .getByRole('checkbox', { name: 'Organize into device folders' })
+    .click();
+  expect(a.serverSave).toBeUndefined();
+  a.dirty = true;
+  await a.updateComplete;
+  await expect
+    .element(page.getByRole('button', { name: 'Save to server', exact: true }))
+    .toBeDisabled();
 });

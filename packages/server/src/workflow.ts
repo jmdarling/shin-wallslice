@@ -6,9 +6,10 @@ import {
   rm,
   writeFile,
   readdir,
+  realpath,
 } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve, dirname, basename, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import sharp from 'sharp';
 import { ZipWriter, Uint8ArrayReader, Uint8ArrayWriter } from '@zip.js/zip.js';
@@ -27,6 +28,7 @@ import { AiConnection } from './ai.js';
 import { detectSubject, subjectCrop } from './detection.js';
 import type { DetectionStatus } from './protocol.js';
 import { suggestName } from './naming.js';
+import { ServerOutput } from './server-output.js';
 import type { NamingStatus } from './protocol.js';
 
 export const devices: Device[] = catalog;
@@ -196,6 +198,32 @@ export async function registerWorkflow(
     throw new Error(
       'temporaryStorageMiB is too small for the memory budget and bundled output catalog',
     );
+  // Persistent outputs must never be swept as temporary jobs, including paths
+  // whose existing ancestors are symlinks.
+  if (config.outputDirectory) {
+    const prospective = async (path: string): Promise<string> => {
+      try {
+        return await realpath(path);
+      } catch (error) {
+        if (
+          (error as NodeJS.ErrnoException).code === 'ENOENT' &&
+          dirname(path) !== path
+        )
+          return join(await prospective(dirname(path)), basename(path));
+        return path;
+      }
+    };
+    const output = await prospective(resolve(config.outputDirectory));
+    const temporary = await prospective(resolve(config.temporaryDirectory));
+    if (
+      output === temporary ||
+      output.startsWith(temporary + sep) ||
+      temporary.startsWith(output + sep)
+    )
+      throw new Error(
+        'outputDirectory and temporaryDirectory must be separate, non-nested directories so saved wallpapers survive cleanup.',
+      );
+  }
   await mkdir(config.temporaryDirectory, { recursive: true });
   // This is a dedicated application-owned directory. Remove jobs left by a crash/restart.
   for (const entry of await readdir(config.temporaryDirectory))
@@ -206,6 +234,9 @@ export async function registerWorkflow(
       });
   const root = await mkdtemp(join(config.temporaryDirectory, 'wallslice-'));
   const jobs = new Map<string, StoredJob>();
+  const serverOutput = config.outputDirectory
+    ? new ServerOutput(config.outputDirectory)
+    : undefined;
   let busy = false;
   let uploadOwner: string | undefined;
   const exclusive = async <T>(
@@ -295,6 +326,7 @@ export async function registerWorkflow(
   app.get('/api/catalog', async () => ({
     devices,
     aiEnabled: !!connection,
+    serverSavingEnabled: !!serverOutput,
     preferences: saved,
     preferenceError,
     limits: { maxPixels, uploadBytes: uploadLimit },
@@ -584,6 +616,54 @@ export async function registerWorkflow(
             500,
           );
         }
+      }),
+  );
+  app.post<{ Params: { id: string; revision: string } }>(
+    '/api/jobs/:id/save/:revision',
+    async (request) =>
+      exclusive(async () => {
+        if (!serverOutput) fail('Server saving is not configured.', 404);
+        const body = request.body as Record<string, unknown> | null;
+        if (
+          !body ||
+          Array.isArray(body) ||
+          typeof body.name !== 'string' ||
+          typeof body.organizeIntoDeviceFolders !== 'boolean' ||
+          (body.confirmation !== undefined &&
+            typeof body.confirmation !== 'string') ||
+          Object.keys(body).some(
+            (key) =>
+              !['name', 'organizeIntoDeviceFolders', 'confirmation'].includes(
+                key,
+              ),
+          )
+        )
+          fail(
+            'Supply only a wallpaper name, folder choice, and optional replacement confirmation.',
+          );
+        const job = getJob(request.params.id),
+          m = job.manifest;
+        if (
+          !m ||
+          m.revision !== request.params.revision ||
+          !Object.keys(m.outputs).length
+        )
+          fail('Generate current downloads before saving to the server.', 409);
+        const name = safeName(body.name as string);
+        const folders = body.organizeIntoDeviceFolders as boolean;
+        const files = await Promise.all(
+          Object.keys(m.outputs).map(async (id) => ({
+            path: folders ? `${id}/${name}.png` : `${name}-${id}.png`,
+            contents: await readFile(
+              join(job.directory, m.revision, `${id}.png`),
+            ),
+          })),
+        );
+        return serverOutput.save(
+          JSON.stringify([job.id, m.revision, name, folders]),
+          files,
+          body.confirmation as string | undefined,
+        );
       }),
   );
   app.get<{

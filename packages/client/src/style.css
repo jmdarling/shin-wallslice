@@ -1,66 +1,75 @@
 :root {
-  font-family: var(--wa-font-family-body, system-ui, sans-serif);
+  font-family: 'Avenir Next', 'Segoe UI', sans-serif;
   color-scheme: light;
-  --app-background: #eff5ef;
-  --app-text: #19392d;
-  --app-muted: #496454;
-  --app-subtle: #58745f;
-  --app-header-border: #cbd8cd;
-  --app-drop: #ffffff88;
-  --app-panel: #ffffff99;
-  --app-panel-border: #d0ded1;
+  --app-background: #f1f0f7;
+  --app-text: #292438;
+  --app-muted: #61586f;
+  --app-subtle: #61586f;
+  --app-header-border: #867a98;
+  --app-drop: #ffffff;
+  --app-panel: #ffffff;
+  --app-panel-border: #867a98;
   --app-control: #ffffff;
-  --app-control-border: #63816b;
-  --app-anchor-border: #63816b;
-  --app-selected: #d4e7d6;
-  --app-surround: #dce6dc;
-  --app-warning: #7b4b10;
-  --app-message: #fff2e9;
-  --app-message-border: #b46c4b;
-  --app-progress: #deebdf;
-  --app-accent: #246348;
+  --app-control-border: #867a98;
+  --app-anchor-border: #867a98;
+  --app-selected: #ede6f7;
+  --app-surround: #f1f0f7;
+  --app-warning: #775010;
+  --app-message: #ffffff;
+  --app-message-border: #867a98;
+  --app-progress: #ede6f7;
+  --app-accent: #624696;
   --app-on-accent: #ffffff;
-  --app-focus: #246348;
-  --app-shadow: #19392d26;
+  --app-focus: #624696;
+  --app-shadow: #29243826;
+  --wa-font-family-body: 'Avenir Next', 'Segoe UI', sans-serif;
   --wa-color-brand-fill-loud: var(--app-accent);
   --wa-color-brand-on-loud: var(--app-on-accent);
+  --wa-color-brand-on-quiet: var(--app-accent);
+  --wa-color-brand-fill-quiet: var(--app-selected);
+  --wa-color-neutral-on-quiet: var(--app-text);
+  --wa-color-neutral-fill-quiet: var(--app-selected);
+  --wa-color-neutral-border-loud: var(--app-control-border);
+  --wa-color-brand-border-loud: var(--app-accent);
   --wa-color-focus: var(--app-focus);
+  --wa-color-neutral-fill-normal: var(--app-control);
+  --wa-color-neutral-fill-loud: var(--app-text);
+  --wa-color-neutral-on-normal: var(--app-text);
   --wa-color-neutral-border-normal: var(--app-control-border);
   color: var(--app-text);
   background: var(--app-background);
 }
 :root.wa-dark {
   color-scheme: dark;
-  --app-background: #101d17;
-  --app-text: #e3efe6;
-  --app-muted: #bdcfc1;
-  --app-subtle: #a5beac;
-  --app-header-border: #3c5344;
-  --app-drop: #1a2d22;
-  --app-panel: #1b2c22;
-  --app-panel-border: #3c5344;
-  --app-control: #14251b;
-  --app-control-border: #789c82;
-  --app-anchor-border: #789c82;
-  --app-selected: #304f3b;
-  --app-surround: #0b150f;
+  --app-background: #201e2a;
+  --app-text: #f4f0ff;
+  --app-muted: #c8bfd9;
+  --app-subtle: #c8bfd9;
+  --app-header-border: #9486aa;
+  --app-drop: #2b2838;
+  --app-panel: #2b2838;
+  --app-panel-border: #9486aa;
+  --app-control: #2b2838;
+  --app-control-border: #9486aa;
+  --app-anchor-border: #9486aa;
+  --app-selected: #3a304d;
+  --app-surround: #201e2a;
   --app-warning: #f1c078;
-  --app-message: #38291d;
-  --app-message-border: #d9a375;
-  --app-progress: #294332;
-  --app-accent: #90d4a4;
-  --app-on-accent: #102719;
-  --app-focus: #90d4a4;
+  --app-message: #2b2838;
+  --app-message-border: #9486aa;
+  --app-progress: #3a304d;
+  --app-accent: #d1b5ff;
+  --app-on-accent: #201e2a;
+  --app-focus: #d1b5ff;
   --app-shadow: #00000066;
 }
 body {
   margin: 0;
   min-width: 280px;
 }
-
 @media (prefers-color-scheme: dark) {
   :root:not(.wa-light) {
-    background: #101d17;
+    background: #201e2a;
     color-scheme: dark;
   }
 }

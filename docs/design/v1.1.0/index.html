@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>shin-wallslice v1.1.0 design comparison</title>
+    <style>
+      body {
+        font:
+          16px/1.6 system-ui,
+          sans-serif;
+        margin: 0;
+        background: #f4f5f7;
+        color: #202534;
+      }
+      main {
+        max-width: 1300px;
+        padding: 36px 24px;
+        margin: auto;
+      }
+      h1 {
+        font-size: 36px;
+        line-height: 1.2;
+      }
+      h2 {
+        margin-top: 50px;
+      }
+      a {
+        color: #174b9e;
+      }
+      nav {
+        display: flex;
+        gap: 24px;
+        flex-wrap: wrap;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr));
+        gap: 20px;
+      }
+      .view {
+        display: block;
+        border: 1px solid #8c939f;
+        padding: 12px;
+        background: white;
+        text-decoration: none;
+      }
+      .view img {
+        width: 100%;
+        height: 260px;
+        object-fit: contain;
+        object-position: top;
+        background: #e4e7ec;
+      }
+      .view span {
+        display: block;
+        margin-top: 12px;
+        font-weight: 600;
+      }
+      .note {
+        max-width: 80ch;
+      }
+      a:focus-visible {
+        outline: 3px solid #174b9e;
+        outline-offset: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p>shin-wallslice / v1.1.0 / Design review</p>
+      <h1>One workflow. Three visual identities.</h1>
+      <p class="note">
+        36 static screen mockups and six state sheets. These are design
+        artifacts, not an interactive prototype or the running application.
+        Click any image for its readable full-size PNG. Mobile images include
+        the full scrolling page.
+      </p>
+      <p>
+        <a href="README.md"
+          >Read the audit, palettes, type, layout plans, tradeoffs, and
+          recommendation</a
+        >
+      </p>
+      <p>
+        <a href="implemented/index.html"
+          >View the implemented Passepartout and visual comparisons</a
+        >
+      </p>
+      <nav>
+        <a href="#passepartout">Passepartout</a
+        ><a href="#cut-bench">Cut Bench</a
+        ><a href="#screen-room">Screen Room</a>
+      </nav>
+      <p class="note">
+        Shared fixture: Dusk Ridges, iPhone 18 Pro Max + M5 iPad Pro 11-inch,
+        Smart (AI), OLEDify 32, name dusk-ridges, device folders enabled.
+        Selected: Passepartout, with reduced interface copy. Cut Bench and
+        Screen Room are superseded proposals.
+      </p>
+      <section id="passepartout">
+        <h2>Passepartout</h2>
+        <p>A quiet mat for every crop.</p>
+        <h3>Input</h3>
+        <div class="grid">
+          <a class="view" href="mockups/passepartout-input-desktop-light.png"
+            ><img
+              loading="lazy"
+              src="mockups/passepartout-input-desktop-light.png"
+              alt="Passepartout input desktop light mockup"
+            /><span>input / desktop / light</span></a
+          ><a class="view" href="mockups/passepartout-input-mobile-light.png"
+            ><img
+              loading="lazy"
+              src="mockups/passepartout-input-mobile-light.png"
+              alt="Passepartout input mobile light mockup"
+            /><span>input / mobile / light</span></a
+          ><a class="view" href="mockups/passepartout-input-desktop-dark.png"
+            ><img
+              loading="lazy"
+              src="mockups/passepartout-input-desktop-dark.png"
+              alt="Passepartout input desktop dark mockup"
+            /><span>input / desktop / dark</span></a
+          ><a class="view" href="mockups/passepartout-input-mobile-dark.png"
+            ><img
+              loading="lazy"
+              src="mockups/passepartout-input-mobile-dark.png"
+              alt="Passepartout input mobile dark mockup"
+            /><span>input / mobile / dark</span></a
+          >
+        </div>
+        <h3>Processing</h3>
+        <div class="grid">
+          <a
+            class="view"
+            href="mockups/passepartout-processing-desktop-light.png"
+            ><img
+              loading="lazy"
+              src="mockups/passepartout-processing-desktop-light.png"
+              alt="Passepartout processing desktop light mockup"
+            /><span>processing / desktop / light</span></a
+          ><a
+            class="view"
+            href="mockups/passepartout-processing-mobile-light.png"
+            ><img
+              loading="lazy"
+              src="mockups/passepartout-processing-mobile-light.png"
+              alt="Passepartout processing mobile light mockup"
+            /><span>processing / mobile / light</span></a
+          ><a
+            class="view"
+            href="mockups/passepartout-processing-desktop-dark.png"
+            ><img
+              loading="lazy"
+              src="mockups/passepartout-processing-desktop-dark.png"
+              alt="Passepartout processing desktop dark mockup"
+            /><span>processing / desktop / dark</span></a
+          ><a
+            class="view"
+            href="mockups/passepartout-processing-mobile-dark.png"
+            ><img
+              loading="lazy"
+              src="mockups/passepartout-processing-mobile-dark.png"
+              alt="Passepartout processing mobile dark mockup"
+            /><span>processing / mobile / dark</span></a
+          >
+        </div>
+        <h3>Download</h3>
+        <div class="grid">
+          <a class="view" href="mockups/passepartout-download-desktop-light.png"
+            ><img
+              loading="lazy"
+              src="mockups/passepartout-download-desktop-light.png"
+              alt="Passepartout download desktop light mockup"
+            /><span>download / desktop / light</span></a
+          ><a class="view" href="mockups/passepartout-download-mobile-light.png"
+            ><img
+              loading="lazy"
+              src="mockups/passepartout-download-mobile-light.png"
+              alt="Passepartout download mobile light mockup"
+            /><span>download / mobile / light</span></a
+          ><a class="view" href="mockups/passepartout-download-desktop-dark.png"
+            ><img
+              loading="lazy"
+              src="mockups/passepartout-download-desktop-dark.png"
+              alt="Passepartout download desktop dark mockup"
+            /><span>download / desktop / dark</span></a
+          ><a class="view" href="mockups/passepartout-download-mobile-dark.png"
+            ><img
+              loading="lazy"
+              src="mockups/passepartout-download-mobile-dark.png"
+              alt="Passepartout download mobile dark mockup"
+            /><span>download / mobile / dark</span></a
+          >
+        </div>
+        <h3>States</h3>
+        <div class="grid">
+          <a class="view" href="mockups/passepartout-states-desktop-light.png"
+            ><img
+              loading="lazy"
+              src="mockups/passepartout-states-desktop-light.png"
+              alt="Passepartout states desktop light mockup"
+            /><span>states / desktop / light</span></a
+          ><a class="view" href="mockups/passepartout-states-desktop-dark.png"
+            ><img
+              loading="lazy"
+              src="mockups/passepartout-states-desktop-dark.png"
+              alt="Passepartout states desktop dark mockup"
+            /><span>states / desktop / dark</span></a
+          >
+        </div>
+      </section>
+      <section id="cut-bench">
+        <h2>Cut Bench (superseded)</h2>
+        <p>One source. Precisely fitted.</p>
+        <h3>Input</h3>
+        <div class="grid">
+          <a class="view" href="mockups/cut-bench-input-desktop-light.png"
+            ><img
+              loading="lazy"
+              src="mockups/cut-bench-input-desktop-light.png"
+              alt="Cut Bench input desktop light mockup"
+            /><span>input / desktop / light</span></a
+          ><a class="view" href="mockups/cut-bench-input-mobile-light.png"
+            ><img
+              loading="lazy"
+              src="mockups/cut-bench-input-mobile-light.png"
+              alt="Cut Bench input mobile light mockup"
+            /><span>input / mobile / light</span></a
+          ><a class="view" href="mockups/cut-bench-input-desktop-dark.png"
+            ><img
+              loading="lazy"
+              src="mockups/cut-bench-input-desktop-dark.png"
+              alt="Cut Bench input desktop dark mockup"
+            /><span>input / desktop / dark</span></a
+          ><a class="view" href="mockups/cut-bench-input-mobile-dark.png"
+            ><img
+              loading="lazy"
+              src="mockups/cut-bench-input-mobile-dark.png"
+              alt="Cut Bench input mobile dark mockup"
+            /><span>input / mobile / dark</span></a
+          >
+        </div>
+        <h3>Processing</h3>
+        <div class="grid">
+          <a class="view" href="mockups/cut-bench-processing-desktop-light.png"
+            ><img
+              loading="lazy"
+              src="mockups/cut-bench-processing-desktop-light.png"
+              alt="Cut Bench processing desktop light mockup"
+            /><span>processing / desktop / light</span></a
+          ><a class="view" href="mockups/cut-bench-processing-mobile-light.png"
+            ><img
+              loading="lazy"
+              src="mockups/cut-bench-processing-mobile-light.png"
+              alt="Cut Bench processing mobile light mockup"
+            /><span>processing / mobile / light</span></a
+          ><a class="view" href="mockups/cut-bench-processing-desktop-dark.png"
+            ><img
+              loading="lazy"
+              src="mockups/cut-bench-processing-desktop-dark.png"
+              alt="Cut Bench processing desktop dark mockup"
+            /><span>processing / desktop / dark</span></a
+          ><a class="view" href="mockups/cut-bench-processing-mobile-dark.png"
+            ><img
+              loading="lazy"
+              src="mockups/cut-bench-processing-mobile-dark.png"
+              alt="Cut Bench processing mobile dark mockup"
+            /><span>processing / mobile / dark</span></a
+          >
+        </div>
+        <h3>Download</h3>
+        <div class="grid">
+          <a class="view" href="mockups/cut-bench-download-desktop-light.png"
+            ><img
+              loading="lazy"
+              src="mockups/cut-bench-download-desktop-light.png"
+              alt="Cut Bench download desktop light mockup"
+            /><span>download / desktop / light</span></a
+          ><a class="view" href="mockups/cut-bench-download-mobile-light.png"
+            ><img
+              loading="lazy"
+              src="mockups/cut-bench-download-mobile-light.png"
+              alt="Cut Bench download mobile light mockup"
+            /><span>download / mobile / light</span></a
+          ><a class="view" href="mockups/cut-bench-download-desktop-dark.png"
+            ><img
+              loading="lazy"
+              src="mockups/cut-bench-download-desktop-dark.png"
+              alt="Cut Bench download desktop dark mockup"
+            /><span>download / desktop / dark</span></a
+          ><a class="view" href="mockups/cut-bench-download-mobile-dark.png"
+            ><img
+              loading="lazy"
+              src="mockups/cut-bench-download-mobile-dark.png"
+              alt="Cut Bench download mobile dark mockup"
+            /><span>download / mobile / dark</span></a
+          >
+        </div>
+        <h3>States</h3>
+        <div class="grid">
+          <a class="view" href="mockups/cut-bench-states-desktop-light.png"
+            ><img
+              loading="lazy"
+              src="mockups/cut-bench-states-desktop-light.png"
+              alt="Cut Bench states desktop light mockup"
+            /><span>states / desktop / light</span></a
+          ><a class="view" href="mockups/cut-bench-states-desktop-dark.png"
+            ><img
+              loading="lazy"
+              src="mockups/cut-bench-states-desktop-dark.png"
+              alt="Cut Bench states desktop dark mockup"
+            /><span>states / desktop / dark</span></a
+          >
+        </div>
+      </section>
+      <section id="screen-room">
+        <h2>Screen Room (superseded)</h2>
+        <p>Make a little room for your view.</p>
+        <h3>Input</h3>
+        <div class="grid">
+          <a class="view" href="mockups/screen-room-input-desktop-light.png"
+            ><img
+              loading="lazy"
+              src="mockups/screen-room-input-desktop-light.png"
+              alt="Screen Room input desktop light mockup"
+            /><span>input / desktop / light</span></a
+          ><a class="view" href="mockups/screen-room-input-mobile-light.png"
+            ><img
+              loading="lazy"
+              src="mockups/screen-room-input-mobile-light.png"
+              alt="Screen Room input mobile light mockup"
+            /><span>input / mobile / light</span></a
+          ><a class="view" href="mockups/screen-room-input-desktop-dark.png"
+            ><img
+              loading="lazy"
+              src="mockups/screen-room-input-desktop-dark.png"
+              alt="Screen Room input desktop dark mockup"
+            /><span>input / desktop / dark</span></a
+          ><a class="view" href="mockups/screen-room-input-mobile-dark.png"
+            ><img
+              loading="lazy"
+              src="mockups/screen-room-input-mobile-dark.png"
+              alt="Screen Room input mobile dark mockup"
+            /><span>input / mobile / dark</span></a
+          >
+        </div>
+        <h3>Processing</h3>
+        <div class="grid">
+          <a
+            class="view"
+            href="mockups/screen-room-processing-desktop-light.png"
+            ><img
+              loading="lazy"
+              src="mockups/screen-room-processing-desktop-light.png"
+              alt="Screen Room processing desktop light mockup"
+            /><span>processing / desktop / light</span></a
+          ><a
+            class="view"
+            href="mockups/screen-room-processing-mobile-light.png"
+            ><img
+              loading="lazy"
+              src="mockups/screen-room-processing-mobile-light.png"
+              alt="Screen Room processing mobile light mockup"
+            /><span>processing / mobile / light</span></a
+          ><a
+            class="view"
+            href="mockups/screen-room-processing-desktop-dark.png"
+            ><img
+              loading="lazy"
+              src="mockups/screen-room-processing-desktop-dark.png"
+              alt="Screen Room processing desktop dark mockup"
+            /><span>processing / desktop / dark</span></a
+          ><a class="view" href="mockups/screen-room-processing-mobile-dark.png"
+            ><img
+              loading="lazy"
+              src="mockups/screen-room-processing-mobile-dark.png"
+              alt="Screen Room processing mobile dark mockup"
+            /><span>processing / mobile / dark</span></a
+          >
+        </div>
+        <h3>Download</h3>
+        <div class="grid">
+          <a class="view" href="mockups/screen-room-download-desktop-light.png"
+            ><img
+              loading="lazy"
+              src="mockups/screen-room-download-desktop-light.png"
+              alt="Screen Room download desktop light mockup"
+            /><span>download / desktop / light</span></a
+          ><a class="view" href="mockups/screen-room-download-mobile-light.png"
+            ><img
+              loading="lazy"
+              src="mockups/screen-room-download-mobile-light.png"
+              alt="Screen Room download mobile light mockup"
+            /><span>download / mobile / light</span></a
+          ><a class="view" href="mockups/screen-room-download-desktop-dark.png"
+            ><img
+              loading="lazy"
+              src="mockups/screen-room-download-desktop-dark.png"
+              alt="Screen Room download desktop dark mockup"
+            /><span>download / desktop / dark</span></a
+          ><a class="view" href="mockups/screen-room-download-mobile-dark.png"
+            ><img
+              loading="lazy"
+              src="mockups/screen-room-download-mobile-dark.png"
+              alt="Screen Room download mobile dark mockup"
+            /><span>download / mobile / dark</span></a
+          >
+        </div>
+        <h3>States</h3>
+        <div class="grid">
+          <a class="view" href="mockups/screen-room-states-desktop-light.png"
+            ><img
+              loading="lazy"
+              src="mockups/screen-room-states-desktop-light.png"
+              alt="Screen Room states desktop light mockup"
+            /><span>states / desktop / light</span></a
+          ><a class="view" href="mockups/screen-room-states-desktop-dark.png"
+            ><img
+              loading="lazy"
+              src="mockups/screen-room-states-desktop-dark.png"
+              alt="Screen Room states desktop dark mockup"
+            /><span>states / desktop / dark</span></a
+          >
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

@@ -135,6 +135,46 @@ async function processed(a: ShinApp) {
   await vi.waitFor(() => expect(a.busy).toBe(''));
   await a.updateComplete;
 }
+
+for (const width of [320, 390, 1440]) {
+  test(`workflow location and long download names remain usable at ${width}px`, async () => {
+    await page.viewport(width, 900);
+    devices[0]!.name = 'Phone with an unusually long display and device name';
+    try {
+      const a = await app();
+      const verifyStage = (stage: string) => {
+        const current = a.shadowRoot!.querySelectorAll('[aria-current=step]');
+        expect(current).toHaveLength(1);
+        expect(current[0]!.textContent).toContain(stage);
+        expect(document.documentElement.scrollWidth).toBe(width);
+      };
+      verifyStage('Input');
+      picker(a, [file()]);
+      await processed(a);
+      verifyStage('Processing');
+      expect(a.shadowRoot!.querySelector('h1')!.className).toBe('sr-only');
+      await page.getByRole('button', { name: 'Next: Download' }).click();
+      await page
+        .getByRole('textbox', { name: 'Wallpaper name' })
+        .fill('a'.repeat(100));
+      await a.updateComplete;
+      verifyStage('Download');
+      expect(a.shadowRoot!.querySelector('h1')!.className).toBe('sr-only');
+      for (const control of a.shadowRoot!.querySelectorAll('wa-button')) {
+        const rect = control.getBoundingClientRect();
+        expect(rect.left).toBeGreaterThanOrEqual(0);
+        expect(rect.right).toBeLessThanOrEqual(width);
+        expect(rect.height).toBeGreaterThanOrEqual(44);
+      }
+      await page.getByRole('button', { name: 'Back to Processing' }).click();
+      await a.updateComplete;
+      verifyStage('Processing');
+    } finally {
+      devices[0]!.name = 'Phone';
+      await page.viewport(1280, 900);
+    }
+  });
+}
 function checked(a: ShinApp, label: string) {
   const input = [...a.shadowRoot!.querySelectorAll('label')]
     .find((e) => e.textContent?.trim() === label)!
@@ -209,7 +249,7 @@ test('global anchors reset positions, manual edits remain independent, reset aff
     new CustomEvent('crop-commit', { bubbles: true, composed: true }),
   );
   expect(a.crops.tablet!.left).toBe(400);
-  checked(a, 'Turn near-black colors into true black');
+  checked(a, 'True black shadows');
   await vi.waitFor(() => expect(a.dirty).toBe(false));
   expect(a.crops.phone!.left).toBe(300);
   expect(renderBodies.at(-1)!.oled).toBe(true);
@@ -336,7 +376,7 @@ for (const choice of [
 }
 
 for (const theme of ['light', 'dark']) {
-  for (const width of [280, 390, 680, 1280]) {
+  for (const width of [280, 320, 390, 680, 1280]) {
     test(`crop targets fit at ${width}px in ${theme} mode with non-color selection cues`, async () => {
       await page.viewport(width, 900);
       document.documentElement.classList.add(`wa-${theme}`);
@@ -353,21 +393,12 @@ for (const theme of ['light', 'dark']) {
         const anchorsRect = root
           .querySelector('.anchors')!
           .getBoundingClientRect();
-        expect(smartRect.width).toBe(anchorsRect.width);
-        expect(smartRect.height).toBe(anchorsRect.height);
-        const subtitle = root.querySelector('.smart-label small')!;
-        expect(subtitle.textContent).toBe('(entropy)');
-        expect(subtitle.getBoundingClientRect().top).toBeGreaterThan(
-          smartRect.top,
+        // Smart methods are full-width rows; anchors remain a spatial grid.
+        expect(smartRect.width).toBeGreaterThanOrEqual(anchorsRect.width);
+        expect(smartRect.bottom).toBeLessThan(anchorsRect.top);
+        expect(root.querySelector('.smart-label small')!.textContent).toBe(
+          '(entropy)',
         );
-
-        if (width === 280) {
-          expect(smartRect.left).toBe(anchorsRect.left);
-          expect(smartRect.bottom).toBeLessThan(anchorsRect.top);
-        } else {
-          expect(smartRect.top).toBe(anchorsRect.top);
-          expect(anchorsRect.left - smartRect.right).toBeGreaterThanOrEqual(46);
-        }
 
         for (const label of labels) {
           const rect = label.getBoundingClientRect();
@@ -459,7 +490,7 @@ test('folder checkbox changes ZIP layout without regenerating, keeps PNG names a
     const a = await app();
     picker(a, [file()]);
     await processed(a);
-    checked(a, 'Turn near-black colors into true black');
+    checked(a, 'True black shadows');
     const editor = a.shadowRoot!.querySelector('crop-editor')!;
     editor.dispatchEvent(
       new CustomEvent('crop-change', {
@@ -483,7 +514,7 @@ test('folder checkbox changes ZIP layout without regenerating, keeps PNG names a
     const crops = structuredClone(a.crops);
     const manifest = a.manifest;
     const renders = renderCount;
-    await page.getByRole('button', { name: 'Download all:' }).click();
+    await page.getByRole('button', { name: 'Download ZIP' }).click();
     await vi.waitFor(() => expect(a.busy).toBe(''));
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining('organizeIntoDeviceFolders=false'),
@@ -496,7 +527,7 @@ test('folder checkbox changes ZIP layout without regenerating, keeps PNG names a
     await vi.waitFor(() =>
       expect(preferences.organizeIntoDeviceFolders).toBe(true),
     );
-    await page.getByRole('button', { name: 'Download all:' }).click();
+    await page.getByRole('button', { name: 'Download ZIP' }).click();
     await vi.waitFor(() => expect(a.busy).toBe(''));
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining(
@@ -601,7 +632,7 @@ test('rapid OLED changes never commit an older render response or enable stale d
       return original(path, init);
     }),
   );
-  checked(a, 'Turn near-black colors into true black');
+  checked(a, 'True black shadows');
   await vi.waitFor(() => expect(resolve).toBeDefined());
   const slider = a.shadowRoot!.querySelector(
     'input[type=range]',
@@ -645,7 +676,7 @@ test('threshold toast spans debounce and successive renders, preserves crops and
     }),
   );
   const toast = () => a.shadowRoot!.querySelector('.oled-toast');
-  checked(a, 'Turn near-black colors into true black');
+  checked(a, 'True black shadows');
   await vi.waitFor(() => expect(pending).toHaveLength(1));
   expect(toast()).toBeNull();
   const crops = structuredClone(a.crops);
@@ -758,13 +789,13 @@ for (const dark of [false, true]) {
     const a = await app();
     expect(document.documentElement.classList.contains('wa-dark')).toBe(dark);
     expect(getComputedStyle(a).color).toBe(
-      dark ? 'rgb(227, 239, 230)' : 'rgb(25, 57, 45)',
+      dark ? 'rgb(244, 240, 255)' : 'rgb(41, 36, 56)',
     );
     expect(
       getComputedStyle(a.shadowRoot!.querySelector('input')!).colorScheme,
     ).toBe(dark ? 'dark' : 'light');
     expect(getComputedStyle(document.documentElement).backgroundColor).toBe(
-      dark ? 'rgb(16, 29, 23)' : 'rgb(239, 245, 239)',
+      dark ? 'rgb(32, 30, 42)' : 'rgb(241, 240, 247)',
     );
   });
 }
@@ -818,7 +849,7 @@ test('live theme changes preserve pending uploads, edited crops, OLED settings, 
   finishUpload!();
   await processed(a);
   checked(a, 'top right');
-  checked(a, 'Turn near-black colors into true black');
+  checked(a, 'True black shadows');
   const editor = a.shadowRoot!.querySelector('crop-editor')!;
   editor.dispatchEvent(
     new CustomEvent('crop-change', {
@@ -993,7 +1024,7 @@ test('pending naming permits navigation and download, success defaults name and 
     await processed(a);
     expect(a.naming.state).toBe('pending');
     await page.getByRole('button', { name: 'Next: Download' }).click();
-    await page.getByRole('button', { name: 'Download all:' }).click();
+    await page.getByRole('button', { name: 'Download ZIP' }).click();
     await vi.waitFor(() => expect(a.busy).toBe(''));
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining('name=view&organizeIntoDeviceFolders=false'),
@@ -1017,7 +1048,7 @@ test('pending naming permits navigation and download, success defaults name and 
     await page
       .getByRole('checkbox', { name: 'Organize into device folders' })
       .click();
-    await page.getByRole('button', { name: 'Download all:' }).click();
+    await page.getByRole('button', { name: 'Download ZIP' }).click();
     await vi.waitFor(() => expect(a.busy).toBe(''));
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining(
@@ -1025,7 +1056,7 @@ test('pending naming permits navigation and download, success defaults name and 
       ),
     );
     await page.getByRole('button', { name: 'Back to Processing' }).click();
-    checked(a, 'Turn near-black colors into true black');
+    checked(a, 'True black shadows');
     await vi.waitFor(() => expect(a.dirty).toBe(false));
     expect(a.name).toBe('moonlit-forest-view');
     expect(
@@ -1076,7 +1107,7 @@ test('failure provides explicit Retry, retains cleared name and does not block d
   await page.getByRole('button', { name: 'Retry AI naming' }).click();
   await vi.waitFor(() => expect(a.naming.state).toBe('pending'));
   await expect
-    .element(page.getByRole('button', { name: 'Download all:' }))
+    .element(page.getByRole('button', { name: 'Download ZIP' }))
     .toBeEnabled();
   complete(Response.json({ state: 'succeeded', name: 'new-ai-name' }));
   await vi.waitFor(() => expect(a.naming.state).toBe('succeeded'));
@@ -1177,7 +1208,7 @@ test('AI default has entropy previews; late success preserves a manual edit even
   await processed(a);
   expect(a.prefs.method).toBe('ai');
   expect(a.crops).toEqual({ phone: smart.phone, tablet: smart.tablet });
-  expect(a.shadowRoot!.textContent).toContain('Current previews use entropy');
+  expect(a.shadowRoot!.textContent).toContain('Using entropy crops for now');
   moveCrop(a, 0, 100);
   await a.updateComplete;
   moveCrop(a, 0, smart.phone.left);
@@ -1413,7 +1444,7 @@ test('late AI result on Download invalidates previous previews and exports until
   expect(a.dirty).toBe(true);
   await a.updateComplete;
   await expect
-    .element(page.getByRole('button', { name: 'Download all:' }))
+    .element(page.getByRole('button', { name: 'Download ZIP' }))
     .toBeDisabled();
   expect(a.shadowRoot!.querySelectorAll('img.output')).toHaveLength(0);
   await vi.waitFor(() => expect(release).toBeDefined());
@@ -1430,7 +1461,7 @@ test('late AI result on Download invalidates previous previews and exports until
   );
   await vi.waitFor(() => expect(a.dirty).toBe(false));
   await expect
-    .element(page.getByRole('button', { name: 'Download all:' }))
+    .element(page.getByRole('button', { name: 'Download ZIP' }))
     .toBeEnabled();
   expect(a.manifest!.revision).toBe('ai-final');
 });

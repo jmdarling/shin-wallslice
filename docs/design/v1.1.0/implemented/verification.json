@@ -1,0 +1,44 @@
+{
+  "application": "http://127.0.0.1:5173",
+  "ai": "disabled for real source; AI states covered by Chromium component tests",
+  "captures": [
+    "input-desktop-light.png",
+    "input-desktop-dark.png",
+    "input-mobile-light.png",
+    "input-mobile-dark.png",
+    "input-narrow-light.png",
+    "input-narrow-dark.png",
+    "processing-desktop-light.png",
+    "processing-desktop-dark.png",
+    "processing-mobile-light.png",
+    "processing-mobile-dark.png",
+    "processing-narrow-light.png",
+    "processing-narrow-dark.png",
+    "download-desktop-light.png",
+    "download-desktop-dark.png",
+    "download-mobile-light.png",
+    "download-mobile-dark.png",
+    "download-narrow-light.png",
+    "download-narrow-dark.png"
+  ],
+  "exportDimensions": [
+    {
+      "id": "iphone-18-pro-max",
+      "width": 1320,
+      "height": 2868
+    },
+    {
+      "id": "m5-ipad-pro-11-inch",
+      "width": 2420,
+      "height": 2420
+    }
+  ],
+  "oledChangedChannels": 3325233,
+  "passed": [
+    "reduced-motion CSS hides animated indicators while retaining pending status text",
+    "18 real application captures; 1440/390/320 widths; initial light and live light/dark changes; current-stage markers and control bounds",
+    "actual individual PNG download, exact dimensions, ZIP contents and names in both folder modes",
+    "independent keyboard and real pointer crop movement, per-device reset, exact framing pixels, OLEDify cutoff pixel-by-pixel and retained alpha",
+    "100-character filename at 320px, Back preserves edits, Start over disposes files, preferences survive reload"
+  ]
+}

@@ -18,6 +18,13 @@ configs = {c.attrib['Target']: c for c in template.findall('Config')}
 assert configs['3000'].attrib['Type'] == 'Port'
 assert configs['/data'].attrib['Mode'] == 'rw'
 assert configs['SHIN_WALLSLICE_AI_ENABLED'].text == 'false'
+for suffix in ['BASE_URL', 'MODEL', 'TOKEN']:
+    field = configs['SHIN_WALLSLICE_AI_' + suffix]
+    assert field.attrib['Type'] == 'Variable'
+    assert field.attrib['Display'] == 'advanced'
+    assert field.attrib['Required'] == 'false'
+    assert field.attrib['Default'] == '' and not field.text
+assert configs['SHIN_WALLSLICE_AI_TOKEN'].attrib['Mask'] == 'true'
 assert not any('PUID' in c or 'PGID' in c for c in configs)
 assert '--user=0:0' in template.findtext('ExtraParams')
 profile = ET.parse(root / 'ca_profile.xml').getroot()
@@ -25,9 +32,10 @@ assert profile.tag == 'CommunityApplications' and profile.findtext('Profile').st
 assert profile.findtext('Icon') == template.findtext('Icon')
 ET.parse(root / 'docs/assets/icon.svg')
 assert 'MIT License' in (root / 'LICENSE').read_text()
+version = json.loads((root / 'package.json').read_text())['version']
 for file in ['package.json', 'packages/client/package.json', 'packages/server/package.json']:
-    assert json.loads((root / file).read_text())['version'] == '1.0.0', file
-assert image + ':1.0.0' in (root / 'compose.yaml').read_text()
+    assert json.loads((root / file).read_text())['version'] == version, file
+assert image + ':' + version in (root / 'compose.yaml').read_text()
 assert 'build:' not in (root / 'compose.yaml').read_text()
 for file in (root / '.github/workflows').glob('*.yml'):
     for use in re.findall(r'uses:\s*([^\s#]+)', file.read_text()):

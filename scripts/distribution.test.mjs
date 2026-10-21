@@ -7,7 +7,7 @@ import {
   versionFromTag,
 } from './release-policy.mjs';
 test('only stable canonical semantic versions can publish; package versions agree', () => {
-  assert.equal(validatePackages('v1.0.0'), '1.0.0');
+  assert.equal(validatePackages('v1.0.1'), '1.0.1');
   for (const tag of [
     '1.0.0',
     'v01.0.0',
@@ -17,7 +17,7 @@ test('only stable canonical semantic versions can publish; package versions agre
     'v1.0.0\n',
   ])
     assert.throws(() => versionFromTag(tag));
-  assert.throws(() => validatePackages('v1.0.1'), /package.json/);
+  assert.throws(() => validatePackages('v1.0.2'), /package.json/);
   assert.deepEqual(aliases('1.2.3'), ['1', '1.2', 'latest']);
 });
 test('older reruns cannot roll aliases back; compare numerically', () => {

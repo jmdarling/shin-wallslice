@@ -1,0 +1,307 @@
+{
+  "primaryMockups": 36,
+  "stateSheets": 6,
+  "viewports": [1440, 390],
+  "overflowStressWidth": 320,
+  "checks": [
+    "all image assets loaded",
+    "no horizontal overflow",
+    "processing and download actions present"
+  ],
+  "artifacts": [
+    {
+      "concept": "passepartout",
+      "screen": "input",
+      "appearance": "light",
+      "viewport": "desktop",
+      "file": "passepartout-input-desktop-light"
+    },
+    {
+      "concept": "passepartout",
+      "screen": "input",
+      "appearance": "light",
+      "viewport": "mobile",
+      "file": "passepartout-input-mobile-light"
+    },
+    {
+      "concept": "passepartout",
+      "screen": "input",
+      "appearance": "dark",
+      "viewport": "desktop",
+      "file": "passepartout-input-desktop-dark"
+    },
+    {
+      "concept": "passepartout",
+      "screen": "input",
+      "appearance": "dark",
+      "viewport": "mobile",
+      "file": "passepartout-input-mobile-dark"
+    },
+    {
+      "concept": "passepartout",
+      "screen": "processing",
+      "appearance": "light",
+      "viewport": "desktop",
+      "file": "passepartout-processing-desktop-light"
+    },
+    {
+      "concept": "passepartout",
+      "screen": "processing",
+      "appearance": "light",
+      "viewport": "mobile",
+      "file": "passepartout-processing-mobile-light"
+    },
+    {
+      "concept": "passepartout",
+      "screen": "processing",
+      "appearance": "dark",
+      "viewport": "desktop",
+      "file": "passepartout-processing-desktop-dark"
+    },
+    {
+      "concept": "passepartout",
+      "screen": "processing",
+      "appearance": "dark",
+      "viewport": "mobile",
+      "file": "passepartout-processing-mobile-dark"
+    },
+    {
+      "concept": "passepartout",
+      "screen": "download",
+      "appearance": "light",
+      "viewport": "desktop",
+      "file": "passepartout-download-desktop-light"
+    },
+    {
+      "concept": "passepartout",
+      "screen": "download",
+      "appearance": "light",
+      "viewport": "mobile",
+      "file": "passepartout-download-mobile-light"
+    },
+    {
+      "concept": "passepartout",
+      "screen": "download",
+      "appearance": "dark",
+      "viewport": "desktop",
+      "file": "passepartout-download-desktop-dark"
+    },
+    {
+      "concept": "passepartout",
+      "screen": "download",
+      "appearance": "dark",
+      "viewport": "mobile",
+      "file": "passepartout-download-mobile-dark"
+    },
+    {
+      "concept": "passepartout",
+      "screen": "states",
+      "appearance": "light",
+      "viewport": "desktop",
+      "file": "passepartout-states-desktop-light"
+    },
+    {
+      "concept": "passepartout",
+      "screen": "states",
+      "appearance": "dark",
+      "viewport": "desktop",
+      "file": "passepartout-states-desktop-dark"
+    },
+    {
+      "concept": "cut-bench",
+      "screen": "input",
+      "appearance": "light",
+      "viewport": "desktop",
+      "file": "cut-bench-input-desktop-light"
+    },
+    {
+      "concept": "cut-bench",
+      "screen": "input",
+      "appearance": "light",
+      "viewport": "mobile",
+      "file": "cut-bench-input-mobile-light"
+    },
+    {
+      "concept": "cut-bench",
+      "screen": "input",
+      "appearance": "dark",
+      "viewport": "desktop",
+      "file": "cut-bench-input-desktop-dark"
+    },
+    {
+      "concept": "cut-bench",
+      "screen": "input",
+      "appearance": "dark",
+      "viewport": "mobile",
+      "file": "cut-bench-input-mobile-dark"
+    },
+    {
+      "concept": "cut-bench",
+      "screen": "processing",
+      "appearance": "light",
+      "viewport": "desktop",
+      "file": "cut-bench-processing-desktop-light"
+    },
+    {
+      "concept": "cut-bench",
+      "screen": "processing",
+      "appearance": "light",
+      "viewport": "mobile",
+      "file": "cut-bench-processing-mobile-light"
+    },
+    {
+      "concept": "cut-bench",
+      "screen": "processing",
+      "appearance": "dark",
+      "viewport": "desktop",
+      "file": "cut-bench-processing-desktop-dark"
+    },
+    {
+      "concept": "cut-bench",
+      "screen": "processing",
+      "appearance": "dark",
+      "viewport": "mobile",
+      "file": "cut-bench-processing-mobile-dark"
+    },
+    {
+      "concept": "cut-bench",
+      "screen": "download",
+      "appearance": "light",
+      "viewport": "desktop",
+      "file": "cut-bench-download-desktop-light"
+    },
+    {
+      "concept": "cut-bench",
+      "screen": "download",
+      "appearance": "light",
+      "viewport": "mobile",
+      "file": "cut-bench-download-mobile-light"
+    },
+    {
+      "concept": "cut-bench",
+      "screen": "download",
+      "appearance": "dark",
+      "viewport": "desktop",
+      "file": "cut-bench-download-desktop-dark"
+    },
+    {
+      "concept": "cut-bench",
+      "screen": "download",
+      "appearance": "dark",
+      "viewport": "mobile",
+      "file": "cut-bench-download-mobile-dark"
+    },
+    {
+      "concept": "cut-bench",
+      "screen": "states",
+      "appearance": "light",
+      "viewport": "desktop",
+      "file": "cut-bench-states-desktop-light"
+    },
+    {
+      "concept": "cut-bench",
+      "screen": "states",
+      "appearance": "dark",
+      "viewport": "desktop",
+      "file": "cut-bench-states-desktop-dark"
+    },
+    {
+      "concept": "screen-room",
+      "screen": "input",
+      "appearance": "light",
+      "viewport": "desktop",
+      "file": "screen-room-input-desktop-light"
+    },
+    {
+      "concept": "screen-room",
+      "screen": "input",
+      "appearance": "light",
+      "viewport": "mobile",
+      "file": "screen-room-input-mobile-light"
+    },
+    {
+      "concept": "screen-room",
+      "screen": "input",
+      "appearance": "dark",
+      "viewport": "desktop",
+      "file": "screen-room-input-desktop-dark"
+    },
+    {
+      "concept": "screen-room",
+      "screen": "input",
+      "appearance": "dark",
+      "viewport": "mobile",
+      "file": "screen-room-input-mobile-dark"
+    },
+    {
+      "concept": "screen-room",
+      "screen": "processing",
+      "appearance": "light",
+      "viewport": "desktop",
+      "file": "screen-room-processing-desktop-light"
+    },
+    {
+      "concept": "screen-room",
+      "screen": "processing",
+      "appearance": "light",
+      "viewport": "mobile",
+      "file": "screen-room-processing-mobile-light"
+    },
+    {
+      "concept": "screen-room",
+      "screen": "processing",
+      "appearance": "dark",
+      "viewport": "desktop",
+      "file": "screen-room-processing-desktop-dark"
+    },
+    {
+      "concept": "screen-room",
+      "screen": "processing",
+      "appearance": "dark",
+      "viewport": "mobile",
+      "file": "screen-room-processing-mobile-dark"
+    },
+    {
+      "concept": "screen-room",
+      "screen": "download",
+      "appearance": "light",
+      "viewport": "desktop",
+      "file": "screen-room-download-desktop-light"
+    },
+    {
+      "concept": "screen-room",
+      "screen": "download",
+      "appearance": "light",
+      "viewport": "mobile",
+      "file": "screen-room-download-mobile-light"
+    },
+    {
+      "concept": "screen-room",
+      "screen": "download",
+      "appearance": "dark",
+      "viewport": "desktop",
+      "file": "screen-room-download-desktop-dark"
+    },
+    {
+      "concept": "screen-room",
+      "screen": "download",
+      "appearance": "dark",
+      "viewport": "mobile",
+      "file": "screen-room-download-mobile-dark"
+    },
+    {
+      "concept": "screen-room",
+      "screen": "states",
+      "appearance": "light",
+      "viewport": "desktop",
+      "file": "screen-room-states-desktop-light"
+    },
+    {
+      "concept": "screen-room",
+      "screen": "states",
+      "appearance": "dark",
+      "viewport": "desktop",
+      "file": "screen-room-states-desktop-dark"
+    }
+  ]
+}

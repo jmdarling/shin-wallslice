@@ -12,7 +12,7 @@ export function followBrowserTheme() {
     document.documentElement.classList.toggle('wa-light', !dark);
     document
       .querySelector('meta[name="theme-color"]')
-      ?.setAttribute('content', dark ? '#101d17' : '#eff5ef');
+      ?.setAttribute('content', dark ? '#201e2a' : '#f1f0f7');
   };
   update();
   preference?.addEventListener('change', update);

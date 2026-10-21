@@ -22,7 +22,7 @@ export class CropEditor extends LitElement {
       position: relative;
       line-height: 0;
       overflow: hidden;
-      background: #17231f;
+      background: var(--app-surround, #201e2a);
       touch-action: none;
     }
     img {
@@ -44,7 +44,7 @@ export class CropEditor extends LitElement {
       padding: 0;
     }
     .crop:focus-visible {
-      outline: 4px solid #e7ba59;
+      outline: 4px solid var(--app-focus, #624696);
       outline-offset: -6px;
       box-shadow:
         inset 0 0 0 8px black,

@@ -4,6 +4,7 @@ import '@awesome.me/webawesome/dist/components/spinner/spinner.js';
 import './crop-editor.js';
 import '@awesome.me/webawesome/dist/components/icon/icon.js';
 import aiSparkles from './assets/ai-sparkles.svg';
+import exampleWallpaper from './assets/dusk-ridges.svg';
 import type {
   Anchor,
   Crop,
@@ -429,61 +430,165 @@ export class ShinApp extends LitElement {
       display: block;
       color: var(--app-text);
     }
+    * {
+      box-sizing: border-box;
+    }
     header {
-      padding: 1.3rem clamp(1rem, 5vw, 4rem);
-      border-bottom: 1px solid var(--app-header-border);
+      padding: 1.4rem max(1.25rem, calc((100vw - 1280px) / 2));
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 1rem;
+      gap: 2rem;
+      border-bottom: 1px solid var(--app-header-border);
     }
     header strong {
-      font-size: 1.2rem;
-      letter-spacing: -0.04em;
+      font-size: 1.3rem;
+      letter-spacing: -0.045em;
+      margin-right: auto;
+    }
+    nav {
+      display: flex;
+      gap: 1.25rem;
+    }
+    .step {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--app-muted);
+      font-size: 0.875rem;
+    }
+    .step b {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--app-control-border);
+      border-radius: 50%;
+      font-size: 0.8rem;
+    }
+    .step[aria-current] {
+      color: var(--app-text);
+      font-weight: 650;
+    }
+    .step[aria-current] b {
+      color: var(--app-on-accent);
+      background: var(--app-accent);
+      border-color: var(--app-accent);
     }
     main {
-      max-width: 1200px;
+      max-width: 1280px;
+      padding: 2rem 2.5rem 3rem;
       margin: auto;
-      padding: 2rem clamp(1rem, 4vw, 3rem);
     }
     h1 {
-      font-size: clamp(2rem, 5vw, 3.8rem);
-      letter-spacing: -0.05em;
-      line-height: 1.05;
-      margin: 0.6rem 0 1.5rem;
+      font:
+        400 clamp(2.5rem, 4.5vw, 3.5rem)/1.12 Georgia,
+        serif;
+      letter-spacing: -0.035em;
+      margin: 0.5rem 0 1rem;
     }
     h2 {
-      font-size: 1.2rem;
+      font-size: 1.05rem;
+      margin: 0 0 1rem;
+    }
+    h3 {
+      font-size: 1rem;
+      font-weight: 650;
+      margin: 0 0 1rem;
+      overflow-wrap: anywhere;
     }
     p {
-      line-height: 1.6;
+      line-height: 1.5;
       color: var(--app-muted);
     }
-    .eyebrow {
-      font-size: 0.8rem;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--app-subtle);
+    .intro {
+      margin-bottom: 2rem;
     }
-    .input {
-      max-width: 760px;
-      padding-top: clamp(2rem, 10vh, 6rem);
+    .input-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3rem;
+      align-items: center;
     }
     .drop {
-      border: 2px dashed var(--app-control-border);
-      border-radius: 1rem;
+      border: 1px dashed var(--app-control-border);
       background: var(--app-drop);
       text-align: center;
-      padding: 3rem 1rem;
-      margin: 2rem 0;
+      padding: 2.5rem 1.5rem;
+    }
+    .drop h2 {
+      font-size: 1.15rem;
+      margin-bottom: 1.25rem;
     }
     .drop:focus-within {
       outline: 3px solid var(--app-focus);
+      outline-offset: 4px;
     }
     .drop input {
       display: block;
       max-width: 100%;
-      margin: 1rem auto;
+      width: 10rem;
+      color: transparent;
+      margin: auto;
+    }
+    input[type='file']::file-selector-button {
+      font: inherit;
+      font-weight: 600;
+      min-height: 44px;
+      width: 100%;
+      border: 1px solid var(--app-accent);
+      border-radius: 4px;
+      background: var(--app-accent);
+      color: var(--app-on-accent);
+      cursor: pointer;
+    }
+    input[type='file']:disabled::file-selector-button {
+      color: var(--app-muted);
+      background: var(--app-selected);
+      border-color: var(--app-control-border);
+      cursor: wait;
+    }
+    .disclosure {
+      border-top: 1px solid var(--app-panel-border);
+      padding-top: 1rem;
+      margin-top: 1.5rem;
+      text-align: left;
+      font-size: 0.875rem;
+    }
+    .example {
+      background: var(--app-panel);
+      padding: 2rem;
+      margin: 0;
+    }
+    .example-image {
+      position: relative;
+    }
+    .example img {
+      display: block;
+      width: 100%;
+    }
+    .example-image::before,
+    .example-image::after {
+      content: '';
+      position: absolute;
+      border: 2px solid white;
+      box-shadow: 0 0 0 1px black;
+    }
+    .example-image::before {
+      top: 5%;
+      bottom: 5%;
+      left: 16%;
+      width: 28%;
+    }
+    .example-image::after {
+      top: 20%;
+      bottom: 20%;
+      left: 48%;
+      width: 40%;
+    }
+    figcaption {
+      margin-top: 1rem;
+      font-size: 0.875rem;
+      color: var(--app-muted);
     }
     input,
     select {
@@ -491,54 +596,16 @@ export class ShinApp extends LitElement {
       accent-color: var(--app-accent);
     }
     input[type='text'] {
-      box-sizing: border-box;
       width: 100%;
-      padding: 0.8rem;
+      padding: 0.75rem;
+      min-height: 48px;
       border: 1px solid var(--app-control-border);
-      border-radius: 0.4rem;
+      border-radius: 4px;
       background: var(--app-control);
       color: var(--app-text);
     }
-    input[type='range'] {
-      width: 100%;
-      height: 1.5rem;
-      margin-inline: 0;
-      appearance: none;
-      background: transparent;
-    }
-    input[type='range']::-webkit-slider-runnable-track {
-      height: 0.5rem;
-      border: 1px solid var(--app-control-border);
-      border-radius: 1rem;
-      background: var(--app-surround);
-    }
-    input[type='range']::-moz-range-track {
-      height: 0.5rem;
-      border: 1px solid var(--app-control-border);
-      border-radius: 1rem;
-      background: var(--app-surround);
-    }
-    input[type='range']::-webkit-slider-thumb {
-      appearance: none;
-      width: 1rem;
-      height: 1rem;
-      margin-top: calc(-0.25rem - 1px);
-      border: 0;
-      border-radius: 50%;
-      background: var(--app-accent);
-    }
-    input[type='range']::-moz-range-thumb {
-      width: 1rem;
-      height: 1rem;
-      border: 0;
-      border-radius: 50%;
-      background: var(--app-accent);
-    }
-    input[type='range']:disabled {
-      opacity: 0.5;
-    }
     label {
-      line-height: 1.6;
+      line-height: 1.5;
     }
     button:focus-visible,
     input:focus-visible,
@@ -548,46 +615,72 @@ export class ShinApp extends LitElement {
     }
     .layout {
       display: grid;
-      grid-template-columns: 360px minmax(0, 1fr);
+      grid-template-columns: 310px minmax(0, 1fr);
       gap: 2rem;
-    }
-    .panel,
-    .card {
-      background: var(--app-panel);
-      border: 1px solid var(--app-panel-border);
-      border-radius: 0.8rem;
-      padding: 1.1rem;
     }
     .panel {
       container-type: inline-size;
       align-self: start;
+      padding: 1.25rem;
+      background: var(--app-panel);
+      border-radius: 4px;
+    }
+    fieldset {
+      border: 0;
+      padding: 0;
+      margin: 0;
+      min-width: 0;
+    }
+    fieldset + fieldset {
+      margin-top: 1.25rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--app-panel-border);
+    }
+    legend {
+      float: left;
+      width: 100%;
+      padding: 0;
+      font-weight: 650;
+      margin-bottom: 0.75rem;
+    }
+    legend + * {
+      clear: both;
     }
     .options {
       display: grid;
-      gap: 0.7rem;
     }
-    .options label {
+    .options label,
+    fieldset > label,
+    .folder-choice {
       display: flex;
-      gap: 0.6rem;
-      align-items: start;
+      align-items: center;
+      gap: 0.625rem;
+      min-height: 44px;
+      font-size: 0.875rem;
+    }
+    input[type='checkbox'] {
+      flex-shrink: 0;
+      width: 18px;
+      height: 18px;
+      margin: 0;
     }
     .crop-method {
       display: grid;
-      grid-template-columns: 134px 14px 134px;
-      justify-content: center;
-      align-items: center;
-      gap: 0.5rem 1rem;
+      gap: 1rem;
+    }
+    .smart-choices {
+      display: grid;
+      gap: 0.5rem;
     }
     .crop-choice {
       position: relative;
       display: grid;
       place-items: center;
-      box-sizing: border-box;
       width: 44px;
       height: 44px;
-      cursor: pointer;
       border: 1px solid transparent;
-      border-radius: 0.4rem;
+      border-radius: 4px;
+      cursor: pointer;
       color: var(--app-text);
     }
     .crop-choice input {
@@ -607,66 +700,46 @@ export class ShinApp extends LitElement {
     .crop-choice:has(:checked)::after {
       content: '✓';
       position: absolute;
-      right: 2px;
-      bottom: 0;
-      font-size: 0.75rem;
-      font-weight: 750;
+      right: 7px;
+      bottom: 6px;
+      font-size: 0.875rem;
+      font-weight: 700;
       line-height: 1;
       pointer-events: none;
     }
     .crop-choice:has(:focus-visible) {
       outline: 3px solid var(--app-focus);
-      outline-offset: 2px;
+      outline-offset: 3px;
       z-index: 1;
     }
     .crop-choice:hover {
       background: var(--app-selected);
     }
-    .smart-choices {
-      display: grid;
-      gap: 0.5rem;
-    }
-    .smart-choices:has(> :nth-child(2)) .smart-choice {
-      height: 64px;
-      grid-template-columns: auto auto;
-      gap: 0.5rem;
-    }
     .smart-choice {
-      width: 134px;
-      height: 134px;
-      flex-shrink: 0;
-      align-content: center;
-      gap: 0.35rem;
+      width: 100%;
+      min-height: 48px;
+      height: auto;
+      padding: 0.75rem 2rem 0.75rem 0.75rem;
+      display: flex;
+      gap: 0.75rem;
       border-color: var(--app-control-border);
       background: var(--app-control);
-      font-size: 0.85rem;
-      border-radius: 0.7rem;
-    }
-    .smart-label {
-      display: grid;
-      gap: 0.15rem;
-      text-align: center;
-    }
-    .smart-label small {
-      font-size: 0.75rem;
-      color: var(--app-muted);
+      font-size: 0.875rem;
     }
     .smart-choice wa-icon {
-      font-size: 1.7rem;
+      font-size: 1.25rem;
       color: var(--app-accent);
     }
-    .crop-or {
-      text-align: center;
-      font-size: 0.75rem;
-      color: var(--app-muted);
+    .smart-label small {
+      font: inherit;
     }
     .anchors {
       display: grid;
       grid-template: repeat(3, 44px) / repeat(3, 44px);
+      width: max-content;
       border: 1px solid var(--app-control-border);
-      border-radius: 0.7rem;
       background: var(--app-control);
-      flex-shrink: 0;
+      border-radius: 4px;
     }
     .top-left {
       grid-area: 1 / 1;
@@ -686,7 +759,6 @@ export class ShinApp extends LitElement {
     .anchor-mark {
       width: 13px;
       height: 13px;
-      box-sizing: border-box;
       border: 2px solid currentColor;
       pointer-events: none;
     }
@@ -715,42 +787,82 @@ export class ShinApp extends LitElement {
       clip-path: inset(50%);
       white-space: nowrap;
     }
-    @container (max-width: 313px) {
-      .crop-method {
-        grid-template-columns: 134px;
-      }
+    input[type='range'] {
+      width: 100%;
+      height: 44px;
+      margin: 0;
+      appearance: none;
+      background: transparent;
+    }
+    input[type='range']::-webkit-slider-runnable-track {
+      height: 6px;
+      border: 1px solid var(--app-control-border);
+      background: var(--app-surround);
+      border-radius: 4px;
+    }
+    input[type='range']::-moz-range-track {
+      height: 6px;
+      border: 1px solid var(--app-control-border);
+      background: var(--app-surround);
+      border-radius: 4px;
+    }
+    input[type='range']::-webkit-slider-thumb {
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      margin-top: -7px;
+      border: 0;
+      border-radius: 50%;
+      background: var(--app-accent);
+    }
+    input[type='range']::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border: 0;
+      border-radius: 50%;
+      background: var(--app-accent);
+    }
+    input[type='range']:disabled {
+      opacity: 0.5;
     }
     .cards {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+      gap: 1.5rem;
+    }
+    .card {
+      padding: 1.125rem;
+      background: var(--app-panel);
+      min-width: 0;
+    }
+    .source-wrap {
+      background: var(--app-panel);
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
       gap: 1rem;
     }
     .source {
-      max-width: 100%;
-      max-height: 340px;
+      max-width: 145px;
+      width: 35%;
+      max-height: 97px;
       object-fit: contain;
       display: block;
-      margin: auto;
     }
-    .source-wrap {
-      background: var(--app-surround);
-      border-radius: 0.6rem;
-      padding: 0.7rem;
-      margin-bottom: 1.5rem;
+    .source-wrap .meta {
+      margin: 0;
     }
     .output {
       display: block;
-      max-width: 100%;
-      height: 230px;
+      width: 100%;
+      height: 300px;
       object-fit: contain;
-      margin: auto;
-    }
-    .card h3 {
-      font-size: 1rem;
-      margin: 0.2rem 0 1rem;
+      margin: 1.5rem auto;
     }
     .meta {
-      font-size: 0.85rem;
+      font-size: 0.875rem;
+      overflow-wrap: anywhere;
     }
     .warning {
       color: var(--app-warning);
@@ -758,51 +870,68 @@ export class ShinApp extends LitElement {
     .message {
       border: 1px solid var(--app-message-border);
       background: var(--app-message);
-      padding: 1rem;
-      border-radius: 0.5rem;
+      padding: 0.75rem 1rem;
       margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      overflow-wrap: anywhere;
     }
     .progress {
       display: flex;
       align-items: center;
-      gap: 0.7rem;
-      padding: 0.8rem;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem;
       background: var(--app-progress);
-      border-radius: 0.5rem;
       margin-bottom: 1rem;
     }
-    .download-actions {
+    .delivery {
+      background: var(--app-panel);
+      padding: 1.5rem;
+      display: flex;
+      gap: 2rem;
+      align-items: center;
+      justify-content: space-between;
       margin-bottom: 1.5rem;
+    }
+    .name {
+      display: block;
+      width: min(100%, 32rem);
+    }
+    .name input {
+      margin-top: 0.5rem;
+    }
+    .download-actions {
+      min-width: 0;
     }
     .oled-toast {
       position: fixed;
       inset: auto 1rem max(1rem, env(safe-area-inset-bottom)) auto;
       z-index: 10;
-      box-sizing: border-box;
       max-width: calc(100vw - 2rem);
       display: flex;
       align-items: center;
-      gap: 0.7rem;
+      gap: 0.75rem;
       padding: 1rem;
       border: 1px solid var(--app-control-border);
-      border-radius: 0.6rem;
+      border-radius: 4px;
       background: var(--app-progress);
       box-shadow: 0 4px 18px var(--app-shadow);
       pointer-events: none;
     }
-    .oled-toast wa-spinner {
+    wa-spinner {
       flex-shrink: 0;
     }
     .actions {
       display: flex;
-      gap: 0.8rem;
+      gap: 0.75rem;
       flex-wrap: wrap;
       align-items: center;
       margin-top: 1.5rem;
     }
-    .step {
-      font-size: 0.8rem;
-      color: var(--app-subtle);
+    .images > .actions {
+      justify-content: flex-end;
     }
     .ai-indicator {
       color: var(--app-accent);
@@ -810,53 +939,74 @@ export class ShinApp extends LitElement {
       vertical-align: -0.125em;
       margin-inline-start: 0.35rem;
     }
-    .name {
-      max-width: 36rem;
-      display: block;
-      margin: 1.5rem 0;
-    }
     wa-button {
+      max-width: 100%;
       margin: 0.15rem 0;
     }
-    fieldset {
-      border: 0;
-      padding: 0;
-      margin: 1.4rem 0;
+    wa-button::part(base) {
+      min-height: 44px;
+      border-radius: 4px;
+      white-space: normal;
+      height: auto;
     }
-    fieldset > label {
-      display: block;
-      margin: 0.4rem 0;
-    }
-    legend {
-      font-weight: 650;
-      margin-bottom: 0.6rem;
+    wa-button::part(label) {
+      white-space: normal;
+      overflow-wrap: anywhere;
     }
     .stale .output {
       opacity: 0.55;
     }
-    @media (max-width: 720px) {
-      .layout {
-        grid-template-columns: 1fr;
-      }
-      .panel .options {
-        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-      }
+    @media (max-width: 800px) {
       header {
-        align-items: center;
         flex-wrap: wrap;
+        gap: 1rem;
+        padding: 1rem 1.25rem;
       }
-      header strong {
-        white-space: nowrap;
-      }
-      header .step {
+      nav {
         order: 3;
-        flex-basis: 100%;
-        max-width: none;
-        text-align: left;
+        width: 100%;
+        justify-content: space-between;
+        gap: 0.25rem;
       }
       .step {
-        max-width: 7rem;
-        text-align: right;
+        gap: 0.3rem;
+        font-size: 0.75rem;
+      }
+      .step b {
+        width: 25px;
+        height: 25px;
+      }
+      main {
+        padding: 1.5rem 1.25rem 2rem;
+      }
+      .input-layout,
+      .layout {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+      }
+      .input-layout .example {
+        padding: 1.5rem;
+      }
+      .drop {
+        padding: 2rem 1.25rem;
+      }
+      .delivery {
+        display: block;
+        padding: 1.25rem;
+      }
+      .download-actions {
+        margin-top: 1rem;
+      }
+      .name {
+        width: 100%;
+      }
+      .images > .actions wa-button {
+        width: 100%;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      wa-spinner {
+        display: none;
       }
     }
   `;
@@ -864,19 +1014,21 @@ export class ShinApp extends LitElement {
     const j = this.job;
     const usable = !!this.manifest && !this.dirty && !this.busy;
     return html` <header>
-        <strong>shin-wallslice</strong
-        ><span class="step">Input → Processing → Download</span
-        >${this.page !== 'input' ? html`<wa-button size="s" ?disabled=${!!this.busy} @click=${() => this.startOver()}>Start over</wa-button>` : nothing}
+        <strong>shin-wallslice</strong>
+        <nav aria-label="Workflow">
+          ${(['input', 'processing', 'download'] as const).map((stage, index) => html`<span class="step" aria-current=${this.page === stage ? 'step' : nothing}><b aria-hidden="true">${index + 1}</b>${stage[0]!.toUpperCase() + stage.slice(1)}</span>`)}
+        </nav>
+        ${this.page !== 'input' ? html`<wa-button appearance="outlined" size="s" ?disabled=${!!this.busy} @click=${() => this.startOver()}>Start over</wa-button>` : nothing}
       </header>
       <main class=${this.page === 'input' ? 'input' : ''}>
-        ${this.error ? html`<div class="message" role="alert">${this.error} <wa-button size="s" @click=${() => (this.job ? this.renderPreviews() : this.load())}>Retry</wa-button></div>` : nothing}
-        ${this.preferenceError ? html`<div class="message" role="alert">${this.preferenceError}<wa-button size="s" @click=${() => this.save()}>Retry saving preferences</wa-button></div>` : nothing}
+        ${this.error ? html`<div class="message" role="alert">${this.error} <wa-button appearance="outlined" size="s" @click=${() => (this.job ? this.renderPreviews() : this.load())}>Retry</wa-button></div>` : nothing}
+        ${this.preferenceError ? html`<div class="message" role="alert">${this.preferenceError}<wa-button appearance="outlined" size="s" @click=${() => this.save()}>Retry saving preferences</wa-button></div>` : nothing}
         ${this.busy && !this.oledProcessing ? html`<div class="progress" role="status"><wa-spinner></wa-spinner>${this.busy}</div>` : nothing}
         ${
-          this.page !== 'input' &&
+          this.page === 'download' &&
           (this.naming.state === 'pending' || this.naming.state === 'failed')
             ? html`<div class="message" role="status" aria-live="polite">
-                ${this.naming.state === 'pending' ? 'AI is suggesting a wallpaper name… You can continue and download now.' : this.naming.state === 'failed' ? html`${this.naming.message} <wa-button size="s" @click=${() => this.job && this.watchNaming(this.job.id, true)}>Retry AI naming</wa-button>` : nothing}
+                ${this.naming.state === 'pending' ? 'AI naming… You can edit or download now.' : this.naming.state === 'failed' ? html`${this.naming.message} <wa-button appearance="outlined" size="s" @click=${() => this.job && this.watchNaming(this.job.id, true)}>Retry AI naming</wa-button>` : nothing}
               </div>`
             : nothing
         }
@@ -888,10 +1040,11 @@ export class ShinApp extends LitElement {
             ? html`<div class="message" role="status" aria-live="polite">
                 ${
                   this.detection.state === 'pending'
-                    ? 'Finding the main subject… Current previews use entropy. You can position crops and download now.'
+                    ? 'Finding a subject… Using entropy crops for now.'
                     : this.detection.state === 'failed'
                       ? html`${this.detection.message}
                           <wa-button
+                            appearance="outlined"
                             size="s"
                             @click=${() => this.job && this.watchDetection(this.job.id, true)}
                             >Retry subject detection</wa-button
@@ -903,42 +1056,50 @@ export class ShinApp extends LitElement {
         }
         ${
           this.page === 'input'
-            ? html`<div class="eyebrow">A home for every screen</div>
-                <h1>One wallpaper.<br />Every device.</h1>
-                <p>
-                  Choose your favorite view. Position it for your screens, tune
-                  the shadows, and download wallpapers that fit.
-                </p>
-                <div
-                  class="drop"
-                  @dragover=${(e: DragEvent) => e.preventDefault()}
-                  @drop=${(e: DragEvent) => {
-                    e.preventDefault();
-                    void this.upload([...e.dataTransfer!.files]);
-                  }}
-                >
-                  <h2>Drop or paste your wallpaper here</h2>
-                  <label
-                    >Or choose one image<input
-                      aria-label="Choose wallpaper"
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      ?disabled=${!this.ready || !!this.busy}
-                      @change=${(e: Event) => {
-                        const input = e.target as HTMLInputElement;
-                        void this.upload([...input.files!]);
-                        input.value = '';
-                      }}
-                  /></label>
-                  <p>JPEG, PNG, or WebP · processed locally on your server</p>
-                  ${this.aiEnabled ? html`<p>AI naming and subject detection are enabled. After upload, an image representation is automatically sent to the configured AI service.</p>` : nothing}
+            ? html`<div class="intro">
+                  <h1>One wallpaper.<br />Every device.</h1>
+                </div>
+                <div class="input-layout">
+                  <div
+                    class="drop"
+                    @dragover=${(e: DragEvent) => e.preventDefault()}
+                    @drop=${(e: DragEvent) => {
+                      e.preventDefault();
+                      void this.upload([...e.dataTransfer!.files]);
+                    }}
+                  >
+                    <h2>Drop or paste your wallpaper here</h2>
+                    <label
+                      ><span class="sr-only">Choose wallpaper</span
+                      ><input
+                        aria-label="Choose wallpaper"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        ?disabled=${!this.ready || !!this.busy}
+                        @change=${(e: Event) => {
+                          const input = e.target as HTMLInputElement;
+                          void this.upload([...input.files!]);
+                          input.value = '';
+                        }}
+                    /></label>
+                    <p>JPEG, PNG, or WebP</p>
+                    ${this.aiEnabled ? html`<p class="disclosure">AI enabled: an image representation is automatically sent to the configured AI service.</p>` : nothing}
+                  </div>
+                  <figure class="example">
+                    <div class="example-image">
+                      <img
+                        src=${exampleWallpaper}
+                        alt="Dusk Ridges shown with portrait and square crop boundaries"
+                      />
+                    </div>
+                    <figcaption>Example framing</figcaption>
+                  </figure>
                 </div>`
             : nothing
         }
         ${
           this.page === 'processing' && j
-            ? html`<div class="eyebrow">02 / Make it fit</div>
-                <h1>A view for every screen.</h1>
+            ? html`<h1 class="sr-only">Processing</h1>
                 <div class="layout">
                   <aside class="panel">
                     <fieldset>
@@ -1007,14 +1168,15 @@ export class ShinApp extends LitElement {
                                     aria-hidden="true"
                                   ></wa-icon>
                                   <span class="smart-label"
-                                    >Smart<small
+                                    >Smart
+                                    <small
                                       >(${method === 'ai' ? 'AI' : 'entropy'})</small
                                     ></span
                                   >
                                 </label>`,
                             )}
                         </div>
-                        <span class="crop-or" aria-hidden="true">or</span>
+
                         <div class="anchors">
                           ${(
                             [
@@ -1052,7 +1214,7 @@ export class ShinApp extends LitElement {
                           )}
                         </div>
                       </div>
-                      ${this.prefs.method === 'ai' && this.detection.state === 'no-subject' ? html`<p class="meta" role="note">No clear subject found. Using entropy crops for this image.</p>` : nothing}
+                      ${this.prefs.method === 'ai' && this.detection.state === 'no-subject' ? html`<p class="meta" role="note">No clear subject. Using entropy crops.</p>` : nothing}
                     </fieldset>
                     <fieldset>
                       <legend>OLEDify</legend>
@@ -1069,7 +1231,7 @@ export class ShinApp extends LitElement {
                             this.schedule();
                           }}
                         />
-                        Turn near-black colors into true black</label
+                        True black shadows</label
                       ><label for="threshold"
                         >Threshold: ${this.prefs.threshold}</label
                       ><input
@@ -1094,14 +1256,20 @@ export class ShinApp extends LitElement {
                           this.schedule();
                         }}
                       />
-                      <p class="meta">
-                        All RGB channels at or below the threshold become black.
-                      </p>
                     </fieldset>
                   </aside>
-                  <section>
+                  <section class="images" aria-label="Wallpaper framing">
                     <div class="source-wrap">
-                      ${this.manifest ? html`<img class="source" src=${this.manifest.source} alt="Source wallpaper preview" />` : html`<p>Preparing your source preview…</p>`}
+                      ${
+                        this.manifest
+                          ? html`<img
+                                class="source"
+                                src=${this.manifest.source}
+                                alt="Source wallpaper preview"
+                              />
+                              <p class="meta">${j.width} × ${j.height}</p>`
+                          : html`<p>Preparing your source preview…</p>`
+                      }
                     </div>
                     <div class="cards">
                       ${this.selected.map((d) => {
@@ -1131,9 +1299,10 @@ export class ShinApp extends LitElement {
                           }
                           <p class="meta">
                             ${d.width} ×
-                            ${d.height}${c.width < d.width || c.height < d.height ? html`<br /><span class="warning">This crop will be upscaled; detail may look softer.</span>` : nothing}
+                            ${d.height}${c.width < d.width || c.height < d.height ? html`<br /><span class="warning">Upscaled; detail may look softer.</span>` : nothing}
                           </p>
                           <wa-button
+                            appearance="outlined"
                             size="s"
                             @click=${() => {
                               this.manuallyPositioned.delete(d.id);
@@ -1165,41 +1334,42 @@ export class ShinApp extends LitElement {
         }
         ${
           this.page === 'download' && j
-            ? html`<div class="eyebrow">03 / Take it with you</div>
-                <h1>Ready for your screens.</h1>
-                <label class="name"
-                  >Wallpaper
-                  name${this.naming.state === 'succeeded' && !this.nameEdited ? html`<wa-icon class="ai-indicator" src=${aiSparkles} label="AI Powered" title="AI Powered"></wa-icon>` : nothing}<input
-                    type="text"
-                    .value=${this.name}
-                    @input=${(e: Event) => {
-                      this.nameEdited = true;
-                      this.name = (e.target as HTMLInputElement).value;
-                    }}
-                /></label>
-                <label
-                  ><input
-                    type="checkbox"
-                    .checked=${this.prefs.organizeIntoDeviceFolders}
-                    @change=${(e: Event) => {
-                      this.prefs = {
-                        ...this.prefs,
-                        organizeIntoDeviceFolders: (
-                          e.target as HTMLInputElement
-                        ).checked,
-                      };
-                      this.save();
-                    }}
-                  />
-                  Organize into device folders</label
-                >
-                <div class="download-actions">
-                  <wa-button
-                    variant="brand"
-                    ?disabled=${!usable}
-                    @click=${() => this.download(`/api/jobs/${j.id}/zip/${this.manifest!.revision}?name=${encodeURIComponent(this.safeName())}&organizeIntoDeviceFolders=${this.prefs.organizeIntoDeviceFolders}`, `${this.safeName()}.zip`)}
-                    >Download all: ${this.safeName()}.zip</wa-button
-                  >
+            ? html`<h1 class="sr-only">Download</h1>
+                <div class="delivery">
+                  <label class="name"
+                    >Wallpaper
+                    name${this.naming.state === 'succeeded' && !this.nameEdited ? html`<wa-icon class="ai-indicator" src=${aiSparkles} label="AI Powered" title="AI Powered"></wa-icon>` : nothing}<input
+                      type="text"
+                      .value=${this.name}
+                      @input=${(e: Event) => {
+                        this.nameEdited = true;
+                        this.name = (e.target as HTMLInputElement).value;
+                      }}
+                  /></label>
+                  <div class="download-actions">
+                    <label class="folder-choice"
+                      ><input
+                        type="checkbox"
+                        .checked=${this.prefs.organizeIntoDeviceFolders}
+                        @change=${(e: Event) => {
+                          this.prefs = {
+                            ...this.prefs,
+                            organizeIntoDeviceFolders: (
+                              e.target as HTMLInputElement
+                            ).checked,
+                          };
+                          this.save();
+                        }}
+                      />
+                      Organize into device folders</label
+                    >
+                    <wa-button
+                      variant="brand"
+                      ?disabled=${!usable}
+                      @click=${() => this.download(`/api/jobs/${j.id}/zip/${this.manifest!.revision}?name=${encodeURIComponent(this.safeName())}&organizeIntoDeviceFolders=${this.prefs.organizeIntoDeviceFolders}`, `${this.safeName()}.zip`)}
+                      >Download ZIP</wa-button
+                    >
+                  </div>
                 </div>
                 <div class="cards">
                   ${this.selected.map((d) => {
@@ -1209,6 +1379,7 @@ export class ShinApp extends LitElement {
                       ${usable ? html`<img class="output" src=${this.manifest!.outputs[d.id]!} alt=${`${d.name} final wallpaper`} />` : html`<p>Waiting for current output…</p>`}
                       <p class="meta">${filename}</p>
                       <wa-button
+                        appearance="outlined"
                         ?disabled=${!usable}
                         @click=${() => this.download(this.manifest!.outputs[d.id]!, filename)}
                         >Download PNG</wa-button
@@ -1218,6 +1389,7 @@ export class ShinApp extends LitElement {
                 </div>
                 <div class="actions">
                   <wa-button
+                    appearance="outlined"
                     @click=${() => {
                       this.page = 'processing';
                     }}
@@ -1233,7 +1405,7 @@ export class ShinApp extends LitElement {
         aria-atomic="true"
         class=${this.oledProcessing ? 'oled-toast' : ''}
       >
-        ${this.oledProcessing ? html`<wa-spinner aria-hidden="true"></wa-spinner><span>OLEDify processing… Updating previews and downloads.</span>` : nothing}
+        ${this.oledProcessing ? html`<wa-spinner aria-hidden="true"></wa-spinner><span>OLEDify processing…</span>` : nothing}
       </div>`;
   }
 }

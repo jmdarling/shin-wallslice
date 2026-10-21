@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Passepartout implementation review</title>
+    <style>
+      body {
+        font:
+          16px/1.6 system-ui,
+          sans-serif;
+        background: #f1f0f7;
+        color: #292438;
+        margin: 0;
+      }
+      main {
+        max-width: 1300px;
+        margin: auto;
+        padding: 32px 24px;
+      }
+      a {
+        color: #624696;
+      }
+      h1 {
+        font:
+          40px/1.2 Georgia,
+          serif;
+      }
+      h2 {
+        margin-top: 40px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+        gap: 20px;
+      }
+      .grid a {
+        display: block;
+        padding: 12px;
+        background: white;
+        border: 1px solid #867a98;
+        text-decoration: none;
+      }
+      .grid img {
+        display: block;
+        width: 100%;
+        height: 300px;
+        object-fit: contain;
+        object-position: top;
+      }
+      .grid span {
+        display: block;
+        margin-top: 12px;
+      }
+      p {
+        max-width: 80ch;
+      }
+      a:focus-visible {
+        outline: 3px solid #624696;
+        outline-offset: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p>shin-wallslice / v1.1.0</p>
+      <h1>Passepartout, with less text.</h1>
+      <p>
+        Actual running-application captures. Click any image for full size. The
+        original proposal is preserved alongside the implementation to show the
+        agreed copy reductions.
+      </p>
+      <p>
+        <a href="../README.md">Design decisions and adaptations</a> ·
+        <a href="../index.html">Original three directions</a> ·
+        <a href="http://127.0.0.1:5173/">Open the running app</a>
+      </p>
+      <h2>Proposal beside implementation</h2>
+      <div class="grid">
+        <a href="compare-input-light.png"
+          ><img
+            src="compare-input-light.png"
+            loading="lazy"
+            alt="input / desktop / light"
+          /><span>input / desktop / light</span></a
+        ><a href="compare-input-dark.png"
+          ><img
+            src="compare-input-dark.png"
+            loading="lazy"
+            alt="input / desktop / dark"
+          /><span>input / desktop / dark</span></a
+        ><a href="compare-processing-light.png"
+          ><img
+            src="compare-processing-light.png"
+            loading="lazy"
+            alt="processing / desktop / light"
+          /><span>processing / desktop / light</span></a
+        ><a href="compare-processing-dark.png"
+          ><img
+            src="compare-processing-dark.png"
+            loading="lazy"
+            alt="processing / desktop / dark"
+          /><span>processing / desktop / dark</span></a
+        ><a href="compare-download-light.png"
+          ><img
+            src="compare-download-light.png"
+            loading="lazy"
+            alt="download / desktop / light"
+          /><span>download / desktop / light</span></a
+        ><a href="compare-download-dark.png"
+          ><img
+            src="compare-download-dark.png"
+            loading="lazy"
+            alt="download / desktop / dark"
+          /><span>download / desktop / dark</span></a
+        >
+      </div>
+      <h2>Input</h2>
+      <div class="grid">
+        <a href="input-desktop-light.png"
+          ><img
+            src="input-desktop-light.png"
+            loading="lazy"
+            alt="input / desktop / light"
+          /><span>input / desktop / light</span></a
+        ><a href="input-desktop-dark.png"
+          ><img
+            src="input-desktop-dark.png"
+            loading="lazy"
+            alt="input / desktop / dark"
+          /><span>input / desktop / dark</span></a
+        ><a href="input-mobile-light.png"
+          ><img
+            src="input-mobile-light.png"
+            loading="lazy"
+            alt="input / mobile / light"
+          /><span>input / mobile / light</span></a
+        ><a href="input-mobile-dark.png"
+          ><img
+            src="input-mobile-dark.png"
+            loading="lazy"
+            alt="input / mobile / dark"
+          /><span>input / mobile / dark</span></a
+        ><a href="input-narrow-light.png"
+          ><img
+            src="input-narrow-light.png"
+            loading="lazy"
+            alt="input / narrow / light"
+          /><span>input / narrow / light</span></a
+        ><a href="input-narrow-dark.png"
+          ><img
+            src="input-narrow-dark.png"
+            loading="lazy"
+            alt="input / narrow / dark"
+          /><span>input / narrow / dark</span></a
+        >
+      </div>
+      <h2>Processing</h2>
+      <div class="grid">
+        <a href="processing-desktop-light.png"
+          ><img
+            src="processing-desktop-light.png"
+            loading="lazy"
+            alt="processing / desktop / light"
+          /><span>processing / desktop / light</span></a
+        ><a href="processing-desktop-dark.png"
+          ><img
+            src="processing-desktop-dark.png"
+            loading="lazy"
+            alt="processing / desktop / dark"
+          /><span>processing / desktop / dark</span></a
+        ><a href="processing-mobile-light.png"
+          ><img
+            src="processing-mobile-light.png"
+            loading="lazy"
+            alt="processing / mobile / light"
+          /><span>processing / mobile / light</span></a
+        ><a href="processing-mobile-dark.png"
+          ><img
+            src="processing-mobile-dark.png"
+            loading="lazy"
+            alt="processing / mobile / dark"
+          /><span>processing / mobile / dark</span></a
+        ><a href="processing-narrow-light.png"
+          ><img
+            src="processing-narrow-light.png"
+            loading="lazy"
+            alt="processing / narrow / light"
+          /><span>processing / narrow / light</span></a
+        ><a href="processing-narrow-dark.png"
+          ><img
+            src="processing-narrow-dark.png"
+            loading="lazy"
+            alt="processing / narrow / dark"
+          /><span>processing / narrow / dark</span></a
+        >
+      </div>
+      <h2>Download</h2>
+      <div class="grid">
+        <a href="download-desktop-light.png"
+          ><img
+            src="download-desktop-light.png"
+            loading="lazy"
+            alt="download / desktop / light"
+          /><span>download / desktop / light</span></a
+        ><a href="download-desktop-dark.png"
+          ><img
+            src="download-desktop-dark.png"
+            loading="lazy"
+            alt="download / desktop / dark"
+          /><span>download / desktop / dark</span></a
+        ><a href="download-mobile-light.png"
+          ><img
+            src="download-mobile-light.png"
+            loading="lazy"
+            alt="download / mobile / light"
+          /><span>download / mobile / light</span></a
+        ><a href="download-mobile-dark.png"
+          ><img
+            src="download-mobile-dark.png"
+            loading="lazy"
+            alt="download / mobile / dark"
+          /><span>download / mobile / dark</span></a
+        ><a href="download-narrow-light.png"
+          ><img
+            src="download-narrow-light.png"
+            loading="lazy"
+            alt="download / narrow / light"
+          /><span>download / narrow / light</span></a
+        ><a href="download-narrow-dark.png"
+          ><img
+            src="download-narrow-dark.png"
+            loading="lazy"
+            alt="download / narrow / dark"
+          /><span>download / narrow / dark</span></a
+        >
+      </div>
+      <h2>Long filename at 320px</h2>
+      <div class="grid">
+        <a href="long-name-320.png"
+          ><img
+            src="long-name-320.png"
+            loading="lazy"
+            alt="100-character name, unchanged ZIP action size"
+          /><span>100-character name, unchanged ZIP action size</span></a
+        >
+      </div>
+      <p>
+        <a href="verification.json"
+          >Real source, PNG, ZIP, framing, OLEDify, and persistence
+          verification</a
+        >
+      </p>
+    </main>
+  </body>
+</html>

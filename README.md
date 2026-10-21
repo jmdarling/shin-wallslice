@@ -188,7 +188,7 @@ Choose a source with enough resolution for your largest output. Orientation is n
   <img alt="Processing screen showing device choices, crop controls, and independent phone and tablet crop boundaries" src="docs/images/processing-light.png" width="1440">
 </picture>
 
-Select output devices in the left panel. Every crop has a fixed size and aspect ratio; position it to choose which part of the source to keep.
+Select output devices in the left panel (above the previews on mobile). The header marks the current stage. Every crop has a fixed size and aspect ratio; position it to choose which part of the source to keep.
 
 | Control                      | What it does                                                                                          |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------- |
@@ -205,7 +205,7 @@ First use selects entropy when AI is disabled and AI when enabled. An explicit e
 
 ### 3. Optionally OLEDify the shadows
 
-Enable **Turn near-black colors into true black** and move **Threshold** (0–255; default 16). A pixel becomes RGB `0, 0, 0` only when **all three RGB channels are at or below the threshold**, after resizing. Other pixels retain their RGB values. For example, at 32, `(20, 25, 30)` becomes black but `(20, 25, 40)` does not.
+Enable **True black shadows** under **OLEDify** and move **Threshold** (0–255; default 16). A pixel becomes RGB `0, 0, 0` only when **all three RGB channels are at or below the threshold**, after resizing. Other pixels retain their RGB values. For example, at 32, `(20, 25, 30)` becomes black but `(20, 25, 40)` does not.
 
 ![The same widescreen export before OLEDify and after OLEDify at threshold 32, showing the foreground shadows becoming true black](docs/images/oledify-comparison.png)
 
@@ -220,7 +220,7 @@ Previews update automatically. Wait for generation to finish before continuing o
   <img alt="Download screen with the editable name, ZIP download, and final device previews" src="docs/images/download-light.png" width="1440">
 </picture>
 
-Choose **Next: Download**, edit **Wallpaper name**, then download all outputs as a ZIP or save individual PNGs. The base name is normalized into a safe filename: slashes and unsupported characters become hyphens, leading/trailing dots or spacing are removed, length is capped at 100 characters, and an empty result becomes `wallpaper`.
+Choose **Next: Download**, edit **Wallpaper name**, then choose **Download ZIP** for all outputs or **Download PNG** on an individual preview. The base name is normalized into a safe filename: slashes and unsupported characters become hyphens, leading/trailing dots or spacing are removed, length is capped at 100 characters, and an empty result becomes `wallpaper`.
 
 For the name `Dusk Ridges`, individual files include `Dusk Ridges-iphone-18-pro-max.png`. ZIP organization changes only the archive's layout:
 
@@ -231,7 +231,7 @@ For the name `Dusk Ridges`, individual files include `Dusk Ridges-iphone-18-pro-
 
 Individual PNGs always retain the device suffix. Install the downloaded file as wallpaper using your device's normal wallpaper settings; shin-wallslice does not change device settings remotely. Outputs have exact pixel dimensions, but a device may still apply its own zoom or placement.
 
-**Back** preserves your current work. **Start over** discards the current image, positions, generated files, and edited name. Reload also starts at Input; only preferences survive. Appearance follows your browser/system light or dark preference, including changes while the app is open. There is no manual theme setting.
+**Back to Processing** preserves your current work. **Start over** discards the current image, positions, generated files, and edited name. Reload also starts at Input; only preferences survive. Appearance follows your browser/system light or dark preference, including changes while the app is open. There is no manual theme setting.
 
 ## Devices and output sizes
 

@@ -1,7 +1,7 @@
 # Release operations
 
 The release workflow publishes `ghcr.io/jmdarling/shin-wallslice`. The initial
-version is **1.0.0**. The repository currently has prepared distribution files;
+version is **1.0.0** and its public image is published;
 [the evidence ledger](v1.0.0-evidence.md) distinguishes local checks from real
 publication, account settings, and NAS verification.
 
@@ -75,7 +75,12 @@ publication, account settings, and NAS verification.
 
 ## Failures and exact-artifact recovery
 
-Before exact publication, failures leave stable aliases unchanged. Fix the problem
+Before exact publication, failures leave stable aliases unchanged.
+If parallel jobs race to create the initial GHCR package and one manifest push is
+denied, first verify the package is linked to this repository and has Actions
+write access. Retry only the failed job with a fresh token after creation; no
+exact release tag exists at that point. Do not broaden credentials to bypass a
+package ACL failure. Fix the problem
 and rerun only after inspecting diagnostics. Candidate tags are unique per run and
 attempt. Delete unused candidate package versions only after confirming no release
 manifest references them. Never delete an exact release to disguise replacement.

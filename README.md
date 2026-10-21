@@ -45,14 +45,13 @@ shin-wallslice runs on your own server in a single container. Cropping and expor
 ### Choose an installation
 
 **Unraid:** [import the supplied template and Apply](docs/unraid.md). Community
-Applications listing is pending. No source checkout or build is needed after
-public image publication.
+Applications listing is pending. No source checkout or build is needed.
 
-**Publication status:** v1.0.0 distribution files are prepared, but public GHCR
-publication and anonymous pulls are still pending verification. The commands below
-are the intended registry installation path and require that first publication.
-See the [release evidence](docs/maintainers/v1.0.0-evidence.md) and
-[maintainer handoff](docs/maintainers/releases.md) for current prerequisites.
+**Version 1.0.0 is available as a public image** for Linux amd64 and arm64. The
+commands below install it without registry login. See the
+[release](https://github.com/jmdarling/shin-wallslice/releases/tag/v1.0.0) and
+[verified distribution evidence](docs/maintainers/v1.0.0-evidence.md) for the exact
+digest, native runtime checks, SBOM/provenance, and vulnerability reports.
 
 Allow **4 GiB application RAM** and **4 GiB free writable temporary disk**. One
 image supports Linux amd64 and arm64. Ordinary processing works without AI or
@@ -594,7 +593,7 @@ pnpm --filter @shin-wallslice/client exec playwright install --with-deps chromiu
 | `pnpm typecheck`    | Explicit strict TypeScript checks, including tests                        |
 | `pnpm test`         | Fastify injection tests and Lit Browser Mode tests in Playwright Chromium |
 | `pnpm build`        | Vite production client and compiled server                                |
-| `pnpm check`        | All five checks above                                                     |
+| `pnpm check`        | All checks above plus distribution validation                             |
 
 ### Container verification
 

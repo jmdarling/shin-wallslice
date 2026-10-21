@@ -1,0 +1,104 @@
+{
+  "version": "1.2.0",
+  "date": "2026-10-21",
+  "revision": "99eac7c14b37b5a376729d33071c558314195cf1",
+  "digest": "sha256:d455ebecbc0bf3698cfc9c009389e5dc6445e562bdfe5dd0fbce9262e62513eb",
+  "release": "https://github.com/jmdarling/shin-wallslice/releases/tag/v1.2.0",
+  "workflow": "https://github.com/jmdarling/shin-wallslice/actions/runs/39678180418",
+  "pullRequest": "https://github.com/jmdarling/shin-wallslice/pull/12",
+  "sourceTests": {
+    "server": 119,
+    "chromium": 69
+  },
+  "nativePlatforms": ["linux/amd64", "linux/arm64"],
+  "nativeFullSmokeSources": ["7680x4320", "8192x4320"],
+  "containerPersistence": "Named volume and dedicated engine-host bind; UID/GID 1000, both output layouts, ZIP bytes, conflicts, job cleanup and container replacement passed",
+  "anonymousRegistry": {
+    "image": "ghcr.io/jmdarling/shin-wallslice",
+    "version": "1.2.0",
+    "digest": "sha256:d455ebecbc0bf3698cfc9c009389e5dc6445e562bdfe5dd0fbce9262e62513eb",
+    "revision": "99eac7c14b37b5a376729d33071c558314195cf1",
+    "tags": {
+      "1.2.0": "sha256:d455ebecbc0bf3698cfc9c009389e5dc6445e562bdfe5dd0fbce9262e62513eb",
+      "1": "sha256:d455ebecbc0bf3698cfc9c009389e5dc6445e562bdfe5dd0fbce9262e62513eb",
+      "1.2": "sha256:d455ebecbc0bf3698cfc9c009389e5dc6445e562bdfe5dd0fbce9262e62513eb",
+      "latest": "sha256:d455ebecbc0bf3698cfc9c009389e5dc6445e562bdfe5dd0fbce9262e62513eb"
+    },
+    "preservedTags": {
+      "1.1.0": "sha256:bd834e9e485e3ca43180da77899fe6ca2a10e080635d8ab5398d238c101bbd10",
+      "1.1": "sha256:bd834e9e485e3ca43180da77899fe6ca2a10e080635d8ab5398d238c101bbd10",
+      "1.0.1": "sha256:859060219b94b46441de6787a6fff4bce849cd9b475be253e1aef1241d1fbe46",
+      "1.0": "sha256:859060219b94b46441de6787a6fff4bce849cd9b475be253e1aef1241d1fbe46"
+    },
+    "platforms": ["amd64", "arm64"],
+    "attestations": [
+      {
+        "architecture": "amd64",
+        "runtimeDigest": "sha256:7e243f42c306a10b366c4f57ebd1db724e71e48e460e820fac14ebff18f9f376",
+        "predicates": [
+          "https://slsa.dev/provenance/v1",
+          "https://spdx.dev/Document"
+        ]
+      },
+      {
+        "architecture": "arm64",
+        "runtimeDigest": "sha256:96b3063486a25475659af7d24e60b330babe9b7e16cdbf180eb43e5d125c8dad",
+        "predicates": [
+          "https://slsa.dev/provenance/v1",
+          "https://spdx.dev/Document"
+        ]
+      }
+    ],
+    "anonymous": true
+  },
+  "scans": {
+    "amd64": {
+      "severityInstances": {
+        "CRITICAL": 0,
+        "HIGH": 43,
+        "MEDIUM": 58,
+        "LOW": 60,
+        "UNKNOWN": 1
+      },
+      "highCriticalAdvisories": [
+        "CVE-2025-69720",
+        "CVE-2026-16742",
+        "CVE-2026-54369",
+        "CVE-2026-76642",
+        "CVE-2026-78408",
+        "CVE-2026-78409",
+        "CVE-2026-78410",
+        "CVE-2026-9538"
+      ],
+      "unreviewedHighCriticalAdvisories": [],
+      "fixableHighCritical": 0,
+      "nodePackageInstances": 0
+    },
+    "arm64": {
+      "severityInstances": {
+        "CRITICAL": 0,
+        "HIGH": 43,
+        "MEDIUM": 58,
+        "LOW": 60,
+        "UNKNOWN": 1
+      },
+      "highCriticalAdvisories": [
+        "CVE-2025-69720",
+        "CVE-2026-16742",
+        "CVE-2026-54369",
+        "CVE-2026-76642",
+        "CVE-2026-78408",
+        "CVE-2026-78409",
+        "CVE-2026-78410",
+        "CVE-2026-9538"
+      ],
+      "unreviewedHighCriticalAdvisories": [],
+      "fixableHighCritical": 0,
+      "nodePackageInstances": 0
+    }
+  },
+  "limitations": [
+    "No actual Unraid/NAS hardware was exercised.",
+    "Unfixed findings remain; successful gate does not mean zero vulnerabilities."
+  ]
+}

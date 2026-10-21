@@ -19,7 +19,7 @@ shin-wallslice runs on your own server in a single container. Cropping and expor
 
 - **Fit your screens:** six bundled device presets, independent crop positioning, and exact output dimensions.
 - **Choose your framing:** local Smart (entropy), five anchors, or optional Smart (AI), with pointer, touch, and keyboard adjustments.
-- **Make shadows black:** OLEDify turns near-black pixels into true black with an adjustable threshold.
+- **Make shadows black:** OLEDify automatically recommends per-image defaults locally, optionally refines the cutoff with AI, and keeps manual control available.
 - **Take the results:** lossless PNGs individually or in a ZIP, optionally organized into device folders. Configure an output directory to save the same files directly to your server, with confirmation before replacement.
 - **Feel at home:** automatic light/dark appearance and preferences remembered on your server.
 
@@ -47,10 +47,10 @@ shin-wallslice runs on your own server in a single container. Cropping and expor
 **Unraid:** [import the supplied template and Apply](docs/unraid.md). Community
 Applications listing is pending. No source checkout or build is needed.
 
-**Install version 1.2.0** for Linux amd64 and arm64. The
+**Install version 1.3.0** for Linux amd64 and arm64. The
 commands below install it without registry login. See the
-[release](https://github.com/jmdarling/shin-wallslice/releases/tag/v1.2.0) and
-[1.2.0 changes](docs/maintainers/v1.2.0-release-notes.md). The release records the
+[release](https://github.com/jmdarling/shin-wallslice/releases/tag/v1.3.0) and
+[1.3.0 changes](docs/maintainers/v1.3.0-release-notes.md). The release records the
 exact digest, native runtime checks, SBOM/provenance, and vulnerability reports.
 
 Allow **4 GiB application RAM** and **4 GiB free writable temporary disk**. One
@@ -73,7 +73,7 @@ docker run -d \
   --memory=4g \
   -p 8080:3000 \
   --mount type=volume,src=shin-wallslice-data,dst=/data \
-  ghcr.io/jmdarling/shin-wallslice:1.2.0
+  ghcr.io/jmdarling/shin-wallslice:1.3.0
 ```
 
 Open [http://localhost:8080](http://localhost:8080), or
@@ -100,7 +100,7 @@ is needed. Its contents are:
 ```yaml
 services:
   wallslice:
-    image: ghcr.io/jmdarling/shin-wallslice:1.2.0
+    image: ghcr.io/jmdarling/shin-wallslice:1.3.0
     container_name: shin-wallslice
     restart: unless-stopped
     mem_limit: 4g
@@ -205,7 +205,13 @@ First use selects entropy when AI is disabled and AI when enabled. An explicit e
 
 ### 3. Optionally OLEDify the shadows
 
-Enable **True black shadows** under **OLEDify** and move **Threshold** (0–255; default 16). A pixel becomes RGB `0, 0, 0` only when **all three RGB channels are at or below the threshold**, after resizing. Other pixels retain their RGB values. For example, at 32, `(20, 25, 30)` becomes black but `(20, 25, 40)` does not.
+Every accepted image starts with fresh defaults: OLEDify on at cutoff **16** when at least **15%** of visible pixels in the full normalized sRGB source have **all three channels ≤32**; otherwise off at 16. The cutoff and percentage comparisons include their boundaries. Fully transparent pixels are excluded from both counts. This percentage is a candidate heuristic, not measured device-energy savings. Device selection and crop positions do not affect it.
+
+With AI enabled, candidates immediately use that local fallback while a bounded original/trial comparison search refines one shared cutoff across all outputs. Noncandidates skip the search. Feedback near OLEDify explains local, pending, completed, skipped, and failed results. You can continue to Download, download PNG/ZIP, or save to the server while it runs. AI may recommend leaving OLEDify off if no effective conversion is accepted. The judgment is best effort, not a guarantee of a globally optimal cutoff or artifact-free output; inspect your previews.
+
+Change **True black shadows** or **Threshold** to take manual control of both settings for this image. Even restoring the original value protects your choices from late results and Retry. Recommendations remain visible. Navigation, devices, and crops preserve manual choices; a new image resets them. Previously saved OLEDify preferences never override the new image's defaults. Other preferences retain their behavior.
+
+Use **True black shadows** under **OLEDify** and move **Threshold** (0–255; fallback 16). A pixel becomes RGB `0, 0, 0` only when **all three RGB channels are at or below the threshold**, after resizing. Other pixels retain their RGB values. For example, at 32, `(20, 25, 30)` becomes black but `(20, 25, 40)` does not.
 
 ![The same widescreen export before OLEDify and after OLEDify at threshold 32, showing the foreground shadows becoming true black](docs/images/oledify-comparison.png)
 
@@ -361,7 +367,7 @@ docker run -d \
   -p 8080:3000 \
   --mount type=volume,src=shin-wallslice-data,dst=/data \
   --mount type=bind,src="$(pwd)/config/local.json",dst=/config/config.json,readonly \
-  ghcr.io/jmdarling/shin-wallslice:1.2.0
+  ghcr.io/jmdarling/shin-wallslice:1.3.0
 ```
 
 Use the absolute path to your private JSON file in the mount source. The file must exist and be readable by UID 1000; its parent directories must be traversable by that user. Protect files containing tokens from other users while granting that read access. The application does not need write access to `/config`. Do not place private files elsewhere in the build context and assume they will be ignored.
@@ -381,6 +387,9 @@ These are the shipped local defaults:
   "temporaryStorageMiB": 4096,
   "jobTtlMinutes": 30,
   "maxJobs": 4,
+  "oledMinimumDarkPercentage": 15,
+  "oledNearBlackCutoff": 32,
+  "oledMaxVisionRequests": 8,
   "ai": { "enabled": false }
 }
 ```
@@ -400,28 +409,37 @@ The optional `outputDirectory` setting is intentionally omitted from defaults. T
 | `jobTtlMinutes`       | Integer 1–1440; idle lifetime, default 30 minutes                                                                                                                                                                                    |
 | `maxJobs`             | Integer 1–16; upper bound on temporary jobs, further reduced by the storage budget                                                                                                                                                   |
 
+| `oledMinimumDarkPercentage` | Finite percentage in **0–100 percentage points**, default **15**, fractions allowed (15 means 15%, not 0.15). |
+| `oledNearBlackCutoff` | Integer **0–255**, default **32**; inclusive per-channel local classification cutoff. |
+| `oledMaxVisionRequests` | Finite positive integer **1–8**, default **8**; maximum comparisons per automatic search or explicit Retry. |
+
+These v1.3.0 settings use the same file precedence and startup validation, support partial read-only JSON, and require a restart. For example, a mounted override may contain only `{"oledMinimumDarkPercentage":25,"oledNearBlackCutoff":24,"oledMaxVisionRequests":4}`. For Docker add `-e SHIN_WALLSLICE_OLED_MAX_VISION_REQUESTS=4`; for Compose add `SHIN_WALLSLICE_OLED_MAX_VISION_REQUESTS: '4'` under the service's `environment:` mapping. AI remains disabled unless explicitly enabled. Older releases reject these JSON keys; remove them when rolling back.
+
 ### Environment variables
 
 Set these on the process or container. Unset variables preserve JSON/default values; each supplied variable overrides its own field and preserves sibling fields. The app recognizes only these names for runtime configuration.
 
-| Setting               | Environment variable                   | Parsing                                                                     |
-| --------------------- | -------------------------------------- | --------------------------------------------------------------------------- |
-| `host`                | `SHIN_WALLSLICE_HOST`                  | Nonempty string                                                             |
-| `port`                | `SHIN_WALLSLICE_PORT`                  | Integer 1–65535                                                             |
-| `logLevel`            | `SHIN_WALLSLICE_LOG_LEVEL`             | Exact lowercase level listed above                                          |
-| `dataDirectory`       | `SHIN_WALLSLICE_DATA_DIRECTORY`        | Nonempty path                                                               |
-| `outputDirectory`     | `SHIN_WALLSLICE_OUTPUT_DIRECTORY`      | Nonempty path; omit to disable saving                                       |
-| `temporaryDirectory`  | `SHIN_WALLSLICE_TEMPORARY_DIRECTORY`   | Nonempty path                                                               |
-| `memoryBudgetMiB`     | `SHIN_WALLSLICE_MEMORY_BUDGET_MIB`     | Integer 1024–3072                                                           |
-| `temporaryStorageMiB` | `SHIN_WALLSLICE_TEMPORARY_STORAGE_MIB` | Integer 1024–65536                                                          |
-| `jobTtlMinutes`       | `SHIN_WALLSLICE_JOB_TTL_MINUTES`       | Integer 1–1440                                                              |
-| `maxJobs`             | `SHIN_WALLSLICE_MAX_JOBS`              | Integer 1–16                                                                |
-| `ai.enabled`          | `SHIN_WALLSLICE_AI_ENABLED`            | Exactly `true` or `false`                                                   |
-| `ai.baseUrl`          | `SHIN_WALLSLICE_AI_BASE_URL`           | HTTP(S) URL without credentials, query, fragment, or surrounding whitespace |
-| `ai.model`            | `SHIN_WALLSLICE_AI_MODEL`              | Nonempty string                                                             |
-| `ai.token`            | `SHIN_WALLSLICE_AI_TOKEN`              | String without line breaks; empty clears the optional bearer token          |
+| Setting                     | Environment variable                          | Parsing                                                                     |
+| --------------------------- | --------------------------------------------- | --------------------------------------------------------------------------- |
+| `host`                      | `SHIN_WALLSLICE_HOST`                         | Nonempty string                                                             |
+| `port`                      | `SHIN_WALLSLICE_PORT`                         | Integer 1–65535                                                             |
+| `logLevel`                  | `SHIN_WALLSLICE_LOG_LEVEL`                    | Exact lowercase level listed above                                          |
+| `dataDirectory`             | `SHIN_WALLSLICE_DATA_DIRECTORY`               | Nonempty path                                                               |
+| `outputDirectory`           | `SHIN_WALLSLICE_OUTPUT_DIRECTORY`             | Nonempty path; omit to disable saving                                       |
+| `temporaryDirectory`        | `SHIN_WALLSLICE_TEMPORARY_DIRECTORY`          | Nonempty path                                                               |
+| `memoryBudgetMiB`           | `SHIN_WALLSLICE_MEMORY_BUDGET_MIB`            | Integer 1024–3072                                                           |
+| `temporaryStorageMiB`       | `SHIN_WALLSLICE_TEMPORARY_STORAGE_MIB`        | Integer 1024–65536                                                          |
+| `jobTtlMinutes`             | `SHIN_WALLSLICE_JOB_TTL_MINUTES`              | Integer 1–1440                                                              |
+| `maxJobs`                   | `SHIN_WALLSLICE_MAX_JOBS`                     | Integer 1–16                                                                |
+| `oledMinimumDarkPercentage` | `SHIN_WALLSLICE_OLED_MINIMUM_DARK_PERCENTAGE` | Unsigned decimal percentage 0–100, fractions allowed; default 15            |
+| `oledNearBlackCutoff`       | `SHIN_WALLSLICE_OLED_NEAR_BLACK_CUTOFF`       | Integer 0–255; default 32                                                   |
+| `oledMaxVisionRequests`     | `SHIN_WALLSLICE_OLED_MAX_VISION_REQUESTS`     | Integer 1–8; default 8                                                      |
+| `ai.enabled`                | `SHIN_WALLSLICE_AI_ENABLED`                   | Exactly `true` or `false`                                                   |
+| `ai.baseUrl`                | `SHIN_WALLSLICE_AI_BASE_URL`                  | HTTP(S) URL without credentials, query, fragment, or surrounding whitespace |
+| `ai.model`                  | `SHIN_WALLSLICE_AI_MODEL`                     | Nonempty string                                                             |
+| `ai.token`                  | `SHIN_WALLSLICE_AI_TOKEN`                     | String without line breaks; empty clears the optional bearer token          |
 
-Integers accept only unsigned decimal digits with no whitespace, sign, leading zeros (except `0`), exponent, fraction, or hex notation, and must satisfy their ranges. Strings are used as supplied; whitespace-only strings are invalid except for the token. Empty `ai.baseUrl` and `ai.model` environment values are treated as unset, preserving JSON/default values (1.0.1+). Empty values remain invalid for other settings except `ai.token`, where empty clears the token. Boolean values are case-sensitive. Invalid input fails startup with a nonzero exit. Environment `SHIN_WALLSLICE_AI_ENABLED=false` prevents AI requests even when JSON enables AI. Local and container starts share these rules. Unrelated environment variables have no effect.
+The percentage accepts decimal digits with an optional fractional part, without signs, whitespace, exponents, or leading zeros. Integers accept only unsigned decimal digits with no whitespace, sign, leading zeros (except `0`), exponent, fraction, or hex notation, and must satisfy their ranges. Strings are used as supplied; whitespace-only strings are invalid except for the token. Empty `ai.baseUrl` and `ai.model` environment values are treated as unset, preserving JSON/default values (1.0.1+). Empty values remain invalid for other settings except `ai.token`, where empty clears the token. Boolean values are case-sensitive. Invalid input fails startup with a nonzero exit. Environment `SHIN_WALLSLICE_AI_ENABLED=false` prevents AI requests even when JSON enables AI. Local and container starts share these rules. Unrelated environment variables have no effect.
 
 A complete non-AI environment-based example, using container port 3456 instead of 3000:
 
@@ -435,7 +453,7 @@ docker run -d \
   -e SHIN_WALLSLICE_HOST=0.0.0.0 \
   -e SHIN_WALLSLICE_PORT=3456 \
   -e SHIN_WALLSLICE_AI_ENABLED=false \
-  ghcr.io/jmdarling/shin-wallslice:1.2.0
+  ghcr.io/jmdarling/shin-wallslice:1.3.0
 ```
 
 This replaces the quick-start container, rather than running alongside it. The browser still uses port 8080. The built-in health check reads the effective configuration, including the overridden port.
@@ -475,9 +493,13 @@ Restart/recreate as appropriate, then upload an image to exercise the service. P
 
 ### What leaves your server
 
-**Enabling AI automatically submits an image representation for both naming and subject detection after every accepted upload**, including paste and drag-and-drop, regardless of the selected crop method. Rejected images trigger neither task. Your configured provider receives these image requests; choosing entropy while AI remains enabled does not prevent submission.
+**Enabling AI automatically submits an image representation for both naming and subject detection after every accepted upload**, including paste and drag-and-drop, regardless of the selected crop method. Rejected images trigger no analysis task. Your configured provider receives these image requests; choosing entropy while AI remains enabled does not prevent submission.
 
 The representation is the full oriented source **before cropping or OLEDify**, resized without enlargement to fit 1024 × 1024, flattened onto white, and encoded as JPEG quality 80, at most 2 MiB. Preparation has a 30-second processing timeout. Each task has a 30-second total request timeout and a 64 KiB response limit. Redirects are rejected to avoid forwarding credentials. Tasks share one retained representation per temporary job, and there is no automatic retry loop.
+
+**Local candidates additionally trigger OLEDify comparison search**, independent of naming/detection. Each evaluation submits two clearly labeled images: the original full composition and an actual OLEDified trial at the supplied cutoff. A retained sRGB RGBA representation fits within **1024 × 1024** without enlargement. Unlike the naming JPEG it remains raw/lossless, preserving shadows; trials use the inclusive all-RGB-channel rule, then composite both images on white for consistent transparency display and encode lossless PNG, each bounded to **5 MiB**. Preparation times out after 30 seconds. Final device outputs still apply OLEDify after their own exact resizing; bounded comparisons cannot reveal every full-resolution artifact.
+
+The integer search spans **0–255**, raises the lower bound for acceptable trials and lowers the upper bound for unacceptable trials, returning the highest actually evaluated acceptable cutoff that changes visible pixels. It stops on convergence or after `oledMaxVisionRequests` (default **8**, range **1–8**). Each request has a **30-second** timeout and **64 KiB** response limit; a search attempt is capped at **270 seconds** (including any Retry preparation), with up to **30 seconds** of initial comparison preparation during upload (at most **300 seconds** combined). Individual PNG encodes also have a 5-second processing timeout. There is no automatic retry loop. Multiple original/trial submissions can increase provider cost and latency. Your vision service must support **two image inputs in one request** and the requested JSON judgment. Unsupported comparisons, malformed judgments, timeouts, authentication/rate-limit/connection failures keep the local result and offer **Retry OLEDify analysis**, starting a new bounded attempt. Partial search results are not applied. Local analysis failure leaves manual controls usable and explicitly reports failure.
 
 Connection settings and tokens stay server-side. They are not sent to the browser, saved in preferences, or included in health responses, client assets, or diagnostics. People who can inspect host/container configuration can still read environment secrets. Keep tokens out of Git, shared shell history, screenshots, and support reports. The ignored `config/local.json` is a convenience for private configuration, not a secret vault.
 
@@ -485,6 +507,7 @@ Connection settings and tokens stay server-side. They are not sent to the browse
 
 | Task              | Normal behavior                                                                      | Pending or failure                                                                                                                              |
 | ----------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| OLEDify           | Recommends a shared cutoff or off for local candidates; best effort                  | Local defaults and all downloads remain usable. Failure offers **Retry OLEDify analysis**. Manual edits protect both settings.                  |
 | Naming            | Suggests roughly three meaningful words; may recognize a show/game when identifiable | Keep editing or downloading. A failure retains the current name and offers **Retry AI naming**.                                                 |
 | Subject detection | Frames the main subject or coherent group for each selected device                   | Entropy previews remain usable. A service failure offers **Retry subject detection**; no clear subject uses entropy with an inline explanation. |
 
@@ -492,7 +515,7 @@ Recognition and framing are best effort. The app preserves the whole detected su
 
 A late detection result changes only untouched selected crops while AI is the active method. Dragging counts as an edit even if you return to the initial position. Reset position restores that device using the current method and makes it eligible for a pending result. Switching to entropy or an anchor prevents a late AI result from changing those crops; switching back uses the available result. A fallback does not silently replace your saved AI preference with entropy.
 
-A suggested name replaces the original/default only if you have **never edited the name field**. Clearing it or restoring the original text still counts as editing. Naming and detection run independently; retrying one does not restart the other. Results are reused within the job rather than re-requested when choosing devices, resetting crops, changing OLEDify, or navigating. Starting over, expiry, shutdown, or a new workflow prevents stale results from being applied later.
+A suggested name replaces the original/default only if you have **never edited the name field**. Clearing it or restoring the original text still counts as editing. Naming, detection, and OLEDify analysis run independently; retrying one does not restart the other. Results are reused within the job rather than re-requested when choosing devices, resetting crops, changing OLEDify, or navigating. Starting over, expiry, shutdown, or a new workflow prevents stale results from being applied later.
 
 When a crop changes, the app regenerates matching previews/exports before enabling downloads. An already initiated download retains the framing/name selected when it began.
 
@@ -519,9 +542,9 @@ Containers keep `/tmp/shin-wallslice` in their writable layer by default. For NA
 
 ## Persistence and privacy
 
-| Retained in `/data/preferences.json` (container)                                           | Temporary only                                                                                                    |
-| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| Device selections, global method/anchor, OLEDify enable/threshold, ZIP folder organization | Uploaded source, manual crop positions, edited name, previews, PNGs/ZIPs, AI suggestions/detection/representation |
+| Retained in `/data/preferences.json` (container)                                                                         | Temporary only                                                                                                                             |
+| ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Device selections, global method/anchor, legacy OLEDify enable/threshold (superseded on upload), ZIP folder organization | Uploaded source, manual crop positions, edited name, previews, PNGs/ZIPs, AI suggestions/detection/OLEDify recommendations/representations |
 
 Preferences are shared by everyone using this installation. They survive reloads and restarts if the data directory is retained; an absent folder-organization choice defaults to unchecked. There are no accounts or separate per-user preferences. Reload begins at Input rather than restoring a job.
 
@@ -536,16 +559,16 @@ The image defaults to non-root `node` with UID/GID 1000. The [Unraid template](d
 ### Update and roll back
 
 Back up preferences, private configuration, and any persistent output directories; download or save active outputs first.
-Examples pin `:1.2.0` for reproducibility. To upgrade, choose a newer verified exact
+Examples pin `:1.3.0` for reproducibility. To upgrade, choose a newer verified exact
 version from the release notes, replace the image tag in your run/Compose settings,
 and recreate using the same data volume, ports, and optional configuration.
-Alternatively `:1`, `:1.2`, or `:latest` track their stable release series.
+Alternatively `:1`, `:1.3`, or `:latest` track their stable release series.
 Publication makes images available; it never automatically updates your server.
 
 For Docker run:
 
 ```sh
-docker pull ghcr.io/jmdarling/shin-wallslice:1.2.0
+docker pull ghcr.io/jmdarling/shin-wallslice:1.3.0
 docker stop shin-wallslice
 docker rm shin-wallslice
 ```
@@ -556,14 +579,18 @@ image tag, then `docker compose pull` and `docker compose up -d` from the same p
 With Unraid use Check for Updates → Update, retaining appdata. To pin or roll back,
 choose a previously verified exact version/digest in Repository and Apply.
 
-Version 1.2.0 adds optional `outputDirectory` configuration; existing preferences
-remain compatible. To roll back, choose `ghcr.io/jmdarling/shin-wallslice:1.1.0`,
-remove `outputDirectory` from JSON and `SHIN_WALLSLICE_OUTPUT_DIRECTORY` from the
-environment, and recreate with the same data/output mounts and other settings.
-Older versions reject the new JSON key. Retained saved PNGs remain ordinary files,
-even though the older app cannot save more. Download active outputs before switching versions. After replacement
-check health, WebUI, and saved preferences. See [source builds and development](#development-and-verification) for
-local-only updates.
+Version 1.3.0 adds automatic per-image OLEDify defaults and optional AI cutoff
+search. Existing configuration works; saved OLEDify enable/cutoff values are now
+superseded by each new image's automatic defaults. Other preferences retain their
+behavior. To roll back to `ghcr.io/jmdarling/shin-wallslice:1.2.0`, remove
+`oledMinimumDarkPercentage`, `oledNearBlackCutoff`, and `oledMaxVisionRequests`
+from JSON and their `SHIN_WALLSLICE_OLED_` environment overrides, then recreate
+with the same data/output mounts and other settings. Older versions reject the
+new JSON keys. To roll back below 1.2.0, also remove `outputDirectory` and
+`SHIN_WALLSLICE_OUTPUT_DIRECTORY`; retained saved PNGs remain ordinary files.
+Download active outputs before switching versions. After replacement check
+health, WebUI, and saved preferences. See [source builds and development](#development-and-verification)
+for local-only updates.
 
 ### Back up and restore
 
@@ -588,7 +615,7 @@ docker cp ./wallslice-backup/. shin-wallslice:/data/
 # Restore ownership on this dedicated volume before starting:
 docker run --rm --user 0 \
   --mount type=volume,src=shin-wallslice-data,dst=/data \
-  ghcr.io/jmdarling/shin-wallslice:1.2.0 true
+  ghcr.io/jmdarling/shin-wallslice:1.3.0 true
 docker start shin-wallslice
 ```
 
@@ -629,6 +656,7 @@ Compose equivalents are `docker compose logs --tail 100 wallslice` and `docker c
 | Temporary wallpaper expired / outputs no longer current | For expiry or restart, start over and upload again. For stale outputs, wait for the current generation and retry from the app rather than reusing an old download URL.                                                                                                                                                                                         |
 | Pasting does nothing                                    | Ensure Input is active and the clipboard contains actual image data. Browser/OS clipboard formats vary; use Choose File or drag-and-drop instead.                                                                                                                                                                                                              |
 | AI option missing                                       | AI defaults to disabled. Configure a vision endpoint/model and enable it, then restart/recreate. Check whether an environment `false` overrides JSON.                                                                                                                                                                                                          |
+| OLEDify analysis fails                                  | Check vision support for two simultaneous images and strict JSON judgments; Retry starts a new bounded attempt. Manual edits remain protected. Downloads use current previews.                                                                                                                                                                                 |
 | AI naming/detection fails                               | Check the server-reachable API base URL, appended `/chat/completions` path, image-capable model, credentials, provider rate limits, and firewall. `localhost` inside a container points to that container. Fix the service/configuration, restart if settings changed, then Retry or upload again.                                                             |
 | AI waits, finds no subject, or gives poor framing       | Requests time out after 30 seconds. No clear subject is a normal entropy fallback. Continue locally, move crops manually, or retry a failed task. Naming and detection can fail independently.                                                                                                                                                                 |
 | Memory kill or filesystem-full error                    | Check the host/container memory limit, effective planning budgets, free disk, and Docker writable-layer capacity. Reduce source dimensions or provide more resources; retry after recovery.                                                                                                                                                                    |

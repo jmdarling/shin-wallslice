@@ -10,5 +10,8 @@
   "maxJobs": 4,
   "ai": {
     "enabled": false
-  }
+  },
+  "oledMinimumDarkPercentage": 15,
+  "oledNearBlackCutoff": 32,
+  "oledMaxVisionRequests": 8
 }

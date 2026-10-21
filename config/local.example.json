@@ -1,4 +1,7 @@
 {
+  "oledMinimumDarkPercentage": 15,
+  "oledNearBlackCutoff": 32,
+  "oledMaxVisionRequests": 8,
   "outputDirectory": "./output",
   "ai": {
     "enabled": true,

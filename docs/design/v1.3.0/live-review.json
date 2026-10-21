@@ -1,0 +1,162 @@
+{
+  "kind": "live configured provider, not mocked",
+  "date": "2026-10-21",
+  "cases": [
+    {
+      "name": "dusk-ridges",
+      "local": {
+        "candidate": false,
+        "darkPercentage": 13.36703125
+      },
+      "result": {
+        "oled": false,
+        "threshold": 16,
+        "evaluated": [],
+        "skipped": true
+      },
+      "original": "dusk-ridges-original.png",
+      "recommendation": "dusk-ridges-recommended.png"
+    },
+    {
+      "name": "earthrise",
+      "local": {
+        "candidate": true,
+        "darkPercentage": 77.7220703125
+      },
+      "result": {
+        "oled": true,
+        "threshold": 107,
+        "evaluated": [
+          {
+            "cutoff": 127,
+            "acceptable": false
+          },
+          {
+            "cutoff": 63,
+            "acceptable": true
+          },
+          {
+            "cutoff": 95,
+            "acceptable": true
+          },
+          {
+            "cutoff": 111,
+            "acceptable": false
+          },
+          {
+            "cutoff": 103,
+            "acceptable": true
+          },
+          {
+            "cutoff": 107,
+            "acceptable": true
+          },
+          {
+            "cutoff": 109,
+            "acceptable": false
+          },
+          {
+            "cutoff": 108,
+            "acceptable": false
+          }
+        ]
+      },
+      "original": "earthrise-original.png",
+      "recommendation": "earthrise-recommended.png"
+    },
+    {
+      "name": "shadow-gradient-edges",
+      "local": {
+        "candidate": true,
+        "darkPercentage": 61.3965
+      },
+      "result": {
+        "oled": true,
+        "threshold": 11,
+        "evaluated": [
+          {
+            "cutoff": 127,
+            "acceptable": false
+          },
+          {
+            "cutoff": 63,
+            "acceptable": false
+          },
+          {
+            "cutoff": 31,
+            "acceptable": false
+          },
+          {
+            "cutoff": 15,
+            "acceptable": false
+          },
+          {
+            "cutoff": 7,
+            "acceptable": true
+          },
+          {
+            "cutoff": 11,
+            "acceptable": true
+          },
+          {
+            "cutoff": 13,
+            "acceptable": false
+          },
+          {
+            "cutoff": 12,
+            "acceptable": false
+          }
+        ]
+      },
+      "original": "shadow-gradient-edges-original.png",
+      "recommendation": "shadow-gradient-edges-recommended.png"
+    },
+    {
+      "name": "dark-artwork",
+      "local": {
+        "candidate": true,
+        "darkPercentage": 49.12802734375
+      },
+      "result": {
+        "oled": true,
+        "threshold": 24,
+        "evaluated": [
+          {
+            "cutoff": 127,
+            "acceptable": false
+          },
+          {
+            "cutoff": 63,
+            "acceptable": false
+          },
+          {
+            "cutoff": 31,
+            "acceptable": false
+          },
+          {
+            "cutoff": 15,
+            "acceptable": true
+          },
+          {
+            "cutoff": 23,
+            "acceptable": true
+          },
+          {
+            "cutoff": 27,
+            "acceptable": false
+          },
+          {
+            "cutoff": 25,
+            "acceptable": false
+          },
+          {
+            "cutoff": 24,
+            "acceptable": true
+          }
+        ]
+      },
+      "original": "dark-artwork-original.png",
+      "recommendation": "dark-artwork-recommended.png"
+    }
+  ]
+}

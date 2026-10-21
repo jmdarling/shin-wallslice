@@ -1,0 +1,119 @@
+{
+  "url": "http://127.0.0.1:5173",
+  "captures": [
+    "processing-1440-light.png",
+    "processing-1440-dark.png",
+    "processing-390-light.png",
+    "processing-390-dark.png",
+    "processing-320-light.png",
+    "processing-320-dark.png",
+    "download-1440-light.png",
+    "download-1440-dark.png",
+    "download-390-light.png",
+    "download-390-dark.png",
+    "download-320-light.png",
+    "download-320-dark.png"
+  ],
+  "layouts": [
+    {
+      "stage": "processing",
+      "width": 1440,
+      "appearance": "light",
+      "overflow": false,
+      "controls": []
+    },
+    {
+      "stage": "processing",
+      "width": 1440,
+      "appearance": "dark",
+      "overflow": false,
+      "controls": []
+    },
+    {
+      "stage": "processing",
+      "width": 390,
+      "appearance": "light",
+      "overflow": false,
+      "controls": []
+    },
+    {
+      "stage": "processing",
+      "width": 390,
+      "appearance": "dark",
+      "overflow": false,
+      "controls": []
+    },
+    {
+      "stage": "processing",
+      "width": 320,
+      "appearance": "light",
+      "overflow": false,
+      "controls": []
+    },
+    {
+      "stage": "processing",
+      "width": 320,
+      "appearance": "dark",
+      "overflow": false,
+      "controls": []
+    },
+    {
+      "stage": "download",
+      "width": 1440,
+      "appearance": "light",
+      "overflow": false,
+      "controls": []
+    },
+    {
+      "stage": "download",
+      "width": 1440,
+      "appearance": "dark",
+      "overflow": false,
+      "controls": []
+    },
+    {
+      "stage": "download",
+      "width": 390,
+      "appearance": "light",
+      "overflow": false,
+      "controls": []
+    },
+    {
+      "stage": "download",
+      "width": 390,
+      "appearance": "dark",
+      "overflow": false,
+      "controls": []
+    },
+    {
+      "stage": "download",
+      "width": 320,
+      "appearance": "light",
+      "overflow": false,
+      "controls": []
+    },
+    {
+      "stage": "download",
+      "width": 320,
+      "appearance": "dark",
+      "overflow": false,
+      "controls": []
+    }
+  ],
+  "initial": {
+    "candidate": false,
+    "darkPercentage": 13.36703125,
+    "state": "skipped",
+    "oled": false,
+    "threshold": 16,
+    "evaluated": []
+  },
+  "final": {
+    "candidate": false,
+    "darkPercentage": 13.36703125,
+    "state": "skipped",
+    "oled": false,
+    "threshold": 16,
+    "evaluated": []
+  }
+}

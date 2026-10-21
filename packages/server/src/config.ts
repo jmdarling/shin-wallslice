@@ -9,6 +9,9 @@ export interface AiConfig {
 }
 
 export interface RuntimeConfig {
+  oledMinimumDarkPercentage?: number;
+  oledNearBlackCutoff?: number;
+  oledMaxVisionRequests?: number;
   ai?: AiConfig;
   dataDirectory: string;
   temporaryDirectory: string;
@@ -33,6 +36,9 @@ export function validateConfig(value: unknown): RuntimeConfig {
   const unknown = Object.keys(config).filter(
     (key) =>
       ![
+        'oledMinimumDarkPercentage',
+        'oledNearBlackCutoff',
+        'oledMaxVisionRequests',
         'ai',
         'host',
         'port',
@@ -88,6 +94,24 @@ export function validateConfig(value: unknown): RuntimeConfig {
     )
       throw new Error(`${key} must be an integer between ${min} and ${max}`);
   }
+  for (const [key, max, integer] of [
+    ['oledMinimumDarkPercentage', 100, false],
+    ['oledNearBlackCutoff', 255, true],
+    ['oledMaxVisionRequests', 8, true],
+  ] as const) {
+    const v = config[key];
+    if (
+      v !== undefined &&
+      (typeof v !== 'number' ||
+        !Number.isFinite(v) ||
+        v < (key === 'oledMaxVisionRequests' ? 1 : 0) ||
+        v > max ||
+        (integer && !Number.isInteger(v)))
+    )
+      throw new Error(
+        `${key} must be ${integer ? 'an integer' : 'a finite percentage'} between ${key === 'oledMaxVisionRequests' ? 1 : 0} and ${max}`,
+      );
+  }
   if (config.ai !== undefined) {
     const ai = config.ai as Record<string, unknown> | null;
     if (
@@ -138,6 +162,9 @@ export function validateConfig(value: unknown): RuntimeConfig {
 }
 
 export const environmentSettings = {
+  oledMinimumDarkPercentage: 'OLED_MINIMUM_DARK_PERCENTAGE',
+  oledNearBlackCutoff: 'OLED_NEAR_BLACK_CUTOFF',
+  oledMaxVisionRequests: 'OLED_MAX_VISION_REQUESTS',
   host: 'HOST',
   port: 'PORT',
   logLevel: 'LOG_LEVEL',
@@ -237,8 +264,14 @@ export async function loadConfig(
         if (raw !== 'true' && raw !== 'false')
           throw new Error(`${name} must be true or false`);
         value = raw === 'true';
+      } else if (setting === 'oledMinimumDarkPercentage') {
+        if (!/^(0|[1-9][0-9]*)(\.[0-9]+)?$/.test(raw))
+          throw new Error(`${name} must be a decimal percentage`);
+        value = Number(raw);
       } else if (
         [
+          'oledNearBlackCutoff',
+          'oledMaxVisionRequests',
           'port',
           'memoryBudgetMiB',
           'temporaryStorageMiB',

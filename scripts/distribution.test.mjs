@@ -121,3 +121,66 @@ test('registry preflight protects immutable tags and fails closed on registry er
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('the workflow collector stages changes while excluding ignored issue inputs', async () => {
+  const {
+    mkdtempSync,
+    mkdirSync,
+    writeFileSync,
+    readFileSync,
+    appendFileSync,
+    rmSync,
+  } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { execFileSync, spawnSync } = await import('node:child_process');
+  const workflow = readFileSync(
+    new URL('../.github/workflows/issue-agent.yml', import.meta.url),
+    'utf8',
+  );
+  const match = workflow.match(
+    /name: Collect changes without executing proposed code\n {8}run: \|\n((?: {10}.*\n)+)/,
+  );
+  assert.ok(match, 'The production collector command must be exercised');
+  const script = match[1]
+    .split('\n')
+    .map((line) => line.slice(10))
+    .join('\n');
+  const dir = mkdtempSync(join(tmpdir(), 'wallslice-collector-'));
+  const git = (...args) =>
+    execFileSync('git', args, { cwd: dir, encoding: 'utf8' }).trim();
+  try {
+    git('init', '--quiet');
+    writeFileSync(join(dir, 'tracked.md'), 'before\n');
+    git('add', 'tracked.md');
+    git(
+      '-c',
+      'core.hooksPath=/dev/null',
+      '-c',
+      'commit.gpgsign=false',
+      '-c',
+      'user.name=test',
+      '-c',
+      'user.email=test@example.invalid',
+      'commit',
+      '--quiet',
+      '-m',
+      'fixture',
+    );
+    mkdirSync(join(dir, '.issue-task'));
+    appendFileSync(join(dir, '.git/info/exclude'), '\n.issue-task/\n');
+    writeFileSync(join(dir, '.issue-task/issue.json'), 'private-task-sentinel');
+    writeFileSync(join(dir, 'tracked.md'), 'after\n');
+    const result = spawnSync('sh', ['-e', '-c', script], {
+      cwd: dir,
+      encoding: 'utf8',
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(git('diff', '--cached', '--name-only'), 'tracked.md');
+    const patch = readFileSync(join(dir, '.issue-task/change.patch'), 'utf8');
+    assert.match(patch, /\+after/);
+    assert.doesNotMatch(patch, /private-task-sentinel/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

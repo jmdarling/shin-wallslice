@@ -1,13 +1,13 @@
 # Install on Unraid 7.2.3
 
-Publication prerequisite: the repository is currently private and the 1.0.0 public
-image has not yet been verified. The following procedure becomes usable after the
-[release handoff](maintainers/releases.md). Community Applications listing is pending;
-this supplied template supports installation before listing approval.
+The public image supports Linux amd64 and arm64. Community Applications listing is
+pending; the supplied template supports installation now, before listing approval.
+See [v1.0.0 release evidence](maintainers/v1.0.0-evidence.md) for the tested image,
+scans, and the real-NAS checks that still need developer verification.
 
 ## Import and install
 
-Enable Docker in Settings. After public publication, open the Unraid web terminal
+Enable Docker in Settings. Open the Unraid web terminal
 and paste these two commands (no Git, Node.js, image build, or XML editing):
 
 ```sh

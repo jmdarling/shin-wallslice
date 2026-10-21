@@ -122,7 +122,7 @@ test('registry preflight protects immutable tags and fails closed on registry er
   }
 });
 
-test('the workflow collector stages changes while excluding ignored issue inputs', async () => {
+test('issue inputs do not break formatting or enter the collected patch', async () => {
   const {
     mkdtempSync,
     mkdirSync,
@@ -171,6 +171,19 @@ test('the workflow collector stages changes while excluding ignored issue inputs
     appendFileSync(join(dir, '.git/info/exclude'), '\n.issue-task/\n');
     writeFileSync(join(dir, '.issue-task/issue.json'), 'private-task-sentinel');
     writeFileSync(join(dir, 'tracked.md'), 'after\n');
+    const formatting = spawnSync(
+      process.execPath,
+      [
+        new URL('../node_modules/prettier/bin/prettier.cjs', import.meta.url)
+          .pathname,
+        '--check',
+        '.',
+        '--ignore-path',
+        new URL('../.prettierignore', import.meta.url).pathname,
+      ],
+      { cwd: dir, encoding: 'utf8' },
+    );
+    assert.equal(formatting.status, 0, formatting.stdout + formatting.stderr);
     const result = spawnSync('sh', ['-e', '-c', script], {
       cwd: dir,
       encoding: 'utf8',

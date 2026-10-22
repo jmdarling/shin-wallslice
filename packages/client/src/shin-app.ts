@@ -81,6 +81,7 @@ export class ShinApp extends LitElement {
   dirty = false;
   ready = false;
   oledProcessing = false;
+  private oledRenderFailed = false;
   private generation = 0;
   private rendering = false;
   private timer?: ReturnType<typeof setTimeout>;
@@ -100,6 +101,10 @@ export class ShinApp extends LitElement {
     super.disconnectedCallback();
     document.removeEventListener('paste', this.paste);
     clearTimeout(this.timer);
+    this.generation++;
+    this.oledProcessing = false;
+    this.oledRenderFailed = false;
+    if (this.oledAnalysis?.state === 'pending') this.oledAnalysis = undefined;
     this.oledController?.abort();
     this.namingController?.abort();
     this.detectionController?.abort();
@@ -187,6 +192,8 @@ export class ShinApp extends LitElement {
           : 'wallpaper';
       this.oledManual = false;
       this.oledAnalysis = this.job.oledAnalysis;
+      this.oledProcessing = this.oledAnalysis?.oled ?? false;
+      this.oledRenderFailed = false;
       this.prefs = {
         ...this.prefs,
         oled: this.oledAnalysis?.oled ?? false,
@@ -228,13 +235,15 @@ export class ShinApp extends LitElement {
             oled: status.oled,
             threshold: status.threshold,
           };
-          this.schedule();
+          this.schedule(true);
         }
       }
     };
     try {
       if (this.oledAnalysis?.state === 'succeeded') accept(this.oledAnalysis);
       if (retry) {
+        if (this.oledAnalysis?.candidate)
+          this.oledAnalysis = { ...this.oledAnalysis, state: 'pending' };
         const status = await this.api<OledAnalysis>(
           `/api/jobs/${id}/oled-analysis`,
           { method: 'POST', signal: controller.signal },
@@ -275,7 +284,7 @@ export class ShinApp extends LitElement {
     if (!status) return nothing;
     return html`<p class="meta" role="status" aria-live="polite">
       ${status.darkPercentage !== undefined ? `Local check: ${status.darkPercentage.toFixed(1)}% near-black pixels. ${status.candidate ? 'Qualifies for OLEDify analysis.' : 'OLEDify not recommended.'}` : 'Local analysis unavailable.'}
-      ${status.state === 'pending' ? 'AI is comparing cutoffs… Local fallback: on at cutoff 16. You can continue and download now.' : nothing}
+      ${status.state === 'pending' ? 'Local fallback: on at cutoff 16. You can continue and download now.' : nothing}
       ${status.state === 'succeeded' ? `AI recommendation: ${status.oled ? `on at cutoff ${status.threshold}` : 'leave OLEDify off'}. Best effort; inspect the preview.` : nothing}
       ${status.state === 'local' ? 'AI is disabled. Local fallback: on at cutoff 16.' : nothing}
       ${status.state === 'skipped' ? 'AI comparison skipped.' : nothing}
@@ -420,7 +429,8 @@ export class ShinApp extends LitElement {
   private get selected() {
     return this.devices.filter((d) => this.prefs.devices.includes(d.id));
   }
-  private schedule() {
+  private schedule(oled = false) {
+    if (oled) this.oledProcessing = true;
     this.serverSave = undefined;
     this.dirty = true;
     this.generation++;
@@ -430,9 +440,16 @@ export class ShinApp extends LitElement {
     }, 180);
   }
   private async renderPreviews() {
-    if (this.rendering || !this.job || this.page === 'input') return;
+    if (
+      !this.isConnected ||
+      this.rendering ||
+      !this.job ||
+      this.page === 'input'
+    )
+      return;
     clearTimeout(this.timer);
     this.rendering = true;
+    if (this.oledRenderFailed) this.oledProcessing = true;
     this.busy = 'Generating previews and PNG downloads…';
     const version = this.generation;
     const id = this.job.id;
@@ -449,10 +466,14 @@ export class ShinApp extends LitElement {
       if (version === this.generation && this.job?.id === id) {
         this.manifest = manifest;
         this.dirty = false;
+        this.oledRenderFailed = false;
         this.error = '';
       }
     } catch (e) {
-      if (version === this.generation) this.error = (e as Error).message;
+      if (version === this.generation) {
+        this.oledRenderFailed = this.oledProcessing;
+        this.error = (e as Error).message;
+      }
     } finally {
       this.rendering = false;
       this.busy = '';
@@ -485,6 +506,7 @@ export class ShinApp extends LitElement {
       this.page = 'input';
       this.dirty = false;
       this.oledProcessing = false;
+      this.oledRenderFailed = false;
     } catch (e) {
       this.error = (e as Error).message;
     }
@@ -1167,6 +1189,10 @@ export class ShinApp extends LitElement {
   render() {
     const j = this.job;
     const usable = !!this.manifest && !this.dirty && !this.busy;
+    const oledTuning =
+      !!j && this.page !== 'input' && this.oledAnalysis?.state === 'pending';
+    const oledWorking =
+      !!j && this.page !== 'input' && (oledTuning || this.oledProcessing);
     return html` <header>
         <strong>shin-wallslice</strong>
         <nav aria-label="Workflow">
@@ -1384,7 +1410,7 @@ export class ShinApp extends LitElement {
                               oled: (e.target as HTMLInputElement).checked,
                             };
                             this.save();
-                            this.schedule();
+                            this.schedule(true);
                           }}
                         />
                         True black shadows</label
@@ -1404,13 +1430,12 @@ export class ShinApp extends LitElement {
                             (e.target as HTMLInputElement).value,
                           );
                           if (threshold === this.prefs.threshold) return;
-                          if (this.prefs.oled) this.oledProcessing = true;
                           this.prefs = {
                             ...this.prefs,
                             threshold,
                           };
                           this.save();
-                          this.schedule();
+                          this.schedule(this.prefs.oled);
                         }}
                       />
                     </fieldset>
@@ -1628,9 +1653,9 @@ export class ShinApp extends LitElement {
         role="status"
         aria-live="polite"
         aria-atomic="true"
-        class=${this.oledProcessing ? 'oled-toast' : ''}
+        class=${oledWorking ? 'oled-toast' : ''}
       >
-        ${this.oledProcessing ? html`<wa-spinner aria-hidden="true"></wa-spinner><span>OLEDify processing…</span>` : nothing}
+        ${oledWorking ? html`<wa-spinner aria-hidden="true"></wa-spinner><span>${oledTuning ? 'AI OLEDify tuning: comparing cutoffs…' : nothing}${oledTuning && this.oledProcessing ? ' · ' : nothing}${this.oledProcessing ? 'OLEDify processing: rendering previews and outputs…' : nothing}</span>` : nothing}
       </div>`;
   }
 }

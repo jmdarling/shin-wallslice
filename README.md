@@ -47,10 +47,10 @@ shin-wallslice runs on your own server in a single container. Cropping and expor
 **Unraid:** [import the supplied template and Apply](docs/unraid.md). Community
 Applications listing is pending. No source checkout or build is needed.
 
-**Install version 1.3.0** for Linux amd64 and arm64. The
+**Install version 1.3.1** for Linux amd64 and arm64. The
 commands below install it without registry login. See the
-[release](https://github.com/jmdarling/shin-wallslice/releases/tag/v1.3.0) and
-[1.3.0 changes](docs/maintainers/v1.3.0-release-notes.md). The release records the
+[release](https://github.com/jmdarling/shin-wallslice/releases/tag/v1.3.1) and
+[1.3.1 changes](docs/maintainers/v1.3.1-release-notes.md). The release records the
 exact digest, native runtime checks, SBOM/provenance, and vulnerability reports.
 
 Allow **4 GiB application RAM** and **4 GiB free writable temporary disk**. One
@@ -73,7 +73,7 @@ docker run -d \
   --memory=4g \
   -p 8080:3000 \
   --mount type=volume,src=shin-wallslice-data,dst=/data \
-  ghcr.io/jmdarling/shin-wallslice:1.3.0
+  ghcr.io/jmdarling/shin-wallslice:1.3.1
 ```
 
 Open [http://localhost:8080](http://localhost:8080), or
@@ -100,7 +100,7 @@ is needed. Its contents are:
 ```yaml
 services:
   wallslice:
-    image: ghcr.io/jmdarling/shin-wallslice:1.3.0
+    image: ghcr.io/jmdarling/shin-wallslice:1.3.1
     container_name: shin-wallslice
     restart: unless-stopped
     mem_limit: 4g
@@ -207,7 +207,11 @@ First use selects entropy when AI is disabled and AI when enabled. An explicit e
 
 Every accepted image starts with fresh defaults: OLEDify on at cutoff **16** when at least **15%** of visible pixels in the full normalized sRGB source have **all three channels ≤32**; otherwise off at 16. The cutoff and percentage comparisons include their boundaries. Fully transparent pixels are excluded from both counts. This percentage is a candidate heuristic, not measured device-energy savings. Device selection and crop positions do not affect it.
 
-With AI enabled, candidates immediately use that local fallback while a bounded original/trial comparison search refines one shared cutoff across all outputs. Noncandidates skip the search. Feedback near OLEDify explains local, pending, completed, skipped, and failed results. You can continue to Download, download PNG/ZIP, or save to the server while it runs. AI may recommend leaving OLEDify off if no effective conversion is accepted. The judgment is best effort, not a guarantee of a globally optimal cutoff or artifact-free output; inspect your previews.
+With AI enabled, candidates immediately use that local fallback while a bounded original/trial comparison search refines one shared cutoff across all outputs. Noncandidates skip the search. One nonblocking toast shows active OLEDify work: **AI OLEDify tuning** while cutoffs are compared and **OLEDify processing** while previews and outputs are rendered. It covers on/off switches, threshold edits, and automatically applied defaults or recommendations, and stays visible until all active OLEDify work finishes. If both phases overlap, the same toast shows both. Local fallback explanations, completed/skipped recommendations, and failure/Retry feedback stay inline beside OLEDify (and on Download); progress is not duplicated there. You can continue to Download, download PNG/ZIP, or save to the server while it runs. AI may recommend leaving OLEDify off if no effective conversion is accepted. The judgment is best effort, not a guarantee of a globally optimal cutoff or artifact-free output; inspect your previews.
+
+![One OLEDify toast showing AI cutoff tuning and preview/output rendering together](docs/images/oledify-working.png)
+
+_The same toast covers both phases. [Capture details](docs/design/v1.3.1/README.md): real app rendering with a delayed local mock provider; no external image submission._
 
 Change **True black shadows** or **Threshold** to take manual control of both settings for this image. Even restoring the original value protects your choices from late results and Retry. Recommendations remain visible. Navigation, devices, and crops preserve manual choices; a new image resets them. Previously saved OLEDify preferences never override the new image's defaults. Other preferences retain their behavior.
 
@@ -367,7 +371,7 @@ docker run -d \
   -p 8080:3000 \
   --mount type=volume,src=shin-wallslice-data,dst=/data \
   --mount type=bind,src="$(pwd)/config/local.json",dst=/config/config.json,readonly \
-  ghcr.io/jmdarling/shin-wallslice:1.3.0
+  ghcr.io/jmdarling/shin-wallslice:1.3.1
 ```
 
 Use the absolute path to your private JSON file in the mount source. The file must exist and be readable by UID 1000; its parent directories must be traversable by that user. Protect files containing tokens from other users while granting that read access. The application does not need write access to `/config`. Do not place private files elsewhere in the build context and assume they will be ignored.
@@ -453,7 +457,7 @@ docker run -d \
   -e SHIN_WALLSLICE_HOST=0.0.0.0 \
   -e SHIN_WALLSLICE_PORT=3456 \
   -e SHIN_WALLSLICE_AI_ENABLED=false \
-  ghcr.io/jmdarling/shin-wallslice:1.3.0
+  ghcr.io/jmdarling/shin-wallslice:1.3.1
 ```
 
 This replaces the quick-start container, rather than running alongside it. The browser still uses port 8080. The built-in health check reads the effective configuration, including the overridden port.
@@ -499,7 +503,7 @@ The representation is the full oriented source **before cropping or OLEDify**, r
 
 **Local candidates additionally trigger OLEDify comparison search**, independent of naming/detection. Each evaluation submits two clearly labeled images: the original full composition and an actual OLEDified trial at the supplied cutoff. A retained sRGB RGBA representation fits within **1024 × 1024** without enlargement. Unlike the naming JPEG it remains raw/lossless, preserving shadows; trials use the inclusive all-RGB-channel rule, then composite both images on white for consistent transparency display and encode lossless PNG, each bounded to **5 MiB**. Preparation times out after 30 seconds. Final device outputs still apply OLEDify after their own exact resizing; bounded comparisons cannot reveal every full-resolution artifact.
 
-The integer search spans **0–255**, raises the lower bound for acceptable trials and lowers the upper bound for unacceptable trials, returning the highest actually evaluated acceptable cutoff that changes visible pixels. It stops on convergence or after `oledMaxVisionRequests` (default **8**, range **1–8**). Each request has a **30-second** timeout and **64 KiB** response limit; a search attempt is capped at **270 seconds** (including any Retry preparation), with up to **30 seconds** of initial comparison preparation during upload (at most **300 seconds** combined). Individual PNG encodes also have a 5-second processing timeout. There is no automatic retry loop. Multiple original/trial submissions can increase provider cost and latency. Your vision service must support **two image inputs in one request** and the requested JSON judgment. Unsupported comparisons, malformed judgments, timeouts, authentication/rate-limit/connection failures keep the local result and offer **Retry OLEDify analysis**, starting a new bounded attempt. Partial search results are not applied. Local analysis failure leaves manual controls usable and explicitly reports failure.
+The integer search spans **0–255**, raises the lower bound for acceptable trials and lowers the upper bound for unacceptable trials, returning the highest actually evaluated acceptable cutoff that changes visible pixels. It stops on convergence or after `oledMaxVisionRequests` (default **8**, range **1–8**). Each request has a **30-second** timeout and **64 KiB** response limit; a search attempt is capped at **270 seconds** (including any Retry preparation), with up to **30 seconds** of initial comparison preparation during upload (at most **300 seconds** combined). Individual PNG encodes also have a 5-second processing timeout. There is no automatic retry loop. Multiple original/trial submissions can increase provider cost and latency. Your vision service must support **two image inputs in one request** and the requested JSON judgment. Unsupported comparisons, malformed judgments, timeouts, authentication/rate-limit/connection failures keep the local result and offer **Retry OLEDify analysis**, starting a new bounded attempt. Partial search results are not applied. The working toast clears the failed phase; if the other OLEDify phase is still active, its progress remains visible. Read the inline error and Retry controls to recover. Local analysis failure leaves manual controls usable and explicitly reports failure.
 
 Connection settings and tokens stay server-side. They are not sent to the browser, saved in preferences, or included in health responses, client assets, or diagnostics. People who can inspect host/container configuration can still read environment secrets. Keep tokens out of Git, shared shell history, screenshots, and support reports. The ignored `config/local.json` is a convenience for private configuration, not a secret vault.
 
@@ -559,7 +563,7 @@ The image defaults to non-root `node` with UID/GID 1000. The [Unraid template](d
 ### Update and roll back
 
 Back up preferences, private configuration, and any persistent output directories; download or save active outputs first.
-Examples pin `:1.3.0` for reproducibility. To upgrade, choose a newer verified exact
+Examples pin `:1.3.1` for reproducibility. To upgrade, choose a newer verified exact
 version from the release notes, replace the image tag in your run/Compose settings,
 and recreate using the same data volume, ports, and optional configuration.
 Alternatively `:1`, `:1.3`, or `:latest` track their stable release series.
@@ -568,7 +572,7 @@ Publication makes images available; it never automatically updates your server.
 For Docker run:
 
 ```sh
-docker pull ghcr.io/jmdarling/shin-wallslice:1.3.0
+docker pull ghcr.io/jmdarling/shin-wallslice:1.3.1
 docker stop shin-wallslice
 docker rm shin-wallslice
 ```
@@ -578,6 +582,10 @@ mount/settings**. Restart alone does not load a new image. With Compose, edit th
 image tag, then `docker compose pull` and `docker compose up -d` from the same project.
 With Unraid use Check for Updates → Update, retaining appdata. To pin or roll back,
 choose a previously verified exact version/digest in Repository and Apply.
+
+Version 1.3.1 changes OLEDify progress presentation without changing runtime
+configuration or preferences. Rollback to 1.3.0 needs no configuration changes.
+For older rollback targets, the 1.3.0 compatibility notes below still apply.
 
 Version 1.3.0 adds automatic per-image OLEDify defaults and optional AI cutoff
 search. Existing configuration works; saved OLEDify enable/cutoff values are now
@@ -615,7 +623,7 @@ docker cp ./wallslice-backup/. shin-wallslice:/data/
 # Restore ownership on this dedicated volume before starting:
 docker run --rm --user 0 \
   --mount type=volume,src=shin-wallslice-data,dst=/data \
-  ghcr.io/jmdarling/shin-wallslice:1.3.0 true
+  ghcr.io/jmdarling/shin-wallslice:1.3.1 true
 docker start shin-wallslice
 ```
 

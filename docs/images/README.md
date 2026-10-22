@@ -60,3 +60,13 @@ browser. The original threshold-32 export comparison remains accurately labeled
 and uses identical framing. Input captures are retained from the earlier
 AI-disabled session. See [v1.3.0 evidence](../design/v1.3.0/README.md) for
 1440/390/320px light/dark captures, live original/trial evaluation, and limitations.
+
+## v1.3.1 working toast
+
+`oledify-working.png` is a real 1280 × 720 dark-appearance capture showing one
+toast with both AI tuning and OLEDify preview/output rendering. The isolated app
+uses the existing CC0 dark Dusk Ridges derivative, real Fastify/Sharp outputs, and
+a delayed deterministic local provider, not an external model. No private image
+or credential is used. [Capture and verification details](../design/v1.3.1/README.md).
+The earlier idle Processing/Download captures remain accurate; this image adds
+the changed working-state guidance.

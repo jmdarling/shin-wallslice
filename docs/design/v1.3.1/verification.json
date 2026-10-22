@@ -1,0 +1,48 @@
+{
+  "version": "1.3.1",
+  "date": "2026-10-21",
+  "status": "implemented",
+  "checks": {
+    "root": "pnpm check passed",
+    "serverTests": 130,
+    "chromiumTests": 83,
+    "widths": [320, 390, 1440],
+    "appearances": ["light", "dark"],
+    "screenReader": "ARIA/status semantics and keyboard verified; no dedicated human screen-reader session"
+  },
+  "captures": {
+    "url": "http://127.0.0.1:3101",
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    },
+    "appearance": "dark",
+    "transport": "deterministic local mock; no external service",
+    "rendering": "real Fastify/Sharp previews and PNG outputs",
+    "files": [
+      "processing-tuning-dark.png",
+      "processing-overlap-dark.png",
+      "download-tuning-dark.png",
+      "download-completed-dark.png",
+      "processing-render-only-dark.png"
+    ],
+    "toast": {
+      "role": "status",
+      "ariaLive": "polite",
+      "pointerEvents": "none",
+      "left": 915.1953125,
+      "right": 1264,
+      "bottom": 704
+    },
+    "completedState": {
+      "workingToasts": 0,
+      "mockRecommendation": 24,
+      "manualSettingsPreserved": true
+    }
+  },
+  "runtimeConfiguration": "unchanged",
+  "developerSignOff": {
+    "date": "2026-10-21",
+    "answer": "Verified \u2014 sign off (Recommended)"
+  }
+}

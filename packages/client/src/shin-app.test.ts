@@ -708,7 +708,7 @@ test('threshold toast spans debounce and successive renders, preserves crops and
   const toast = () => a.shadowRoot!.querySelector('.oled-toast');
   checked(a, 'True black shadows');
   await vi.waitFor(() => expect(pending).toHaveLength(1));
-  expect(toast()).toBeNull();
+  expect(toast()?.textContent).toContain('rendering previews and outputs');
   const crops = structuredClone(a.crops);
   const manifest = a.manifest;
   threshold(a, 42);
@@ -1687,7 +1687,12 @@ test('per-image local defaults replace saved OLED preferences and remain usable 
   await processed(a);
   expect(a.prefs.oled).toBe(true);
   expect(a.prefs.threshold).toBe(16);
-  expect(a.shadowRoot!.textContent).toContain('AI is comparing cutoffs');
+  expect(a.shadowRoot!.querySelector('.oled-toast')?.textContent).toContain(
+    'AI OLEDify tuning',
+  );
+  expect(
+    a.shadowRoot!.querySelector('fieldset:last-child .meta')?.textContent,
+  ).not.toContain('comparing cutoffs');
   expect(a.shadowRoot!.textContent).toContain(
     'Local fallback: on at cutoff 16.',
   );
@@ -1788,5 +1793,242 @@ test.each(['threshold', 'switch'])(
     picker(a, [file('replacement.png')]);
     await processed(a);
     expect(a.prefs.oled).toBe(false);
+  },
+);
+
+function deferRenders() {
+  const original = fetch;
+  const pending: ((response: Response) => void)[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (path: string, init?: RequestInit) => {
+      if (path.endsWith('/render')) {
+        renderBodies.push(JSON.parse(init!.body as string));
+        return new Promise<Response>((resolve) => pending.push(resolve));
+      }
+      return original(path, init);
+    }),
+  );
+  const complete = (index: number) =>
+    pending[index]!(
+      Response.json({
+        revision: `deferred-${index}`,
+        source: pixel,
+        outputs: { phone: pixel, tablet: pixel },
+      }),
+    );
+  return { pending, complete };
+}
+const oledToast = (a: ShinApp) =>
+  a.shadowRoot!.querySelector<HTMLElement>('.oled-toast');
+
+test('one OLEDify toast covers initial fallback rendering, AI-only navigation/export/save, and automatic-result render handoff', async () => {
+  serverSavingEnabled = true;
+  oledInitial = { ...pendingOled };
+  let status = { ...pendingOled };
+  oledResponse = async () => Response.json(status);
+  const a = await app();
+  const render = deferRenders();
+  picker(a, [file()]);
+  await vi.waitFor(() => expect(render.pending).toHaveLength(1));
+  expect(oledToast(a)?.textContent).toContain('AI OLEDify tuning');
+  expect(oledToast(a)?.textContent).toContain('rendering previews and outputs');
+  expect(a.shadowRoot!.querySelectorAll('.oled-toast')).toHaveLength(1);
+  const inline = a.shadowRoot!.querySelector('fieldset:last-child .meta');
+  expect(inline?.textContent).toContain('Local fallback:');
+  expect(inline?.textContent).not.toContain('comparing cutoffs');
+  render.complete(0);
+  await processed(a);
+  expect(oledToast(a)?.textContent).toContain('AI OLEDify tuning');
+  expect(oledToast(a)?.textContent).not.toContain('rendering previews');
+  await page.getByRole('button', { name: 'Next: Download' }).click();
+  await expect
+    .element(
+      page.getByRole('button', { name: 'Download PNG', exact: true }).first(),
+    )
+    .toBeEnabled();
+  await expect
+    .element(page.getByRole('button', { name: 'Download ZIP' }))
+    .toBeEnabled();
+  await page
+    .getByRole('button', { name: 'Save to server', exact: true })
+    .click();
+  await vi.waitFor(() => expect(a.serverSave?.state).toBe('saved'));
+  expect(oledToast(a)?.textContent).toContain('AI OLEDify tuning');
+  await page.getByRole('button', { name: 'Back to Processing' }).click();
+  expect(oledToast(a)).not.toBeNull();
+  await page.getByRole('button', { name: 'Next: Download' }).click();
+  status = { ...pendingOled, state: 'succeeded', threshold: 42 };
+  await vi.waitFor(() => expect(render.pending).toHaveLength(2));
+  expect(oledToast(a)?.textContent).not.toContain('AI OLEDify tuning');
+  expect(oledToast(a)?.textContent).toContain('rendering previews and outputs');
+  await expect
+    .element(
+      page.getByRole('button', { name: 'Download PNG', exact: true }).first(),
+    )
+    .toBeDisabled();
+  render.complete(1);
+  await vi.waitFor(() => expect(a.dirty).toBe(false));
+  await a.updateComplete;
+  expect(oledToast(a)).toBeNull();
+  expect(a.shadowRoot!.textContent).toContain(
+    'AI recommendation: on at cutoff 42',
+  );
+});
+
+test('independent AI/render failures and retries preserve the other working phase and protected manual choices', async () => {
+  oledInitial = { ...pendingOled };
+  let status = { ...pendingOled };
+  let finishRetry: ((response: Response) => void) | undefined;
+  oledResponse = async () => Response.json(status);
+  const a = await app();
+  picker(a, [file()]);
+  await processed(a);
+  const render = deferRenders();
+  threshold(a, 80);
+  await vi.waitFor(() => expect(render.pending).toHaveLength(1));
+  render.pending[0]!(
+    Response.json({ message: 'Controlled render failure' }, { status: 500 }),
+  );
+  await vi.waitFor(() =>
+    expect(a.error).toContain('Controlled render failure'),
+  );
+  await a.updateComplete;
+  expect(oledToast(a)?.textContent).toContain('AI OLEDify tuning');
+  expect(oledToast(a)?.textContent).not.toContain('rendering previews');
+  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await vi.waitFor(() => expect(render.pending).toHaveLength(2));
+  expect(oledToast(a)?.textContent).toContain('rendering previews');
+  status = {
+    ...pendingOled,
+    state: 'failed',
+    message: 'Controlled AI failure',
+  };
+  await vi.waitFor(() => expect(a.oledAnalysis?.state).toBe('failed'));
+  expect(oledToast(a)?.textContent).not.toContain('AI OLEDify tuning');
+  expect(oledToast(a)?.textContent).toContain('rendering previews');
+  render.complete(1);
+  await vi.waitFor(() => expect(a.dirty).toBe(false));
+  await a.updateComplete;
+  expect(oledToast(a)).toBeNull();
+  const original = fetch;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (path: string, init?: RequestInit) => {
+      if (path.endsWith('/oled-analysis') && init?.method === 'POST')
+        return new Promise<Response>((resolve) => {
+          finishRetry = resolve;
+        });
+      return original(path, init);
+    }),
+  );
+  await page.getByRole('button', { name: 'Retry OLEDify analysis' }).click();
+  await vi.waitFor(() => expect(finishRetry).toBeDefined());
+  expect(oledToast(a)?.textContent).toContain('AI OLEDify tuning');
+  status = { ...pendingOled, state: 'succeeded', threshold: 42 };
+  finishRetry!(Response.json(status));
+  await vi.waitFor(() => expect(a.oledAnalysis?.state).toBe('succeeded'));
+  await a.updateComplete;
+  expect(oledToast(a)).toBeNull();
+  expect(a.prefs.threshold).toBe(80);
+  expect(render.pending).toHaveLength(2);
+  expect(a.shadowRoot!.textContent).toContain('manual settings are protected');
+});
+
+test.each(['expired', 'shutdown', 'start-over', 'disconnect'])(
+  'OLEDify working feedback clears after %s without stale work reappearing',
+  async (reason) => {
+    oledInitial = { ...pendingOled };
+    let finish: ((response: Response) => void) | undefined;
+    oledResponse = () =>
+      new Promise<Response>((resolve) => {
+        finish = resolve;
+      });
+    const a = await app();
+    picker(a, [file()]);
+    await processed(a);
+    expect(oledToast(a)).not.toBeNull();
+    if (reason === 'expired' || reason === 'shutdown') {
+      finish!(
+        Response.json(
+          { message: reason },
+          { status: reason === 'expired' ? 404 : 503 },
+        ),
+      );
+      await vi.waitFor(() => expect(a.oledAnalysis?.state).toBe('failed'));
+      await a.updateComplete;
+      expect(oledToast(a)).toBeNull();
+      await expect
+        .element(page.getByRole('button', { name: 'Retry OLEDify analysis' }))
+        .toBeVisible();
+    } else {
+      if (reason === 'start-over') {
+        await page
+          .getByRole('button', { name: 'Start over', exact: true })
+          .click();
+        await vi.waitFor(() => expect(a.page).toBe('input'));
+      } else a.remove();
+      finish!(
+        Response.json({ ...pendingOled, state: 'succeeded', threshold: 99 }),
+      );
+      await a.updateComplete;
+      expect(a.oledAnalysis).toBeUndefined();
+      expect(oledToast(a)).toBeNull();
+      if (reason === 'start-over') {
+        oledInitial = {
+          ...pendingOled,
+          state: 'skipped',
+          candidate: false,
+          oled: false,
+        };
+        picker(a, [file('bright.png')]);
+        await processed(a);
+        expect(oledToast(a)).toBeNull();
+        expect(a.prefs.threshold).toBe(16);
+      }
+    }
+  },
+);
+
+test.each([320, 390, 1440])(
+  'OLEDify toast preserves keyboard control, light/dark visibility, and viewport bounds at %spx',
+  async (width) => {
+    await page.viewport(width, 900);
+    oledInitial = { ...pendingOled };
+    oledResponse = async () => Response.json(pendingOled);
+    const a = await app();
+    picker(a, [file()]);
+    await processed(a);
+    const render = deferRenders();
+    const toggle = a.shadowRoot!.querySelector(
+      'fieldset:last-child input[type=checkbox]',
+    ) as HTMLInputElement;
+    toggle.focus();
+    await userEvent.keyboard(' ');
+    await vi.waitFor(() => expect(render.pending).toHaveLength(1));
+    expect(a.prefs.oled).toBe(false);
+    for (const appearance of ['wa-light', 'wa-dark']) {
+      document.documentElement.classList.remove('wa-light', 'wa-dark');
+      document.documentElement.classList.add(appearance);
+      await a.updateComplete;
+      const toast = oledToast(a)!;
+      expect(toast.textContent).toContain('AI OLEDify tuning');
+      expect(toast.textContent).toContain('rendering previews');
+      expect(toast.getAttribute('role')).toBe('status');
+      expect(toast.getAttribute('aria-live')).toBe('polite');
+      expect(toast.getAttribute('aria-atomic')).toBe('true');
+      expect(toast.querySelector('wa-spinner')).not.toBeNull();
+      expect(getComputedStyle(toast).pointerEvents).toBe('none');
+      const bounds = toast.getBoundingClientRect();
+      expect(bounds.left).toBeGreaterThanOrEqual(0);
+      expect(bounds.right).toBeLessThanOrEqual(width);
+      expect(bounds.bottom).toBeLessThanOrEqual(900);
+      expect(a.shadowRoot!.activeElement).toBe(toggle);
+    }
+    render.complete(0);
+    await vi.waitFor(() => expect(a.dirty).toBe(false));
+    await a.updateComplete;
+    expect(oledToast(a)?.textContent).not.toContain('rendering previews');
+    expect(oledToast(a)?.textContent).toContain('AI OLEDify tuning');
   },
 );

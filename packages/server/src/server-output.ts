@@ -181,7 +181,7 @@ export class ServerOutput {
 
   async save(
     binding: string,
-    files: { path: string; contents: Buffer }[],
+    files: { path: string; contents: Buffer | (() => Promise<Buffer>) }[],
     confirmation?: string,
   ): Promise<SaveResult> {
     const saved: string[] = [];
@@ -218,7 +218,9 @@ export class ServerOutput {
       });
       for (const file of files) {
         if (
-          !/^(?:[a-z0-9-]+\/)?[^/\\]+\.png$/u.test(file.path) ||
+          !/^(?:[a-z0-9-]+\/)?[^/\\]+\.png$|^originals\/[^/\\]+\.(?:jpg|webp)$/u.test(
+            file.path,
+          ) ||
           basename(file.path).startsWith('.')
         )
           throw new Error('Unsafe output filename.');
@@ -286,14 +288,16 @@ export class ServerOutput {
           confirmation: token,
           failed: [],
         };
-      // Inspect all destinations before any PNG is written, including replacements.
+      // Inspect all destinations before any file is written, including replacements.
       for (const [i, file] of targets.entries()) {
         try {
           await this.writeOutput(
             file.parent.handle,
             file.parent.canonical,
             file.target,
-            file.contents,
+            typeof file.contents === 'function'
+              ? await file.contents()
+              : file.contents,
             state[i]!,
           );
           saved.push(file.path);

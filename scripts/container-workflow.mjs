@@ -58,7 +58,16 @@ for (const width of quick ? [1800] : [7680, 8192]) {
     new Uint8ArrayReader(new Uint8Array(await zipResponse.arrayBuffer())),
   );
   const entries = await reader.getEntries();
-  if (entries.length !== 6) throw new Error('Wrong archive entry count');
+  if (entries.length !== 7) throw new Error('Wrong archive entry count');
+  const original = entries.find(
+    (e) => e.filename === 'originals/container-test.jpg',
+  );
+  if (
+    !original ||
+    original.directory ||
+    !source.equals(Buffer.from(await original.getData(new Uint8ArrayWriter())))
+  )
+    throw new Error('Original upload bytes changed');
   for (const device of catalog.devices) {
     const response = await fetch(base + output.outputs[device.id]);
     if (!response.ok) throw new Error(await response.text());

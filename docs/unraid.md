@@ -25,7 +25,7 @@ there and install using the same choices.
 Allow 4 GiB application RAM and 4 GiB free temporary disk storage. The default
 writable container layer holds `/tmp/shin-wallslice`. A dedicated scratch bind mount
 is optional; prepare it for UID/GID 1000 separately. Do not mount a small RAM-backed
-`/tmp` without budgeting its memory. Preferences persist under `/data`; temporary images and exports expire on restart/replacement. Explicit server-saved PNGs persist when configured as below. Download or save active work first.
+`/tmp` without budgeting its memory. Preferences persist under `/data`; temporary images and exports expire on restart/replacement. Explicit server-saved wallpapers and originals persist when configured as below. Download or save active work first.
 
 Use a trusted LAN: single-user shared preferences, no built-in login. Optional AI is
 off. No other service container is required for ordinary processing.
@@ -96,13 +96,18 @@ separate output mount needs its own permissions. Keep `/data` for preferences.
 The environment value is a **container path**, not the Unraid host path.
 
 On Download choose **Save to server**. The folder checkbox selects either
-`<safe-name>-<device-id>.png` or `<device-id>/<safe-name>.png`. Review listed
-conflicts and choose **Replace** or **Cancel**. Saving can partially complete;
+`<safe-name>-<device-id>.png` or `<device-id>/<safe-name>.png`. Source builds
+containing v1.5.0 also save the unchanged upload at
+`originals/<safe-name>.<extension>` in either layout, matching ZIP downloads
+(`.jpg`, `.png`, or `.webp`). This includes embedded metadata and uses the current
+wallpaper name; review originals before sharing. No additional setting or mount
+is needed. The pinned 1.3.1 release exports only device PNGs. Review listed
+conflicts, including originals, and choose **Replace** or **Cancel** before any files are written. Saving can partially complete;
 read the saved/not-saved list, fix permissions or storage capacity, and retry.
 Browser downloads remain available. Keep the same output mapping when updating
 or replacing the container. Back up output folders separately if outside appdata;
 removing appdata also removes outputs stored inside it. Temporary cleanup and
-Start over do not delete saved wallpapers. See the [usage guide](../README.md#save-wallpapers-to-your-server).
+Start over do not delete saved wallpapers or originals. See the [usage guide](../README.md#save-wallpapers-to-your-server).
 
 ## Operate, update, and roll back
 
@@ -152,7 +157,7 @@ changes on **real Unraid 7.2.3**, using a dedicated appdata directory, and recor
 
 Record failures and observations; container simulation does not count as this test.
 
-For v1.2.0, also save both layouts, cancel and confirm conflicts, then replace the container retaining the output mapping and verify the PNG files remain.
+For v1.2.0, also save both layouts, cancel and confirm conflicts, then replace the container retaining the output mapping and verify the PNG files remain. For builds containing v1.5.0, also compare ZIP/server originals with the uploaded bytes and verify they remain after replacement.
 
 ## Automatic OLEDify (v1.3.0 source builds and later releases)
 

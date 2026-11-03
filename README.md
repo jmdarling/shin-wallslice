@@ -20,7 +20,7 @@ shin-wallslice runs on your own server in a single container. Cropping and expor
 - **Fit your screens:** six bundled device presets, independent crop positioning, and exact output dimensions.
 - **Choose your framing:** local Smart (entropy), five anchors, or optional Smart (AI), with pointer, touch, and keyboard adjustments.
 - **Make shadows black:** OLEDify automatically recommends per-image defaults locally, optionally refines the cutoff with AI, and keeps manual control available.
-- **Take the results:** lossless PNGs individually or in a ZIP, optionally organized into device folders. Configure an output directory to save the same files directly to your server, with confirmation before replacement.
+- **Take the results:** lossless PNGs individually or in a ZIP, optionally organized into device folders. ZIPs and server saves also include your unchanged upload in `originals/`. Configure an output directory to save the same files directly to your server, with confirmation before replacement.
 - **Feel at home:** automatic light/dark appearance and preferences remembered on your server.
 
 ## Contents
@@ -232,12 +232,21 @@ Previews update automatically. Wait for generation to finish before continuing o
 
 Choose **Next: Download**, edit **Wallpaper name**, then choose **Download ZIP** for all outputs or **Download PNG** on an individual preview. The base name is normalized into a safe filename: slashes and unsupported characters become hyphens, leading/trailing dots or spacing are removed, length is capped at 100 characters, and an empty result becomes `wallpaper`.
 
-For the name `Dusk Ridges`, individual files include `Dusk Ridges-iphone-18-pro-max.png`. ZIP organization changes only the archive's layout:
+For the name `Dusk Ridges`, individual files include `Dusk Ridges-iphone-18-pro-max.png`. For a JPEG source, both ZIP layouts include the unchanged upload:
 
-| Option                       | Example ZIP entries inside `Dusk Ridges.zip`                                  |
-| ---------------------------- | ----------------------------------------------------------------------------- |
-| Unchecked (default)          | `Dusk Ridges-iphone-18-pro-max.png` and `Dusk Ridges-m5-ipad-pro-11-inch.png` |
-| Organize into device folders | `iphone-18-pro-max/Dusk Ridges.png` and `m5-ipad-pro-11-inch/Dusk Ridges.png` |
+| Option                       | Example ZIP entries inside `Dusk Ridges.zip`                                                                |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Unchecked (default)          | `Dusk Ridges-iphone-18-pro-max.png`, `Dusk Ridges-m5-ipad-pro-11-inch.png`, and `originals/Dusk Ridges.jpg` |
+| Organize into device folders | `iphone-18-pro-max/Dusk Ridges.png`, `m5-ipad-pro-11-inch/Dusk Ridges.png`, and `originals/Dusk Ridges.jpg` |
+
+Every ZIP includes one `originals/<safe-name>.<extension>` file, using the current
+wallpaper name and the uploaded format (`.jpg`, `.png`, or `.webp`). Its bytes,
+embedded metadata, color profile, and orientation are unchanged; it receives no
+cropping, resizing, color conversion, or OLEDify. For clipboard images, this is
+the image file the clipboard supplies. Generated device wallpapers still use
+normalized orientation and color. Original inclusion is automatic, regardless
+of the folder checkbox, in source builds containing **v1.5.0**; the pinned 1.3.1
+release above exports only device PNGs. No new configuration is required.
 
 Individual PNGs always retain the device suffix. Install the downloaded file as wallpaper using your device's normal wallpaper settings; shin-wallslice does not change device settings remotely. Outputs have exact pixel dimensions, but a device may still apply its own zoom or placement.
 
@@ -274,7 +283,7 @@ Set a partial JSON override (read-only mounts work):
 ```
 
 Or add `--env SHIN_WALLSLICE_OUTPUT_DIRECTORY=/data/output` to `docker run`
-**before the image name**. The existing `/data` volume then retains saved PNGs.
+**before the image name**. The existing `/data` volume then retains saved wallpapers and originals.
 For a dedicated host directory, first prepare **only that directory** on the
 Docker host, then add these arguments before the image:
 
@@ -302,27 +311,27 @@ For local Node.js, use `SHIN_WALLSLICE_OUTPUT_DIRECTORY=./output pnpm dev` (or
 `config/local.json`. Relative paths follow the server process working directory,
 so this example writes beneath `packages/server/output`. Prefer an absolute path
 for unattended operation. Keep outputs outside temporary storage; startup rejects
-nested output and temporary directories to protect persistent PNGs.
+nested output and temporary directories to protect persistent wallpapers and originals.
 
 On Download, **Save to server** appears beside **Download ZIP** only when
 configured. It writes the current completed selection, current safe name, and
 current folder choice. Previews, settings changes, navigation, and downloads never
 trigger a save. No browser destination-path input is offered.
 
-- Organization off: `<safe-name>-<device-id>.png`, directly in the output directory.
-- Organization on: `<device-id>/<safe-name>.png` beneath that directory.
+- Organization off: `<safe-name>-<device-id>.png`, directly in the output directory, plus `originals/<safe-name>.<extension>`.
+- Organization on: `<device-id>/<safe-name>.png` beneath that directory, plus the same `originals/<safe-name>.<extension>`.
 
 No ZIP or wallpaper wrapper folder is written. Existing filenames are listed
-before **any PNG from that save** is written. Choose **Replace** to approve those
+before **any file from that save** is written, including an original-only conflict. Choose **Replace** to approve those
 conflicts, or **Cancel** to leave files unchanged. Changed files or selections
 require fresh review. Directories, symbolic links, special files, and hard links
-cannot be replaced as ordinary PNGs; move them aside yourself before retrying.
+cannot be replaced as ordinary output files; move them aside yourself before retrying.
 
 Wait for the result: success lists the destination and saved relative paths.
 A failed save lists files saved and files not saved; the operation can partially
 complete. Fix the mount, permission, or free-space problem, then choose Save again
 and review any conflicts from the successful part. Browser downloads remain
-available. Saved PNGs survive job expiry, Start over, restart, and container
+available. Saved wallpapers and originals survive job expiry, Start over, restart, and container
 replacement with their output mount retained. Later saves preserve unrelated
 files and outputs for unselected devices. Back up and remove saved outputs
 explicitly; temporary cleanup never manages this directory.
@@ -538,9 +547,9 @@ The default **2048 MiB processing budget** targets a deployment with **4 GiB ava
 
 The decoded-pixel limit is `floor((memoryBudgetMiB - 768) × 1048576 / 24)`. The application reserves 24 bytes per source pixel plus 768 MiB overhead; upload bytes are capped at one quarter of the memory budget. Metadata is checked before decoding, Sharp caching is disabled, and Sharp concurrency is one.
 
-Storage admission conservatively reserves the upload allowance, eight bytes per maximum source pixel, ten bytes per output pixel across the catalog, and 16 MiB per job. Actual usage is often smaller. Raising a reservation setting does **not** allocate disk or memory; provision the resources too. Choose memory/storage values together so at least one complete job fits, or startup fails.
+Storage admission conservatively reserves the upload allowance for the retained original, eight bytes per maximum source pixel, ten bytes per output pixel across the catalog, and 16 MiB per job. Actual usage is often smaller. Every active job retains the unchanged upload alongside its normalized working source; ZIP downloads and server saves add one original per export. ZIP size therefore also depends on the uploaded file size. Raising a reservation setting does **not** allocate disk or memory; provision the resources too. Choose memory/storage values together so at least one complete job fits, or startup fails.
 
-Generated outputs replace the previous generation; no unbounded render history is kept. Old URLs fail clearly rather than returning stale results. Start over deletes the job immediately. Shutdown removes temporary jobs, and restart removes crash leftovers under `wallslice-*` directories. Use a dedicated temporary directory, do not share it between running instances, and do not put unrelated files in those job subdirectories.
+The temporary original is retained across rerenders. Generated outputs replace the previous generation; no unbounded render history is kept. Old URLs fail clearly rather than returning stale results. Start over deletes the job immediately. Shutdown removes temporary jobs, and restart removes crash leftovers under `wallslice-*` directories. Use a dedicated temporary directory, do not share it between running instances, and do not put unrelated files in those job subdirectories.
 
 Containers keep `/tmp/shin-wallslice` in their writable layer by default. For NAS systems with a small Docker storage image, you may map a dedicated writable host scratch directory to `/tmp/shin-wallslice`; grant UID/GID 1000 access. Keep it separate from `/data`. Do not add a small RAM-backed `/tmp` mount without accounting for the configured storage budget and memory limit.
 
@@ -552,9 +561,9 @@ Containers keep `/tmp/shin-wallslice` in their writable layer by default. For NA
 
 Preferences are shared by everyone using this installation. They survive reloads and restarts if the data directory is retained; an absent folder-organization choice defaults to unchecked. There are no accounts or separate per-user preferences. Reload begins at Input rather than restoring a job.
 
-When configured, explicitly saved PNGs persist in `outputDirectory` (commonly `/data/output`), independently of temporary jobs. The PNGs/ZIPs in the temporary column above refer to job working files. Retain and back up the output mount when replacing containers; deleting a data volume also deletes outputs stored beneath it. A dedicated output bind mount requires a separate backup.
+When configured, explicitly saved wallpapers and originals persist in `outputDirectory` (commonly `/data/output`), independently of temporary jobs. The PNGs/ZIPs in the temporary column above refer to job working files. Retain and back up the output mount when replacing containers; deleting a data volume also deletes outputs stored beneath it. A dedicated output bind mount requires a separate backup.
 
-Cropping and exports happen on your server. AI-disabled installations make no AI requests. Browser downloads remain wherever you save them even after the server deletes its temporary job. Back up original images, downloaded outputs, and server-saved PNGs yourself if you want to retain them; this app is not a persistent wallpaper library.
+Cropping and exports happen on your server. AI-disabled installations make no AI requests. Browser downloads remain wherever you save them even after the server deletes its temporary job. Back up original images, downloaded outputs, and server-saved wallpapers and originals yourself if you want to retain them; this app is not a persistent wallpaper library. ZIPs and server-saved originals retain embedded metadata such as camera or location information; review that original before sharing an export.
 
 The image defaults to non-root `node` with UID/GID 1000. The [Unraid template](docs/unraid.md#identity-and-first-run-permissions) uses a bounded startup initializer for fresh host bind mounts before dropping to that identity. Named volumes are the easiest Docker option. For bind mounts, make only the dedicated data/scratch directories writable and traversable by that identity; do not solve errors with privileged mode or `chmod 777`. Read-only JSON mounts are supported.
 
@@ -602,7 +611,7 @@ for local-only updates.
 
 ### Back up and restore
 
-Stop the app for a consistent backup. Retain **`preferences.json` from the effective data directory**, any **server output directory**, and your **private JSON configuration** (and any separately stored environment secrets). No database is involved, and temporary jobs do not need backup.
+Stop the app for a consistent backup. Retain **`preferences.json` from the effective data directory**, any **server output directory** (including `originals/`), and your **private JSON configuration** (and any separately stored environment secrets). No database is involved, and temporary jobs do not need backup.
 
 For the Docker run named volume, the following copies its contents to a host backup directory; run on the Docker host:
 
@@ -663,6 +672,7 @@ Compose equivalents are `docker compose logs --tail 100 wallslice` and `docker c
 | Temporary storage is full / no job capacity             | Free space on the effective scratch filesystem. Start over in other active tabs or wait for abandoned jobs to expire. If increasing budgets, provide real capacity too. Do not delete live job files while processing.                                                                                                                                         |
 | Temporary wallpaper expired / outputs no longer current | For expiry or restart, start over and upload again. For stale outputs, wait for the current generation and retry from the app rather than reusing an old download URL.                                                                                                                                                                                         |
 | Pasting does nothing                                    | Ensure Input is active and the clipboard contains actual image data. Browser/OS clipboard formats vary; use Choose File or drag-and-drop instead.                                                                                                                                                                                                              |
+| Original upload unavailable in ZIP/save                 | Upload the source again. ZIPs cannot complete without the original. For server saves, inspect saved/not-saved paths, correct storage or permissions, then retry and review any conflicts. A partial save is not complete.                                                                                                                                      |
 | AI option missing                                       | AI defaults to disabled. Configure a vision endpoint/model and enable it, then restart/recreate. Check whether an environment `false` overrides JSON.                                                                                                                                                                                                          |
 | OLEDify analysis fails                                  | Check vision support for two simultaneous images and strict JSON judgments; Retry starts a new bounded attempt. Manual edits remain protected. Downloads use current previews.                                                                                                                                                                                 |
 | AI naming/detection fails                               | Check the server-reachable API base URL, appended `/chat/completions` path, image-capable model, credentials, provider rate limits, and firewall. `localhost` inside a container points to that container. Fix the service/configuration, restart if settings changed, then Retry or upload again.                                                             |

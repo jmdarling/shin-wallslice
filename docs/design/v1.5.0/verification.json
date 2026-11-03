@@ -1,0 +1,19 @@
+{
+  "url": "http://127.0.0.1:5173",
+  "destination": "/tmp/shin-wallslice-v150-review/output",
+  "original": "originals/Dusk Ridges.png",
+  "sourceBytes": 427129,
+  "sourceSha256": "61de4b1d1f9f7240cd7155a23cbe286dc8ee932d7db812a3807fcb1854c1ca22",
+  "verified": [
+    "Actual ZIP download and server save contain identical original upload bytes and matching preview PNGs in flat layout.",
+    "An original-only conflict prevented device writes; Cancel retained old bytes; Replace saved all reviewed outputs.",
+    "Organized ZIP and server save retain a single originals/ entry; original and generated files survive Start over.",
+    "Real conflict and success feedback fits 320px and 1440px in both appearances."
+  ],
+  "captures": [
+    "original-conflict-320-dark.png",
+    "saved-flat-1440-light.png",
+    "saved-organized-320-light.png",
+    "saved-organized-1440-dark.png"
+  ]
+}

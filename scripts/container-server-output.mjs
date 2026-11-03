@@ -53,7 +53,13 @@ const save = (folders, confirmation) =>
     }),
   });
 for (const folders of [false, true]) {
-  const result = await save(folders);
+  let result = await save(folders);
+  if (folders) {
+    assert.equal(result.state, 'conflicts');
+    assert.deepEqual(result.conflicts, ['originals/persistent-test.png']);
+    assert.deepEqual(result.saved, []);
+    result = await save(folders, result.confirmation);
+  }
   assert.equal(result.state, 'saved');
   const response = await fetch(
     `${base}/api/jobs/${job.id}/zip/${manifest.revision}?name=persistent-test&organizeIntoDeviceFolders=${folders}`,
@@ -73,6 +79,8 @@ for (const folders of [false, true]) {
     assert.ok(
       contents.equals(Buffer.from(await entry.getData(new Uint8ArrayWriter()))),
     );
+    if (entry.filename.startsWith('originals/'))
+      assert.ok(contents.equals(source));
     files.push({ path, contents: contents.toString('base64') });
   }
   await reader.close();

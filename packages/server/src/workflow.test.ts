@@ -196,7 +196,7 @@ test('full PNG/ZIP workflow produces exact preset sizes and matching contents, r
   expect(zipResponse.statusCode, zipResponse.body).toBe(200);
   const zip = new ZipReader(new Uint8ArrayReader(zipResponse.rawPayload));
   const entries = await zip.getEntries();
-  expect(entries).toHaveLength(6);
+  expect(entries).toHaveLength(7);
   for (const d of devices) {
     const response = await app.inject(m.outputs[d.id]!);
     const metadata = await sharp(response.rawPayload).metadata();
@@ -415,14 +415,17 @@ test('both ZIP layouts preserve current PNGs, safe names, and distinct selected 
         );
         const zip = new ZipReader(new Uint8ArrayReader(response.rawPayload));
         const entries = await zip.getEntries();
-        expect(entries.map((e) => e.filename)).toEqual(
-          selected.map((d) =>
+        expect(entries.map((e) => e.filename)).toEqual([
+          ...selected.map((d) =>
             folders
               ? `${d.id}/${safeName(name)}.png`
               : `${safeName(name)}-${d.id}.png`,
           ),
-        );
-        for (const [index, entry] of entries.entries()) {
+          `originals/${safeName(name)}.png`,
+        ]);
+        for (const [index, entry] of entries
+          .slice(0, selected.length)
+          .entries()) {
           expect(entry.directory).toBe(false);
           if (!entry.directory)
             expect(
@@ -536,6 +539,7 @@ test('a newly bundled catalog entry flows through selection data, Smart crop, pr
     const zip = new ZipReader(new Uint8ArrayReader(zipped.rawPayload));
     expect((await zip.getEntries()).map((e) => e.filename)).toEqual([
       'extra-extra-display.png',
+      'originals/extra.png',
     ]);
     await zip.close();
   } finally {

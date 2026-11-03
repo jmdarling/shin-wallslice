@@ -32,6 +32,7 @@ let namingResponse: () => Promise<Response> = async () =>
 let detectionResponse: () => Promise<Response> = async () =>
   Response.json({ state: 'disabled' });
 let failUpload = false;
+let uploadedFiles: File[] = [];
 let serverSavingEnabled = false;
 let saveBodies: Record<string, unknown>[] = [];
 let saveResponse: () => Promise<Response> = async () => Response.json({});
@@ -59,13 +60,14 @@ beforeEach(() => {
     Response.json({
       state: 'saved',
       destination: '/data/output',
-      saved: ['view-phone.png', 'view-tablet.png'],
+      saved: ['view-phone.png', 'view-tablet.png', 'originals/view.png'],
       conflicts: [],
       failed: [],
     });
   detectionResponse = async () => Response.json({ state: 'disabled' });
   namingResponse = async () => Response.json({ state: 'disabled' });
   failUpload = false;
+  uploadedFiles = [];
   renderCount = 0;
   renderBodies = [];
   preferences = {
@@ -94,6 +96,7 @@ beforeEach(() => {
         return Response.json(preferences);
       }
       if (input === '/api/jobs') {
+        uploadedFiles.push(init!.body as File);
         if (failUpload)
           return Response.json(
             { message: 'Corrupt image. Choose another image.' },
@@ -259,6 +262,41 @@ test('drop and clipboard paste each open Processing, multiple files and corrupt 
   );
   await processed(a);
 });
+test.each(['picker', 'drop', 'paste'])(
+  '%s uploads the exact supplied file bytes without image conversion',
+  async (method) => {
+    const a = await app();
+    const bytes = new Uint8Array([0, 255, 123, 4, 50, 0, 80]);
+    const source = new File([bytes], 'original.webp', { type: 'image/webp' });
+    if (method === 'picker') picker(a, [source]);
+    else {
+      const transfer = new DataTransfer();
+      transfer.items.add(source);
+      if (method === 'drop')
+        a.shadowRoot!.querySelector('.drop')!.dispatchEvent(
+          new DragEvent('drop', {
+            dataTransfer: transfer,
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+      else
+        document.dispatchEvent(
+          new ClipboardEvent('paste', {
+            clipboardData: transfer,
+            cancelable: true,
+          }),
+        );
+    }
+    await processed(a);
+    expect(uploadedFiles).toHaveLength(1);
+    expect(new Uint8Array(await uploadedFiles[0]!.arrayBuffer())).toEqual(
+      bytes,
+    );
+    expect(uploadedFiles[0]!.type).toBe('image/webp');
+  },
+);
+
 test('global anchors reset positions, manual edits remain independent, reset affects only one device, and OLED preserves positions', async () => {
   const a = await app();
   picker(a, [file()]);
@@ -1532,7 +1570,7 @@ for (const width of [320, 1440]) {
           state: 'conflicts',
           destination: '/data/output',
           saved: [],
-          conflicts: ['wallpaper-phone.png'],
+          conflicts: ['originals/wallpaper.png'],
           failed: [],
           confirmation: 'review',
         });
@@ -1549,7 +1587,7 @@ for (const width of [320, 1440]) {
           .shadowRoot!.querySelector('.save-feedback')!
           .getAttribute('aria-live'),
       ).toBe('polite');
-      expect(a.shadowRoot!.textContent).toContain('wallpaper-phone.png');
+      expect(a.shadowRoot!.textContent).toContain('originals/wallpaper.png');
       await page.getByRole('button', { name: 'Cancel', exact: true }).click();
       expect(saveBodies).toHaveLength(1);
       await page
@@ -1560,7 +1598,11 @@ for (const width of [320, 1440]) {
         Response.json({
           state: 'saved',
           destination: '/data/output',
-          saved: ['wallpaper-phone.png', 'wallpaper-tablet.png'],
+          saved: [
+            'wallpaper-phone.png',
+            'wallpaper-tablet.png',
+            'originals/wallpaper.png',
+          ],
           failed: [],
           conflicts: [],
         });
@@ -1573,6 +1615,7 @@ for (const width of [320, 1440]) {
       await vi.waitFor(() => expect(a.serverSave?.state).toBe('saved'));
       expect(saveBodies[2]!.confirmation).toBe('review');
       expect(a.shadowRoot!.textContent).toContain('Saved to');
+      expect(a.shadowRoot!.textContent).toContain('originals/wallpaper.png');
       expect(a.shadowRoot!.textContent).toContain('/data/output');
       expect(document.documentElement.scrollWidth).toBe(width);
       for (const control of a.shadowRoot!.querySelectorAll('wa-button')) {
@@ -1617,7 +1660,7 @@ test('save snapshots layout/name, prevents duplicate submissions, and reports pa
       conflicts: [],
       failed: [
         {
-          path: 'tablet/view.png',
+          path: 'originals/view.webp',
           message: 'Destination storage is full. Free space and retry.',
         },
       ],
@@ -1628,7 +1671,7 @@ test('save snapshots layout/name, prevents duplicate submissions, and reports pa
   expect(a.shadowRoot!.textContent).toContain('phone/view.png');
   expect(
     a.shadowRoot!.querySelector('.save-feedback [role=alert]')!.textContent,
-  ).toContain('tablet/view.png');
+  ).toContain('originals/view.webp');
   expect(a.shadowRoot!.textContent).toContain('Free space and retry');
   await expect.element(button).not.toBeDisabled();
   await page.getByRole('button', { name: 'Back to Processing' }).click();

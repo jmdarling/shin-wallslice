@@ -8,11 +8,11 @@ import {
   readdir,
   realpath,
 } from 'node:fs/promises';
-import { createReadStream } from 'node:fs';
+import { createReadStream, openAsBlob } from 'node:fs';
 import { join, resolve, dirname, basename, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import sharp from 'sharp';
-import { ZipWriter, Uint8ArrayReader, Uint8ArrayWriter } from '@zip.js/zip.js';
+import { ZipWriter, BlobReader, Uint8ArrayWriter } from '@zip.js/zip.js';
 import type { FastifyInstance } from 'fastify';
 import catalog from './devices.json' with { type: 'json' };
 import type { RuntimeConfig } from './config.js';
@@ -106,9 +106,34 @@ interface StoredJob extends Job {
   aiImage?: Buffer;
   namingController?: AbortController;
   directory: string;
+  original: string;
   touched: number;
   manifest?: Manifest;
 }
+
+function exportFiles(
+  job: StoredJob,
+  manifest: Manifest,
+  name: string,
+  folders: boolean,
+) {
+  return [
+    ...Object.keys(manifest.outputs).map((id) => ({
+      path: folders ? `${id}/${name}.png` : `${name}-${id}.png`,
+      source: join(job.directory, manifest.revision, `${id}.png`),
+    })),
+    {
+      path: `originals/${name}.${job.original.split('.').at(-1)!}`,
+      source: join(job.directory, job.original),
+    },
+  ];
+}
+
+const originalUnavailable = () =>
+  new Error(
+    'Original upload is unavailable. Upload the image again and retry.',
+  );
+
 export async function registerWorkflow(
   app: FastifyInstance,
   config: RuntimeConfig,
@@ -247,6 +272,8 @@ export async function registerWorkflow(
     throw new Error(
       'Bundled output dimensions exceed memoryBudgetMiB; increase the budget or reduce the preset dimensions',
     );
+  // The upload allowance reserves the unchanged original retained alongside
+  // the normalized source and current render. Rerenders do not retain history.
   const reservation =
     uploadLimit +
     maxPixels * 8 +
@@ -516,9 +543,12 @@ export async function registerWorkflow(
             );
           }
           const normalized = await sharp(source).metadata();
+          const original = `original.${meta.format === 'jpeg' ? 'jpg' : meta.format}`;
+          await writeFile(join(directory, original), request.body);
           const job: StoredJob = {
             id,
             directory,
+            original,
             oledAnalysis: {
               state: 'failed',
               candidate: false,
@@ -705,7 +735,7 @@ export async function registerWorkflow(
         // Invalidate previous exports immediately; failed/pending generations can never serve stale files.
         delete job.manifest;
         for (const entry of await readdir(job.directory))
-          if (entry !== 'source.png')
+          if (entry !== 'source.png' && entry !== job.original)
             await rm(join(job.directory, entry), {
               recursive: true,
               force: true,
@@ -788,14 +818,20 @@ export async function registerWorkflow(
           fail('Generate current downloads before saving to the server.', 409);
         const name = safeName(body.name as string);
         const folders = body.organizeIntoDeviceFolders as boolean;
-        const files = await Promise.all(
-          Object.keys(m.outputs).map(async (id) => ({
-            path: folders ? `${id}/${name}.png` : `${name}-${id}.png`,
-            contents: await readFile(
-              join(job.directory, m.revision, `${id}.png`),
-            ),
-          })),
-        );
+        const files = exportFiles(job, m, name, folders).map((file) => ({
+          path: file.path,
+          contents: async () => {
+            try {
+              return await readFile(file.source);
+            } catch {
+              throw file.path.startsWith('originals/')
+                ? originalUnavailable()
+                : new Error(
+                    'Generated wallpaper is unavailable. Generate downloads again and retry.',
+                  );
+            }
+          },
+        }));
         return serverOutput.save(
           JSON.stringify([job.id, m.revision, name, folders]),
           files,
@@ -846,13 +882,19 @@ export async function registerWorkflow(
       const name = safeName(request.query.name ?? 'wallpaper');
       const folders = request.query.organizeIntoDeviceFolders === 'true';
       const writer = new ZipWriter(new Uint8ArrayWriter(), { level: 0 });
-      for (const id of Object.keys(m.outputs))
-        await writer.add(
-          folders ? `${id}/${name}.png` : `${name}-${id}.png`,
-          new Uint8ArrayReader(
-            await readFile(join(job.directory, m.revision, `${id}.png`)),
-          ),
-        );
+      for (const file of exportFiles(job, m, name, folders)) {
+        try {
+          // File-backed blobs avoid loading another full upload into memory.
+          await writer.add(
+            file.path,
+            new BlobReader(await openAsBlob(file.source)),
+          );
+        } catch (error) {
+          await writer.close().catch(() => {});
+          if (file.path.startsWith('originals/')) throw originalUnavailable();
+          throw error;
+        }
+      }
       const data = await writer.close();
       reply
         .header('Cache-Control', 'no-store')
@@ -860,7 +902,9 @@ export async function registerWorkflow(
           'Content-Disposition',
           `attachment; filename*=UTF-8''${encodeURIComponent(name)}.zip`,
         );
-      return reply.type('application/zip').send(Buffer.from(data));
+      return reply
+        .type('application/zip')
+        .send(Buffer.from(data.buffer, data.byteOffset, data.byteLength));
     }),
   );
 }

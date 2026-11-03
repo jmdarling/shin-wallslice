@@ -1,5 +1,14 @@
 # Documentation images
 
+## v1.5.0 original exports
+
+The existing workflow screens and generated device PNGs retain their appearance,
+so their screenshots and output illustrations remain accurate. New real-app
+[conflict and save-result captures](../design/v1.5.0/README.md) show the original
+file in both output layouts at 320px and 1440px in light/dark appearances. The
+source is the same CC0 Dusk Ridges PNG; original ZIP and server-save bytes were
+compared with the upload, including after Start over.
+
 ## Source artwork
 
 **Dusk Ridges** is original vector artwork created for this repository's documentation. It depicts a warm moon/sun above layered blue mountain ridges, with dark foreground shadows that demonstrate OLEDify.

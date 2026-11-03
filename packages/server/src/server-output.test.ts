@@ -6,6 +6,7 @@ import {
   mkdir,
   symlink,
   readdir,
+  link,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -23,7 +24,7 @@ afterEach(async () => {
   for (const fn of cleanup.reverse()) await fn();
   cleanup.length = 0;
 });
-async function fixture(enabled = true) {
+async function fixture(enabled = true, source?: Buffer) {
   const root = await mkdtemp(join(tmpdir(), 'wallslice-save-'));
   cleanup.push(() => rm(root, { recursive: true, force: true }));
   const outputDirectory = join(root, 'output');
@@ -37,15 +38,16 @@ async function fixture(enabled = true) {
   const app = buildApp(config);
   cleanup.push(() => app.close());
   await app.ready();
+  source ??= await sharp({
+    create: { width: 120, height: 80, channels: 3, background: '#101010' },
+  })
+    .png()
+    .toBuffer();
   const upload = await app.inject({
     method: 'POST',
     url: '/api/jobs',
     headers: { 'content-type': 'application/octet-stream' },
-    payload: await sharp({
-      create: { width: 120, height: 80, channels: 3, background: '#101010' },
-    })
-      .png()
-      .toBuffer(),
+    payload: source,
   });
   const job = upload.json<Job>();
   const render = () =>
@@ -68,7 +70,17 @@ async function fixture(enabled = true) {
       url: `/api/jobs/${job.id}/save/${revision}`,
       payload: { name: '../../', organizeIntoDeviceFolders: false, ...body },
     });
-  return { root, outputDirectory, config, app, job, manifest, render, save };
+  return {
+    root,
+    outputDirectory,
+    config,
+    app,
+    job,
+    manifest,
+    render,
+    save,
+    source,
+  };
 }
 
 test('disabled saving has no API capability and ordinary exports remain available', async () => {
@@ -109,10 +121,13 @@ test.each([false, true])(
       expect(contents).toEqual(
         Buffer.from(await e.getData!(new Uint8ArrayWriter())),
       );
-      expect(await sharp(contents).metadata()).toMatchObject({
-        width: devices[0]!.width,
-        height: devices[0]!.height,
-      });
+      if (e.filename.startsWith('originals/'))
+        expect(contents).toEqual(f.source);
+      else
+        expect(await sharp(contents).metadata()).toMatchObject({
+          width: devices[0]!.width,
+          height: devices[0]!.height,
+        });
     }
     await reader.close();
     await writeFile(join(f.outputDirectory, 'unrelated.txt'), 'keep');
@@ -296,19 +311,27 @@ test.each(['ENOSPC', 'EACCES', 'EROFS'])(
       }
     }
     const output = new FailingOutput(f.outputDirectory);
-    const files = ['one.png', 'two.png', 'three.png'].map((path) => ({
-      path,
-      contents: Buffer.from(path),
-    }));
+    const files = ['one.png', 'originals/two.webp', 'three.png'].map(
+      (path) => ({
+        path,
+        contents: Buffer.from(path),
+      }),
+    );
     const result = await output.save('render', files);
     expect(result.state).toBe('failed');
     expect(result.saved).toEqual(['one.png']);
-    expect(result.failed.map((f) => f.path)).toEqual(['two.png', 'three.png']);
+    expect(result.failed.map((f) => f.path)).toEqual([
+      'originals/two.webp',
+      'three.png',
+    ]);
     expect(result.failed[0]!.message).toMatch(
       code === 'ENOSPC' ? /Free space/ : /permission/,
     );
     expect(result.failed[0]!.message).not.toContain('sensitive');
-    expect(await readdir(f.outputDirectory)).toEqual(['one.png']);
+    expect((await readdir(f.outputDirectory)).sort()).toEqual([
+      'one.png',
+      'originals',
+    ]);
     const review = await output.save('render', files);
     expect(review.state).toBe('conflicts');
     expect(
@@ -396,4 +419,180 @@ test('later saves preserve old names and unselected-device outputs', async () =>
   expect(
     (await readFile(join(f.outputDirectory, `old-${id}.png`))).length,
   ).toBeGreaterThan(0);
+  expect(await readFile(join(f.outputDirectory, 'originals/old.png'))).toEqual(
+    f.source,
+  );
+  expect(await readFile(join(f.outputDirectory, 'originals/new.png'))).toEqual(
+    f.source,
+  );
 });
+
+test.each(['jpeg', 'png', 'webp'] as const)(
+  '%s originals retain exact bytes and metadata across layouts, names, rerenders and cleanup',
+  async (format) => {
+    const source = await sharp({
+      create: { width: 120, height: 80, channels: 3, background: '#101010' },
+    })
+      .withMetadata({ orientation: 6 })
+      .toFormat(format)
+      .toBuffer();
+    const f = await fixture(true, source);
+    const extension = format === 'jpeg' ? 'jpg' : format;
+    let manifest = f.manifest;
+    for (const folders of [false, true]) {
+      const name = folders ? '../../new:name' : 'Dusk Ridges';
+      const safe = folders ? 'new-name' : 'Dusk Ridges';
+      if (folders) {
+        manifest = (await f.render()).json<Manifest>();
+        expect((await f.save()).statusCode).toBe(409);
+        expect(
+          (
+            await f.app.inject(
+              `/api/jobs/${f.job.id}/zip/${f.manifest.revision}`,
+            )
+          ).statusCode,
+        ).toBe(409);
+      }
+      const response = await f.app.inject(
+        `/api/jobs/${f.job.id}/zip/${manifest.revision}?name=${encodeURIComponent(name)}&organizeIntoDeviceFolders=${folders}`,
+      );
+      expect(response.statusCode).toBe(200);
+      const zip = new ZipReader(new Uint8ArrayReader(response.rawPayload));
+      const entries = await zip.getEntries();
+      const path = `originals/${safe}.${extension}`;
+      expect(entries.map((e) => e.filename)).toEqual([
+        folders
+          ? `${devices[0]!.id}/${safe}.png`
+          : `${safe}-${devices[0]!.id}.png`,
+        path,
+      ]);
+      const original = entries[1]!;
+      if (original.directory) throw new Error('Expected original file');
+      const bytes = Buffer.from(
+        await original.getData!(new Uint8ArrayWriter()),
+      );
+      expect(bytes).toEqual(source);
+      expect(await sharp(bytes).metadata()).toMatchObject({
+        format,
+        orientation: 6,
+        width: 120,
+        height: 80,
+      });
+      const saved = (
+        await f.save(
+          { name, organizeIntoDeviceFolders: folders },
+          manifest.revision,
+        )
+      ).json<SaveResult>();
+      expect(saved.state).toBe('saved');
+      expect(saved.saved).toEqual(entries.map((e) => e.filename));
+      expect(await readFile(join(f.outputDirectory, path))).toEqual(source);
+      await zip.close();
+    }
+    const processDir = (await readdir(f.config.temporaryDirectory))[0]!;
+    const jobDir = join(f.config.temporaryDirectory, processDir, f.job.id);
+    expect(await readFile(join(jobDir, `original.${extension}`))).toEqual(
+      source,
+    );
+    await f.app.inject({ method: 'DELETE', url: `/api/jobs/${f.job.id}` });
+    await expect(readdir(jobDir)).rejects.toMatchObject({ code: 'ENOENT' });
+    expect(
+      await readFile(
+        join(f.outputDirectory, `originals/Dusk Ridges.${extension}`),
+      ),
+    ).toEqual(source);
+  },
+);
+
+test('an original-only conflict prevents all writes, cancel preserves bytes and changed originals require fresh review', async () => {
+  const f = await fixture();
+  const path = 'originals/wallpaper.png';
+  await mkdir(join(f.outputDirectory, 'originals'), { recursive: true });
+  await writeFile(join(f.outputDirectory, path), 'old original');
+  const review = (await f.save()).json<SaveResult>();
+  expect(review).toMatchObject({
+    state: 'conflicts',
+    saved: [],
+    conflicts: [path],
+  });
+  expect(await readdir(f.outputDirectory)).toEqual(['originals']);
+  expect(await readFile(join(f.outputDirectory, path), 'utf8')).toBe(
+    'old original',
+  );
+  await writeFile(join(f.outputDirectory, path), 'changed original');
+  const renewed = (
+    await f.save({ confirmation: review.confirmation })
+  ).json<SaveResult>();
+  expect(renewed.state).toBe('conflicts');
+  expect(renewed.confirmation).not.toBe(review.confirmation);
+  expect(await readdir(f.outputDirectory)).toEqual(['originals']);
+  const saved = (
+    await f.save({ confirmation: renewed.confirmation })
+  ).json<SaveResult>();
+  expect(saved.state).toBe('saved');
+  expect(saved.saved).toContain(path);
+  expect(await readFile(join(f.outputDirectory, path))).toEqual(f.source);
+});
+
+test('a missing original fails ZIP and reports a partial save with its path; restoring it permits retry', async () => {
+  const f = await fixture();
+  const processDir = (await readdir(f.config.temporaryDirectory))[0]!;
+  const sourcePath = join(
+    f.config.temporaryDirectory,
+    processDir,
+    f.job.id,
+    'original.png',
+  );
+  await rm(sourcePath);
+  const zip = await f.app.inject(
+    `/api/jobs/${f.job.id}/zip/${f.manifest.revision}`,
+  );
+  expect(zip.statusCode).toBe(500);
+  expect(zip.json().message).toContain('Original upload is unavailable');
+  const result = (await f.save()).json<SaveResult>();
+  expect(result.state).toBe('failed');
+  expect(result.saved).toEqual([`wallpaper-${devices[0]!.id}.png`]);
+  expect(result.failed).toEqual([
+    {
+      path: 'originals/wallpaper.png',
+      message: expect.stringContaining('Original upload is unavailable'),
+    },
+  ]);
+  await writeFile(sourcePath, f.source);
+  const review = (await f.save()).json<SaveResult>();
+  expect(
+    (await f.save({ confirmation: review.confirmation })).json().state,
+  ).toBe('saved');
+  expect(
+    await readFile(join(f.outputDirectory, 'originals/wallpaper.png')),
+  ).toEqual(f.source);
+});
+
+test.each(['folder-link', 'file-link', 'directory', 'hard-link'])(
+  'original %s cannot redirect or replace unsafe destinations',
+  async (kind) => {
+    const f = await fixture();
+    const outside = join(f.root, 'outside');
+    await mkdir(outside);
+    const outsideFile = join(outside, 'keep.jpg');
+    await writeFile(outsideFile, 'keep');
+    await mkdir(f.outputDirectory);
+    const folder = join(f.outputDirectory, 'originals');
+    if (kind === 'folder-link') await symlink(outside, folder);
+    else {
+      await mkdir(folder);
+      const target = join(folder, 'wallpaper.png');
+      if (kind === 'file-link') await symlink(outsideFile, target);
+      if (kind === 'directory') await mkdir(target);
+      if (kind === 'hard-link') await link(outsideFile, target);
+    }
+    const result = (await f.save()).json<SaveResult>();
+    expect(result.state).toBe('failed');
+    expect(result.saved).toEqual([]);
+    expect(result.failed.map((file) => file.path)).toContain(
+      'originals/wallpaper.png',
+    );
+    expect(await readFile(outsideFile, 'utf8')).toBe('keep');
+    expect(await readdir(outside)).toEqual(['keep.jpg']);
+  },
+);

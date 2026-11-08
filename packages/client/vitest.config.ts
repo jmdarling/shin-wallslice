@@ -3,6 +3,7 @@ import { playwright } from '@vitest/browser-playwright';
 export default defineConfig({
   optimizeDeps: {
     include: [
+      'lit/directives/repeat.js',
       '@awesome.me/webawesome/dist/components/button/button.js',
       '@awesome.me/webawesome/dist/components/spinner/spinner.js',
       '@awesome.me/webawesome/dist/components/icon/icon.js',

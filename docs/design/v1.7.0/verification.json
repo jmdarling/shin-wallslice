@@ -1,0 +1,24 @@
+{
+  "url": "http://127.0.0.1:5173",
+  "verified": [
+    "Real invalid upload stays collapsed and exposes recovery after manual expansion",
+    "Real rendering updates one dock entry; old notification surfaces absent",
+    "Dismissed app error survives Start over, wallpaper history clears, correct retry resolves failure",
+    "Real ZIP handoff, successful server save, explicit conflict list and cancellation",
+    "Reload does not restore activity history",
+    "No browser runtime errors; 320px and desktop light/dark layouts fit"
+  ],
+  "captures": [
+    "input-light.png",
+    "input-dark.png",
+    "processing-light.png",
+    "processing-mobile-light.png",
+    "processing-dark.png",
+    "processing-mobile-dark.png",
+    "oledify-working.png",
+    "preference-error-mobile.png",
+    "download-light.png",
+    "download-dark.png",
+    "server-conflict-mobile.png"
+  ]
+}

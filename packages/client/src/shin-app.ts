@@ -1,4 +1,5 @@
-import { LitElement, css, html, nothing } from 'lit';
+import { ActivityDock, activityStyles } from './activity-dock.js';
+import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 import '@awesome.me/webawesome/dist/components/button/button.js';
 import '@awesome.me/webawesome/dist/components/spinner/spinner.js';
 import './crop-editor.js';
@@ -48,6 +49,9 @@ export class ShinApp extends LitElement {
     serverSavingEnabled: { state: true },
     serverSave: { state: true },
   };
+  readonly activity = new ActivityDock(this);
+  private errorOperation = 'load';
+  private retryDownload?: () => unknown;
   page: 'input' | 'processing' | 'download' = 'input';
   devices: Device[] = [];
   prefs: Preferences = {
@@ -108,6 +112,7 @@ export class ShinApp extends LitElement {
     this.oledController?.abort();
     this.namingController?.abort();
     this.detectionController?.abort();
+    this.activity.reset();
   }
   private async api<T>(path: string, init?: RequestInit): Promise<T> {
     const r = await fetch(path, init);
@@ -123,6 +128,14 @@ export class ShinApp extends LitElement {
     return (await r.json()) as T;
   }
   private async load() {
+    this.errorOperation = 'load';
+    this.error = '';
+    this.activity.set({
+      id: 'load',
+      label: 'Loading application',
+      state: 'working',
+      scope: 'app',
+    });
     try {
       const catalog = await this.api<Catalog>('/api/catalog');
       this.aiEnabled = catalog.aiEnabled ?? false;
@@ -141,6 +154,7 @@ export class ShinApp extends LitElement {
       };
       this.preferenceError = catalog.preferenceError;
       this.ready = true;
+      this.activity.remove('load');
     } catch (e) {
       this.error = (e as Error).message;
     }
@@ -148,6 +162,13 @@ export class ShinApp extends LitElement {
   private save() {
     const next = structuredClone(this.prefs);
     const version = ++this.prefVersion;
+    this.preferenceError = '';
+    this.activity.set({
+      id: 'preferences',
+      label: 'Saving preferences',
+      state: 'working',
+      scope: 'app',
+    });
     this.prefSaving = this.prefSaving
       .catch(() => {})
       .then(async () => {
@@ -157,7 +178,15 @@ export class ShinApp extends LitElement {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(next),
           });
-          if (version === this.prefVersion) this.preferenceError = '';
+          if (version === this.prefVersion) {
+            this.preferenceError = '';
+            this.activity.set({
+              id: 'preferences',
+              label: 'Preferences saved',
+              state: 'completed',
+              scope: 'app',
+            });
+          }
         } catch (e) {
           if (version === this.prefVersion)
             this.preferenceError = (e as Error).message;
@@ -166,6 +195,7 @@ export class ShinApp extends LitElement {
   }
   private async upload(files: File[], clipboard = false) {
     if (this.busy || !this.ready) return;
+    this.errorOperation = 'upload';
     this.error = '';
     if (files.length !== 1) {
       this.error = 'Choose one image at a time.';
@@ -179,6 +209,11 @@ export class ShinApp extends LitElement {
       this.error = 'Choose a JPEG, PNG, or WebP image.';
       return;
     }
+    this.activity.set({
+      id: 'upload',
+      label: 'Preparing wallpaper',
+      state: 'working',
+    });
     this.busy = 'Uploading and finding Smart crops…';
     try {
       this.job = await this.api<Job>('/api/jobs', {
@@ -205,6 +240,11 @@ export class ShinApp extends LitElement {
       void this.watchDetection(this.job.id);
       this.naming = this.job.naming ?? { state: 'disabled' };
       void this.watchNaming(this.job.id);
+      this.activity.set({
+        id: 'upload',
+        label: 'Wallpaper uploaded',
+        state: 'completed',
+      });
       this.page = 'processing';
       this.resetAll();
     } catch (e) {
@@ -282,13 +322,12 @@ export class ShinApp extends LitElement {
   private oledFeedback() {
     const status = this.oledAnalysis;
     if (!status) return nothing;
-    return html`<p class="meta" role="status" aria-live="polite">
+    return html`<p class="meta">
       ${status.darkPercentage !== undefined ? `Local check: ${status.darkPercentage.toFixed(1)}% near-black pixels. ${status.candidate ? 'Qualifies for OLEDify analysis.' : 'OLEDify not recommended.'}` : 'Local analysis unavailable.'}
-      ${status.state === 'pending' ? 'Local fallback: on at cutoff 16. You can continue and download now.' : nothing}
+      ${status.state === 'pending' || status.state === 'failed' ? 'Local fallback: on at cutoff 16.' : nothing}
       ${status.state === 'succeeded' ? `AI recommendation: ${status.oled ? `on at cutoff ${status.threshold}` : 'leave OLEDify off'}. Best effort; inspect the preview.` : nothing}
       ${status.state === 'local' ? 'AI is disabled. Local fallback: on at cutoff 16.' : nothing}
       ${status.state === 'skipped' ? 'AI comparison skipped.' : nothing}
-      ${status.state === 'failed' ? html`${status.candidate ? 'Local fallback: on at cutoff 16.' : nothing} ${status.message} <wa-button size="s" appearance="outlined" @click=${() => this.job && this.watchOled(this.job.id, true)}>Retry OLEDify analysis</wa-button>` : nothing}
       ${this.oledManual ? 'Your manual settings are protected; recommendations will not be applied.' : nothing}
     </p>`;
   }
@@ -497,6 +536,14 @@ export class ShinApp extends LitElement {
   private schedule(oled = false) {
     if (oled) this.oledProcessing = true;
     this.serverSave = undefined;
+    this.activity.set({
+      id: 'render',
+      label: this.oledProcessing
+        ? 'OLEDify processing'
+        : 'Rendering wallpapers',
+      state: 'working',
+      detail: 'Updating previews and PNG outputs.',
+    });
     this.dirty = true;
     this.generation++;
     clearTimeout(this.timer);
@@ -515,6 +562,16 @@ export class ShinApp extends LitElement {
     clearTimeout(this.timer);
     this.rendering = true;
     if (this.oledRenderFailed) this.oledProcessing = true;
+    this.errorOperation = 'render';
+    this.error = '';
+    this.activity.set({
+      id: 'render',
+      label: this.oledProcessing
+        ? 'OLEDify processing'
+        : 'Rendering wallpapers',
+      state: 'working',
+      detail: 'Updating previews and PNG outputs.',
+    });
     this.busy = 'Generating previews and PNG downloads…';
     const version = this.generation;
     const id = this.job.id;
@@ -529,6 +586,12 @@ export class ShinApp extends LitElement {
         }),
       });
       if (version === this.generation && this.job?.id === id) {
+        this.activity.set({
+          id: 'render',
+          label: 'Wallpapers ready',
+          state: 'completed',
+          detail: 'Current previews and PNG outputs are ready.',
+        });
         this.manifest = manifest;
         this.dirty = false;
         this.oledRenderFailed = false;
@@ -550,6 +613,7 @@ export class ShinApp extends LitElement {
   }
   private async startOver() {
     if (this.busy) return;
+    this.errorOperation = 'reset';
     try {
       if (this.job)
         await this.api(`/api/jobs/${this.job.id}`, { method: 'DELETE' });
@@ -568,6 +632,7 @@ export class ShinApp extends LitElement {
       this.name = '';
       this.serverSave = undefined;
       this.error = '';
+      this.activity.reset();
       this.page = 'input';
       this.dirty = false;
       this.oledProcessing = false;
@@ -578,6 +643,19 @@ export class ShinApp extends LitElement {
   }
   private async download(path: string, filename: string) {
     if (this.dirty || this.busy) return;
+    this.errorOperation = 'download';
+    const selection = this.currentSaveSelection();
+    this.retryDownload = () => {
+      if (selection === this.currentSaveSelection())
+        return this.download(path, filename);
+      this.activity.remove('download');
+    };
+    this.activity.set({
+      id: 'download',
+      label: 'Preparing download',
+      state: 'working',
+      detail: filename,
+    });
     this.busy = 'Preparing download…';
     this.error = '';
     try {
@@ -597,6 +675,12 @@ export class ShinApp extends LitElement {
       a.href = url;
       a.download = filename;
       a.click();
+      this.activity.set({
+        id: 'download',
+        label: 'Download handed to browser',
+        state: 'completed',
+        detail: filename,
+      });
       setTimeout(() => URL.revokeObjectURL(url), 30000);
     } catch (e) {
       this.error = (e as Error).message;
@@ -630,7 +714,13 @@ export class ShinApp extends LitElement {
       replace && this.saveSelection === selection
         ? this.serverSave?.confirmation
         : undefined;
+    this.activity.set({
+      id: 'server-save',
+      label: 'Saving wallpapers to server',
+      state: 'working',
+    });
     this.busy = 'Saving wallpapers to server…';
+    this.saveSelection = selection;
     this.serverSave = undefined;
     try {
       const result = await this.api<SaveResult>(
@@ -659,625 +749,856 @@ export class ShinApp extends LitElement {
       this.busy = '';
     }
   }
-  static styles = css`
-    :host {
-      display: block;
-      color: var(--app-text);
-    }
-    * {
-      box-sizing: border-box;
-    }
-    header {
-      padding: 1.4rem max(1.25rem, calc((100vw - 1280px) / 2));
-      display: flex;
-      align-items: center;
-      gap: 2rem;
-      border-bottom: 1px solid var(--app-header-border);
-    }
-    header strong {
-      font-size: 1.3rem;
-      letter-spacing: -0.045em;
-      margin-right: auto;
-    }
-    nav {
-      display: flex;
-      gap: 1.25rem;
-    }
-    .step {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      color: var(--app-muted);
-      font-size: 0.875rem;
-    }
-    .step b {
-      width: 28px;
-      height: 28px;
-      display: grid;
-      place-items: center;
-      border: 1px solid var(--app-control-border);
-      border-radius: 50%;
-      font-size: 0.8rem;
-    }
-    .step[aria-current] {
-      color: var(--app-text);
-      font-weight: 650;
-    }
-    .step[aria-current] b {
-      color: var(--app-on-accent);
-      background: var(--app-accent);
-      border-color: var(--app-accent);
-    }
-    main {
-      max-width: 1280px;
-      padding: 2rem 2.5rem 3rem;
-      margin: auto;
-    }
-    h1 {
-      font:
-        400 clamp(2.5rem, 4.5vw, 3.5rem)/1.12 Georgia,
-        serif;
-      letter-spacing: -0.035em;
-      margin: 0.5rem 0 1rem;
-    }
-    h2 {
-      font-size: 1.05rem;
-      margin: 0 0 1rem;
-    }
-    h3 {
-      font-size: 1rem;
-      font-weight: 650;
-      margin: 0 0 1rem;
-      overflow-wrap: anywhere;
-    }
-    p {
-      line-height: 1.5;
-      color: var(--app-muted);
-    }
-    .intro {
-      margin-bottom: 2rem;
-    }
-    .input-layout {
-      display: grid;
-      grid-template-columns: 310px minmax(0, 1fr);
-      gap: 2rem;
-      align-items: start;
-    }
-    .input-layout > .drop {
-      grid-column: 1 / -1;
-    }
-    .source-recommendation {
-      border-top: 1px solid var(--app-panel-border);
-      margin-top: 1.25rem;
-      padding-top: 1.25rem;
-    }
-    .source-recommendation h2 {
-      font-size: 0.875rem;
-      margin-bottom: 0.5rem;
-    }
-    .source-recommendation strong {
-      color: var(--app-text);
-      font-size: 1.5rem;
-      font-weight: 650;
-    }
-    .source-recommendation p {
-      margin: 0.5rem 0 0;
-    }
-    .drop {
-      border: 1px dashed var(--app-control-border);
-      background: var(--app-drop);
-      text-align: center;
-      padding: 2.5rem 1.5rem;
-    }
-    .drop h2 {
-      font-size: 1.15rem;
-      margin-bottom: 1.25rem;
-    }
-    .drop:focus-within {
-      outline: 3px solid var(--app-focus);
-      outline-offset: 4px;
-    }
-    .drop input {
-      display: block;
-      max-width: 100%;
-      width: 10rem;
-      color: transparent;
-      margin: auto;
-    }
-    input[type='file']::file-selector-button {
-      font: inherit;
-      font-weight: 600;
-      min-height: 44px;
-      width: 100%;
-      border: 1px solid var(--app-accent);
-      border-radius: 4px;
-      background: var(--app-accent);
-      color: var(--app-on-accent);
-      cursor: pointer;
-    }
-    input[type='file']:disabled::file-selector-button {
-      color: var(--app-muted);
-      background: var(--app-selected);
-      border-color: var(--app-control-border);
-      cursor: wait;
-    }
-    .disclosure {
-      border-top: 1px solid var(--app-panel-border);
-      padding-top: 1rem;
-      margin-top: 1.5rem;
-      text-align: left;
-      font-size: 0.875rem;
-    }
-    .example {
-      background: var(--app-panel);
-      padding: 2rem;
-      margin: 0;
-    }
-    .example-image {
-      position: relative;
-    }
-    .example img {
-      display: block;
-      width: 100%;
-    }
-    .example-image::before,
-    .example-image::after {
-      content: '';
-      position: absolute;
-      border: 2px solid white;
-      box-shadow: 0 0 0 1px black;
-    }
-    .example-image::before {
-      top: 5%;
-      bottom: 5%;
-      left: 16%;
-      width: 28%;
-    }
-    .example-image::after {
-      top: 20%;
-      bottom: 20%;
-      left: 48%;
-      width: 40%;
-    }
-    figcaption {
-      margin-top: 1rem;
-      font-size: 0.875rem;
-      color: var(--app-muted);
-    }
-    input,
-    select {
-      font: inherit;
-      accent-color: var(--app-accent);
-    }
-    input[type='text'] {
-      width: 100%;
-      padding: 0.75rem;
-      min-height: 48px;
-      border: 1px solid var(--app-control-border);
-      border-radius: 4px;
-      background: var(--app-control);
-      color: var(--app-text);
-    }
-    label {
-      line-height: 1.5;
-    }
-    button:focus-visible,
-    input:focus-visible,
-    select:focus-visible {
-      outline: 3px solid var(--app-focus);
-      outline-offset: 3px;
-    }
-    .layout {
-      display: grid;
-      grid-template-columns: 310px minmax(0, 1fr);
-      gap: 2rem;
-    }
-    .panel {
-      container-type: inline-size;
-      align-self: start;
-      padding: 1.25rem;
-      background: var(--app-panel);
-      border-radius: 4px;
-    }
-    fieldset {
-      border: 0;
-      padding: 0;
-      margin: 0;
-      min-width: 0;
-    }
-    fieldset + fieldset {
-      margin-top: 1.25rem;
-      padding-top: 1.25rem;
-      border-top: 1px solid var(--app-panel-border);
-    }
-    legend {
-      float: left;
-      width: 100%;
-      padding: 0;
-      font-weight: 650;
-      margin-bottom: 0.75rem;
-    }
-    legend + * {
-      clear: both;
-    }
-    .options {
-      display: grid;
-    }
-    .options label,
-    fieldset > label,
-    .folder-choice {
-      display: flex;
-      align-items: center;
-      gap: 0.625rem;
-      min-height: 44px;
-      font-size: 0.875rem;
-    }
-    input[type='checkbox'] {
-      flex-shrink: 0;
-      width: 18px;
-      height: 18px;
-      margin: 0;
-    }
-    .crop-method {
-      display: grid;
-      gap: 1rem;
-    }
-    .smart-choices {
-      display: grid;
-      gap: 0.5rem;
-    }
-    .crop-choice {
-      position: relative;
-      display: grid;
-      place-items: center;
-      width: 44px;
-      height: 44px;
-      border: 1px solid transparent;
-      border-radius: 4px;
-      cursor: pointer;
-      color: var(--app-text);
-    }
-    .crop-choice input {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      margin: 0;
-      opacity: 0;
-      cursor: pointer;
-    }
-    .crop-choice:has(:checked) {
-      background: var(--app-selected);
-      border-color: var(--app-accent);
-      box-shadow: inset 0 0 0 1px var(--app-accent);
-    }
-    .crop-choice:has(:checked)::after {
-      content: '✓';
-      position: absolute;
-      right: 7px;
-      bottom: 6px;
-      font-size: 0.875rem;
-      font-weight: 700;
-      line-height: 1;
-      pointer-events: none;
-    }
-    .crop-choice:has(:focus-visible) {
-      outline: 3px solid var(--app-focus);
-      outline-offset: 3px;
-      z-index: 1;
-    }
-    .crop-choice:hover {
-      background: var(--app-selected);
-    }
-    .smart-choice {
-      width: 100%;
-      min-height: 48px;
-      height: auto;
-      padding: 0.75rem 2rem 0.75rem 0.75rem;
-      display: flex;
-      gap: 0.75rem;
-      border-color: var(--app-control-border);
-      background: var(--app-control);
-      font-size: 0.875rem;
-    }
-    .smart-choice wa-icon {
-      font-size: 1.25rem;
-      color: var(--app-accent);
-    }
-    .smart-label small {
-      font: inherit;
-    }
-    .anchors {
-      display: grid;
-      grid-template: repeat(3, 44px) / repeat(3, 44px);
-      width: max-content;
-      border: 1px solid var(--app-control-border);
-      background: var(--app-control);
-      border-radius: 4px;
-    }
-    .top-left {
-      grid-area: 1 / 1;
-    }
-    .top-right {
-      grid-area: 1 / 3;
-    }
-    .center {
-      grid-area: 2 / 2;
-    }
-    .bottom-left {
-      grid-area: 3 / 1;
-    }
-    .bottom-right {
-      grid-area: 3 / 3;
-    }
-    .anchor-mark {
-      width: 13px;
-      height: 13px;
-      border: 2px solid currentColor;
-      pointer-events: none;
-    }
-    .top-left .anchor-mark {
-      border-width: 2px 0 0 2px;
-    }
-    .top-right .anchor-mark {
-      border-width: 2px 2px 0 0;
-    }
-    .bottom-left .anchor-mark {
-      border-width: 0 0 2px 2px;
-    }
-    .bottom-right .anchor-mark {
-      border-width: 0 2px 2px 0;
-    }
-    .center .anchor-mark {
-      border-radius: 50%;
-    }
-    .sr-only {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip-path: inset(50%);
-      white-space: nowrap;
-    }
-    input[type='range'] {
-      width: 100%;
-      height: 44px;
-      margin: 0;
-      appearance: none;
-      background: transparent;
-    }
-    input[type='range']::-webkit-slider-runnable-track {
-      height: 6px;
-      border: 1px solid var(--app-control-border);
-      background: var(--app-surround);
-      border-radius: 4px;
-    }
-    input[type='range']::-moz-range-track {
-      height: 6px;
-      border: 1px solid var(--app-control-border);
-      background: var(--app-surround);
-      border-radius: 4px;
-    }
-    input[type='range']::-webkit-slider-thumb {
-      appearance: none;
-      width: 18px;
-      height: 18px;
-      margin-top: -7px;
-      border: 0;
-      border-radius: 50%;
-      background: var(--app-accent);
-    }
-    input[type='range']::-moz-range-thumb {
-      width: 18px;
-      height: 18px;
-      border: 0;
-      border-radius: 50%;
-      background: var(--app-accent);
-    }
-    input[type='range']:disabled {
-      opacity: 0.5;
-    }
-    .cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
-      gap: 1.5rem;
-    }
-    .card {
-      padding: 1.125rem;
-      background: var(--app-panel);
-      min-width: 0;
-    }
-    .source-wrap {
-      background: var(--app-panel);
-      padding: 1rem;
-      margin-bottom: 1.5rem;
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-    }
-    .source {
-      max-width: 145px;
-      width: 35%;
-      max-height: 97px;
-      object-fit: contain;
-      display: block;
-    }
-    .source-wrap .meta {
-      margin: 0;
-    }
-    .output {
-      display: block;
-      width: 100%;
-      height: 300px;
-      object-fit: contain;
-      margin: 1.5rem auto;
-    }
-    .meta {
-      font-size: 0.875rem;
-      overflow-wrap: anywhere;
-    }
-    .warning {
-      color: var(--app-warning);
-    }
-    .message {
-      border: 1px solid var(--app-message-border);
-      background: var(--app-message);
-      padding: 0.75rem 1rem;
-      margin-bottom: 1rem;
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-      overflow-wrap: anywhere;
-    }
-    .progress {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      padding: 0.75rem 1rem;
-      background: var(--app-progress);
-      margin-bottom: 1rem;
-    }
-    .delivery {
-      background: var(--app-panel);
-      padding: 1.5rem;
-      display: flex;
-      gap: 2rem;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 1.5rem;
-    }
-    .name {
-      display: block;
-      width: min(100%, 32rem);
-    }
-    .name input {
-      margin-top: 0.5rem;
-    }
-    .download-actions {
-      min-width: 0;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.75rem;
-    }
-    .save-feedback {
-      overflow-wrap: anywhere;
-    }
-    .oled-toast {
-      position: fixed;
-      inset: auto 1rem max(1rem, env(safe-area-inset-bottom)) auto;
-      z-index: 10;
-      max-width: calc(100vw - 2rem);
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      padding: 1rem;
-      border: 1px solid var(--app-control-border);
-      border-radius: 4px;
-      background: var(--app-progress);
-      box-shadow: 0 4px 18px var(--app-shadow);
-      pointer-events: none;
-    }
-    wa-spinner {
-      flex-shrink: 0;
-    }
-    .actions {
-      display: flex;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-      align-items: center;
-      margin-top: 1.5rem;
-    }
-    .images > .actions {
-      justify-content: flex-end;
-    }
-    .ai-indicator {
-      color: var(--app-accent);
-      font-size: 1rem;
-      vertical-align: -0.125em;
-      margin-inline-start: 0.35rem;
-    }
-    wa-button {
-      max-width: 100%;
-      margin: 0.15rem 0;
-    }
-    wa-button::part(base) {
-      min-height: 44px;
-      border-radius: 4px;
-      white-space: normal;
-      height: auto;
-    }
-    wa-button::part(label) {
-      white-space: normal;
-      overflow-wrap: anywhere;
-    }
-    .stale .output {
-      opacity: 0.55;
-    }
-    @media (max-width: 800px) {
+  protected willUpdate(changed: PropertyValues) {
+    if (changed.has('error') && this.error) {
+      const id = this.errorOperation;
+      const job = this.job?.id;
+      const actions: Record<string, { label: string; run: () => unknown }> = {
+        load: { label: 'Retry loading application', run: () => this.load() },
+        upload: {
+          label: 'Choose another image',
+          run: () =>
+            this.shadowRoot
+              ?.querySelector<HTMLInputElement>('input[type=file]')
+              ?.click(),
+        },
+        render: { label: 'Retry rendering', run: () => this.renderPreviews() },
+        reset: { label: 'Retry Start over', run: () => this.startOver() },
+        download: {
+          label: 'Retry download',
+          run: () => this.retryDownload?.(),
+        },
+      };
+      const action = actions[id]!;
+      this.activity.set({
+        id,
+        label:
+          id === 'upload'
+            ? 'Image could not be uploaded'
+            : id === 'load'
+              ? 'Application could not load'
+              : id === 'download'
+                ? 'Download failed'
+                : id === 'reset'
+                  ? 'Could not start over'
+                  : 'Rendering failed',
+        state: 'failed',
+        detail: this.error,
+        scope: id === 'load' ? 'app' : undefined,
+        action: {
+          label: action.label,
+          run: () => {
+            if (id === 'load' || this.job?.id === job) return action.run();
+          },
+        },
+      });
+    }
+    if (changed.has('preferenceError') && this.preferenceError)
+      this.activity.set({
+        id: 'preferences',
+        label: 'Preferences weren’t saved or restored',
+        state: 'failed',
+        scope: 'app',
+        detail: `${this.preferenceError} Your current choices still apply here.`,
+        action: { label: 'Retry saving preferences', run: () => this.save() },
+      });
+    if (this.job) {
+      const id = this.job.id;
+      const retry = (run: () => unknown) => () => {
+        if (this.job?.id === id) return run();
+      };
+      if (changed.has('naming') && this.naming.state !== 'disabled')
+        this.activity.set({
+          id: 'naming',
+          label: 'AI naming',
+          state:
+            this.naming.state === 'pending'
+              ? 'working'
+              : this.naming.state === 'failed'
+                ? 'failed'
+                : 'completed',
+          detail:
+            this.naming.state === 'failed'
+              ? `${this.naming.message} Keep your current name or retry; downloads remain available.`
+              : this.naming.state === 'pending'
+                ? 'You can edit or download now.'
+                : this.nameEdited
+                  ? 'Your edited name was kept.'
+                  : `Suggested name: ${this.naming.state === 'succeeded' ? this.naming.name : this.name}`,
+          action:
+            this.naming.state === 'failed'
+              ? {
+                  label: 'Retry AI naming',
+                  run: retry(() => this.watchNaming(id, true)),
+                }
+              : undefined,
+        });
+      if (changed.has('detection') && this.detection.state !== 'disabled')
+        this.activity.set({
+          id: 'detection',
+          label: 'Subject detection',
+          state:
+            this.detection.state === 'pending'
+              ? 'working'
+              : this.detection.state === 'failed'
+                ? 'failed'
+                : 'completed',
+          detail:
+            this.detection.state === 'failed'
+              ? `${this.detection.message} Using entropy crops. You can continue or retry.`
+              : this.detection.state === 'pending'
+                ? 'Finding a subject. Using entropy crops for now.'
+                : this.detection.state === 'no-subject'
+                  ? 'No clear subject. Using entropy crops.'
+                  : 'Subject crops are ready. Manual positions are protected.',
+          action:
+            this.detection.state === 'failed'
+              ? {
+                  label: 'Retry subject detection',
+                  run: retry(() => this.watchDetection(id, true)),
+                }
+              : undefined,
+        });
+      const oled = this.oledAnalysis;
+      if (changed.has('oledAnalysis') && oled)
+        this.activity.set({
+          id: 'oled-analysis',
+          label: 'OLEDify analysis',
+          state:
+            oled.state === 'pending'
+              ? 'working'
+              : oled.state === 'failed'
+                ? 'failed'
+                : 'completed',
+          detail:
+            oled.state === 'pending'
+              ? 'Comparing cutoffs. You can continue with current previews.'
+              : oled.state === 'failed'
+                ? `${oled.message ?? 'Analysis unavailable.'} Keeping current settings. You can continue or retry.`
+                : this.oledManual
+                  ? 'Your manual settings are protected; recommendations were not applied.'
+                  : oled.state === 'succeeded'
+                    ? `AI recommendation: ${oled.oled ? `on at cutoff ${oled.threshold}` : 'leave OLEDify off'}.`
+                    : oled.state === 'local'
+                      ? 'AI is disabled. Local settings applied.'
+                      : 'AI comparison skipped.',
+          action:
+            oled.state === 'failed'
+              ? {
+                  label: 'Retry OLEDify analysis',
+                  run: retry(() => this.watchOled(id, true)),
+                }
+              : undefined,
+        });
+    }
+    if (changed.has('serverSave') && !this.serverSave && !this.busy) {
+      const previous = this.activity.entries.find(
+        (e) => e.id === 'server-save',
+      );
+      if (previous?.state === 'attention' || previous?.state === 'failed')
+        this.activity.set({
+          id: 'server-save',
+          label: 'Previous save needs a new review',
+          state: 'completed',
+          detail:
+            'Output choices changed. Use Save to server to review current files.',
+        });
+    }
+    if (
+      (changed.has('serverSave') ||
+        changed.has('busy') ||
+        changed.has('name') ||
+        changed.has('manifest') ||
+        changed.has('prefs')) &&
+      this.serverSave
+    ) {
+      const result = this.serverSave;
+      const selection = this.saveSelection;
+      this.activity.set({
+        id: 'server-save',
+        label:
+          result.state === 'saved'
+            ? 'Wallpapers saved to server'
+            : result.state === 'conflicts'
+              ? 'Review existing files'
+              : 'Save incomplete',
+        state:
+          result.state === 'saved'
+            ? 'completed'
+            : result.state === 'conflicts'
+              ? 'attention'
+              : 'failed',
+        detail:
+          result.state === 'saved'
+            ? `Saved to ${result.destination}`
+            : result.state === 'conflicts'
+              ? 'Review the file list before choosing Replace or Cancel.'
+              : 'Some files could not be saved. Inspect saved and not-saved paths.',
+        details: this.saveDetails(),
+        action:
+          result.state === 'failed'
+            ? {
+                label: 'Retry saving to server',
+                run: () => {
+                  if (selection === this.currentSaveSelection())
+                    return this.saveToServer();
+                },
+              }
+            : undefined,
+      });
+    }
+  }
+  private saveDetails() {
+    const usable = !!this.manifest && !this.dirty && !this.busy;
+    return html`<details>
+      <summary>View save details</summary>
+      <section class="save-feedback">
+        ${
+          this.serverSave
+            ? html`
+                <p>
+                  ${this.serverSave.state === 'saved' ? 'Saved to' : this.serverSave.state === 'conflicts' ? 'Confirm replacement in' : 'Save incomplete.'}
+                  ${this.serverSave.destination}
+                </p>
+                ${
+                  this.serverSave.saved.length
+                    ? html`<p>Saved files:</p>
+                        <ul>
+                          ${this.serverSave.saved.map((path) => html`<li>${path}</li>`)}
+                        </ul>`
+                    : nothing
+                }
+                ${
+                  this.serverSave.failed.length
+                    ? html`<div>
+                        <p>Files not saved:</p>
+                        <ul>
+                          ${this.serverSave.failed.map((f) => html`<li>${f.path}: ${f.message}</li>`)}
+                        </ul>
+                      </div>`
+                    : nothing
+                }
+                ${
+                  this.serverSave.state === 'conflicts' &&
+                  this.saveSelection === this.currentSaveSelection()
+                    ? html`
+                        <p>These files already exist. Replace them?</p>
+                        <ul>
+                          ${this.serverSave.conflicts.map((path) => html`<li>${path}</li>`)}
+                        </ul>
+                        <wa-button
+                          variant="brand"
+                          ?disabled=${!usable}
+                          @click=${() => this.saveToServer(true)}
+                          >Replace</wa-button
+                        >
+                        <wa-button
+                          appearance="outlined"
+                          ?disabled=${!!this.busy}
+                          @click=${() => {
+                            this.serverSave = undefined;
+                            this.activity.set({
+                              id: 'server-save',
+                              label: 'Server save cancelled',
+                              state: 'completed',
+                              detail: 'Existing files were not replaced.',
+                            });
+                          }}
+                          >Cancel</wa-button
+                        >
+                      `
+                    : nothing
+                }
+              `
+            : nothing
+        }
+      </section>
+    </details>`;
+  }
+  static styles = [
+    activityStyles,
+    css`
+      :host {
+        display: block;
+        color: var(--app-text);
+      }
+      * {
+        box-sizing: border-box;
+      }
       header {
-        flex-wrap: wrap;
-        gap: 1rem;
-        padding: 1rem 1.25rem;
+        padding: 1.4rem max(1.25rem, calc((100vw - 1280px) / 2));
+        display: flex;
+        align-items: center;
+        gap: 2rem;
+        border-bottom: 1px solid var(--app-header-border);
+      }
+      header strong {
+        font-size: 1.3rem;
+        letter-spacing: -0.045em;
+        margin-right: auto;
       }
       nav {
-        order: 3;
-        width: 100%;
-        justify-content: space-between;
-        gap: 0.25rem;
+        display: flex;
+        gap: 1.25rem;
       }
       .step {
-        gap: 0.3rem;
-        font-size: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--app-muted);
+        font-size: 0.875rem;
       }
       .step b {
-        width: 25px;
-        height: 25px;
+        width: 28px;
+        height: 28px;
+        display: grid;
+        place-items: center;
+        border: 1px solid var(--app-control-border);
+        border-radius: 50%;
+        font-size: 0.8rem;
+      }
+      .step[aria-current] {
+        color: var(--app-text);
+        font-weight: 650;
+      }
+      .step[aria-current] b {
+        color: var(--app-on-accent);
+        background: var(--app-accent);
+        border-color: var(--app-accent);
       }
       main {
-        padding: 1.5rem 1.25rem 2rem;
+        max-width: 1280px;
+        padding: 2rem 2.5rem 3rem;
+        margin: auto;
       }
-      .input-layout,
-      .layout {
-        grid-template-columns: 1fr;
-        gap: 1.5rem;
+      h1 {
+        font:
+          400 clamp(2.5rem, 4.5vw, 3.5rem)/1.12 Georgia,
+          serif;
+        letter-spacing: -0.035em;
+        margin: 0.5rem 0 1rem;
       }
-      .input-layout .example {
-        padding: 1.5rem;
+      h2 {
+        font-size: 1.05rem;
+        margin: 0 0 1rem;
+      }
+      h3 {
+        font-size: 1rem;
+        font-weight: 650;
+        margin: 0 0 1rem;
+        overflow-wrap: anywhere;
+      }
+      p {
+        line-height: 1.5;
+        color: var(--app-muted);
+      }
+      .intro {
+        margin-bottom: 2rem;
+      }
+      .input-layout {
+        display: grid;
+        grid-template-columns: 310px minmax(0, 1fr);
+        gap: 2rem;
+        align-items: start;
+      }
+      .input-layout > .drop {
+        grid-column: 1 / -1;
+      }
+      .source-recommendation {
+        border-top: 1px solid var(--app-panel-border);
+        margin-top: 1.25rem;
+        padding-top: 1.25rem;
+      }
+      .source-recommendation h2 {
+        font-size: 0.875rem;
+        margin-bottom: 0.5rem;
+      }
+      .source-recommendation strong {
+        color: var(--app-text);
+        font-size: 1.5rem;
+        font-weight: 650;
+      }
+      .source-recommendation p {
+        margin: 0.5rem 0 0;
       }
       .drop {
-        padding: 2rem 1.25rem;
+        border: 1px dashed var(--app-control-border);
+        background: var(--app-drop);
+        text-align: center;
+        padding: 2.5rem 1.5rem;
+      }
+      .drop h2 {
+        font-size: 1.15rem;
+        margin-bottom: 1.25rem;
+      }
+      .drop:focus-within {
+        outline: 3px solid var(--app-focus);
+        outline-offset: 4px;
+      }
+      .drop input {
+        display: block;
+        max-width: 100%;
+        width: 10rem;
+        color: transparent;
+        margin: auto;
+      }
+      input[type='file']::file-selector-button {
+        font: inherit;
+        font-weight: 600;
+        min-height: 44px;
+        width: 100%;
+        border: 1px solid var(--app-accent);
+        border-radius: 4px;
+        background: var(--app-accent);
+        color: var(--app-on-accent);
+        cursor: pointer;
+      }
+      input[type='file']:disabled::file-selector-button {
+        color: var(--app-muted);
+        background: var(--app-selected);
+        border-color: var(--app-control-border);
+        cursor: wait;
+      }
+      .disclosure {
+        border-top: 1px solid var(--app-panel-border);
+        padding-top: 1rem;
+        margin-top: 1.5rem;
+        text-align: left;
+        font-size: 0.875rem;
+      }
+      .example {
+        background: var(--app-panel);
+        padding: 2rem;
+        margin: 0;
+      }
+      .example-image {
+        position: relative;
+      }
+      .example img {
+        display: block;
+        width: 100%;
+      }
+      .example-image::before,
+      .example-image::after {
+        content: '';
+        position: absolute;
+        border: 2px solid white;
+        box-shadow: 0 0 0 1px black;
+      }
+      .example-image::before {
+        top: 5%;
+        bottom: 5%;
+        left: 16%;
+        width: 28%;
+      }
+      .example-image::after {
+        top: 20%;
+        bottom: 20%;
+        left: 48%;
+        width: 40%;
+      }
+      figcaption {
+        margin-top: 1rem;
+        font-size: 0.875rem;
+        color: var(--app-muted);
+      }
+      input,
+      select {
+        font: inherit;
+        accent-color: var(--app-accent);
+      }
+      input[type='text'] {
+        width: 100%;
+        padding: 0.75rem;
+        min-height: 48px;
+        border: 1px solid var(--app-control-border);
+        border-radius: 4px;
+        background: var(--app-control);
+        color: var(--app-text);
+      }
+      label {
+        line-height: 1.5;
+      }
+      button:focus-visible,
+      input:focus-visible,
+      select:focus-visible {
+        outline: 3px solid var(--app-focus);
+        outline-offset: 3px;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 310px minmax(0, 1fr);
+        gap: 2rem;
+      }
+      .panel {
+        container-type: inline-size;
+        align-self: start;
+        padding: 1.25rem;
+        background: var(--app-panel);
+        border-radius: 4px;
+      }
+      fieldset {
+        border: 0;
+        padding: 0;
+        margin: 0;
+        min-width: 0;
+      }
+      fieldset + fieldset {
+        margin-top: 1.25rem;
+        padding-top: 1.25rem;
+        border-top: 1px solid var(--app-panel-border);
+      }
+      legend {
+        float: left;
+        width: 100%;
+        padding: 0;
+        font-weight: 650;
+        margin-bottom: 0.75rem;
+      }
+      legend + * {
+        clear: both;
+      }
+      .options {
+        display: grid;
+      }
+      .options label,
+      fieldset > label,
+      .folder-choice {
+        display: flex;
+        align-items: center;
+        gap: 0.625rem;
+        min-height: 44px;
+        font-size: 0.875rem;
+      }
+      input[type='checkbox'] {
+        flex-shrink: 0;
+        width: 18px;
+        height: 18px;
+        margin: 0;
+      }
+      .crop-method {
+        display: grid;
+        gap: 1rem;
+      }
+      .smart-choices {
+        display: grid;
+        gap: 0.5rem;
+      }
+      .crop-choice {
+        position: relative;
+        display: grid;
+        place-items: center;
+        width: 44px;
+        height: 44px;
+        border: 1px solid transparent;
+        border-radius: 4px;
+        cursor: pointer;
+        color: var(--app-text);
+      }
+      .crop-choice input {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        opacity: 0;
+        cursor: pointer;
+      }
+      .crop-choice:has(:checked) {
+        background: var(--app-selected);
+        border-color: var(--app-accent);
+        box-shadow: inset 0 0 0 1px var(--app-accent);
+      }
+      .crop-choice:has(:checked)::after {
+        content: '✓';
+        position: absolute;
+        right: 7px;
+        bottom: 6px;
+        font-size: 0.875rem;
+        font-weight: 700;
+        line-height: 1;
+        pointer-events: none;
+      }
+      .crop-choice:has(:focus-visible) {
+        outline: 3px solid var(--app-focus);
+        outline-offset: 3px;
+        z-index: 1;
+      }
+      .crop-choice:hover {
+        background: var(--app-selected);
+      }
+      .smart-choice {
+        width: 100%;
+        min-height: 48px;
+        height: auto;
+        padding: 0.75rem 2rem 0.75rem 0.75rem;
+        display: flex;
+        gap: 0.75rem;
+        border-color: var(--app-control-border);
+        background: var(--app-control);
+        font-size: 0.875rem;
+      }
+      .smart-choice wa-icon {
+        font-size: 1.25rem;
+        color: var(--app-accent);
+      }
+      .smart-label small {
+        font: inherit;
+      }
+      .anchors {
+        display: grid;
+        grid-template: repeat(3, 44px) / repeat(3, 44px);
+        width: max-content;
+        border: 1px solid var(--app-control-border);
+        background: var(--app-control);
+        border-radius: 4px;
+      }
+      .top-left {
+        grid-area: 1 / 1;
+      }
+      .top-right {
+        grid-area: 1 / 3;
+      }
+      .center {
+        grid-area: 2 / 2;
+      }
+      .bottom-left {
+        grid-area: 3 / 1;
+      }
+      .bottom-right {
+        grid-area: 3 / 3;
+      }
+      .anchor-mark {
+        width: 13px;
+        height: 13px;
+        border: 2px solid currentColor;
+        pointer-events: none;
+      }
+      .top-left .anchor-mark {
+        border-width: 2px 0 0 2px;
+      }
+      .top-right .anchor-mark {
+        border-width: 2px 2px 0 0;
+      }
+      .bottom-left .anchor-mark {
+        border-width: 0 0 2px 2px;
+      }
+      .bottom-right .anchor-mark {
+        border-width: 0 2px 2px 0;
+      }
+      .center .anchor-mark {
+        border-radius: 50%;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+      input[type='range'] {
+        width: 100%;
+        height: 44px;
+        margin: 0;
+        appearance: none;
+        background: transparent;
+      }
+      input[type='range']::-webkit-slider-runnable-track {
+        height: 6px;
+        border: 1px solid var(--app-control-border);
+        background: var(--app-surround);
+        border-radius: 4px;
+      }
+      input[type='range']::-moz-range-track {
+        height: 6px;
+        border: 1px solid var(--app-control-border);
+        background: var(--app-surround);
+        border-radius: 4px;
+      }
+      input[type='range']::-webkit-slider-thumb {
+        appearance: none;
+        width: 18px;
+        height: 18px;
+        margin-top: -7px;
+        border: 0;
+        border-radius: 50%;
+        background: var(--app-accent);
+      }
+      input[type='range']::-moz-range-thumb {
+        width: 18px;
+        height: 18px;
+        border: 0;
+        border-radius: 50%;
+        background: var(--app-accent);
+      }
+      input[type='range']:disabled {
+        opacity: 0.5;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+        gap: 1.5rem;
+      }
+      .card {
+        padding: 1.125rem;
+        background: var(--app-panel);
+        min-width: 0;
+      }
+      .source-wrap {
+        background: var(--app-panel);
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+      .source {
+        max-width: 145px;
+        width: 35%;
+        max-height: 97px;
+        object-fit: contain;
+        display: block;
+      }
+      .source-wrap .meta {
+        margin: 0;
+      }
+      .output {
+        display: block;
+        width: 100%;
+        height: 300px;
+        object-fit: contain;
+        margin: 1.5rem auto;
+      }
+      .meta {
+        font-size: 0.875rem;
+        overflow-wrap: anywhere;
+      }
+      .warning {
+        color: var(--app-warning);
       }
       .delivery {
-        display: block;
-        padding: 1.25rem;
-      }
-      .download-actions {
-        margin-top: 1rem;
+        background: var(--app-panel);
+        padding: 1.5rem;
+        display: flex;
+        gap: 2rem;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.5rem;
       }
       .name {
-        width: 100%;
+        display: block;
+        width: min(100%, 32rem);
       }
-      .images > .actions wa-button {
-        width: 100%;
+      .name input {
+        margin-top: 0.5rem;
       }
-    }
-    @media (prefers-reduced-motion: reduce) {
+      .download-actions {
+        min-width: 0;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.75rem;
+      }
+      .save-feedback {
+        overflow-wrap: anywhere;
+      }
       wa-spinner {
-        display: none;
+        flex-shrink: 0;
       }
-    }
-  `;
+      .actions {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        align-items: center;
+        margin-top: 1.5rem;
+      }
+      .images > .actions {
+        justify-content: flex-end;
+      }
+      .ai-indicator {
+        color: var(--app-accent);
+        font-size: 1rem;
+        vertical-align: -0.125em;
+        margin-inline-start: 0.35rem;
+      }
+      wa-button {
+        max-width: 100%;
+        margin: 0.15rem 0;
+      }
+      wa-button::part(base) {
+        min-height: 44px;
+        border-radius: 4px;
+        white-space: normal;
+        height: auto;
+      }
+      wa-button::part(label) {
+        white-space: normal;
+        overflow-wrap: anywhere;
+      }
+      .stale .output {
+        opacity: 0.55;
+      }
+      @media (max-width: 800px) {
+        header {
+          flex-wrap: wrap;
+          gap: 1rem;
+          padding: 1rem 1.25rem;
+        }
+        nav {
+          order: 3;
+          width: 100%;
+          justify-content: space-between;
+          gap: 0.25rem;
+        }
+        .step {
+          gap: 0.3rem;
+          font-size: 0.75rem;
+        }
+        .step b {
+          width: 25px;
+          height: 25px;
+        }
+        main {
+          padding: 1.5rem 1.25rem 2rem;
+        }
+        .input-layout,
+        .layout {
+          grid-template-columns: 1fr;
+          gap: 1.5rem;
+        }
+        .input-layout .example {
+          padding: 1.5rem;
+        }
+        .drop {
+          padding: 2rem 1.25rem;
+        }
+        .delivery {
+          display: block;
+          padding: 1.25rem;
+        }
+        .download-actions {
+          margin-top: 1rem;
+        }
+        .name {
+          width: 100%;
+        }
+        .images > .actions wa-button {
+          width: 100%;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        wa-spinner {
+          display: none;
+        }
+      }
+    `,
+  ];
   render() {
     const j = this.job;
     const usable = !!this.manifest && !this.dirty && !this.busy;
-    const oledTuning =
-      !!j && this.page !== 'input' && this.oledAnalysis?.state === 'pending';
-    const oledWorking =
-      !!j && this.page !== 'input' && (oledTuning || this.oledProcessing);
     return html` <header>
         <strong>shin-wallslice</strong>
         <nav aria-label="Workflow">
@@ -1286,40 +1607,6 @@ export class ShinApp extends LitElement {
         ${this.page !== 'input' ? html`<wa-button appearance="outlined" size="s" ?disabled=${!!this.busy} @click=${() => this.startOver()}>Start over</wa-button>` : nothing}
       </header>
       <main class=${this.page === 'input' ? 'input' : ''}>
-        ${this.error ? html`<div class="message" role="alert">${this.error} <wa-button appearance="outlined" size="s" @click=${() => (this.job ? this.renderPreviews() : this.load())}>Retry</wa-button></div>` : nothing}
-        ${this.preferenceError ? html`<div class="message" role="alert">${this.preferenceError}<wa-button appearance="outlined" size="s" @click=${() => this.save()}>Retry saving preferences</wa-button></div>` : nothing}
-        ${this.page === 'download' ? this.oledFeedback() : nothing}
-        ${this.busy && !this.oledProcessing ? html`<div class="progress" role="status"><wa-spinner></wa-spinner>${this.busy}</div>` : nothing}
-        ${
-          this.page === 'download' &&
-          (this.naming.state === 'pending' || this.naming.state === 'failed')
-            ? html`<div class="message" role="status" aria-live="polite">
-                ${this.naming.state === 'pending' ? 'AI naming… You can edit or download now.' : this.naming.state === 'failed' ? html`${this.naming.message} <wa-button appearance="outlined" size="s" @click=${() => this.job && this.watchNaming(this.job.id, true)}>Retry AI naming</wa-button>` : nothing}
-              </div>`
-            : nothing
-        }
-        ${
-          this.page !== 'input' &&
-          this.prefs.method === 'ai' &&
-          (this.detection.state === 'pending' ||
-            this.detection.state === 'failed')
-            ? html`<div class="message" role="status" aria-live="polite">
-                ${
-                  this.detection.state === 'pending'
-                    ? 'Finding a subject… Using entropy crops for now.'
-                    : this.detection.state === 'failed'
-                      ? html`${this.detection.message}
-                          <wa-button
-                            appearance="outlined"
-                            size="s"
-                            @click=${() => this.job && this.watchDetection(this.job.id, true)}
-                            >Retry subject detection</wa-button
-                          >`
-                      : nothing
-                }
-              </div>`
-            : nothing
-        }
         ${
           this.page === 'input'
             ? html`<div class="intro">
@@ -1608,68 +1895,6 @@ export class ShinApp extends LitElement {
                     ${this.serverSavingEnabled ? html`<wa-button appearance="outlined" ?disabled=${!usable} @click=${() => this.saveToServer()}>Save to server</wa-button>` : nothing}
                   </div>
                 </div>
-                <section
-                  class="save-feedback"
-                  aria-live="polite"
-                  aria-atomic="true"
-                >
-                  ${this.busy === 'Saving wallpapers to server…' ? html`<p role="status"><wa-spinner aria-hidden="true"></wa-spinner> Saving wallpapers to server…</p>` : nothing}
-                  ${
-                    this.serverSave
-                      ? html`
-                          <p role="status">
-                            ${this.serverSave.state === 'saved' ? 'Saved to' : this.serverSave.state === 'conflicts' ? 'Confirm replacement in' : 'Save incomplete.'}
-                            ${this.serverSave.destination}
-                          </p>
-                          ${
-                            this.serverSave.saved.length
-                              ? html`<p>Saved files:</p>
-                                  <ul>
-                                    ${this.serverSave.saved.map((path) => html`<li>${path}</li>`)}
-                                  </ul>`
-                              : nothing
-                          }
-                          ${
-                            this.serverSave.failed.length
-                              ? html`<div role="alert">
-                                  <p>Files not saved:</p>
-                                  <ul>
-                                    ${this.serverSave.failed.map((f) => html`<li>${f.path}: ${f.message}</li>`)}
-                                  </ul>
-                                </div>`
-                              : nothing
-                          }
-                          ${
-                            this.serverSave.state === 'conflicts' &&
-                            this.saveSelection === this.currentSaveSelection()
-                              ? html`
-                                  <p>
-                                    These files already exist. Replace them?
-                                  </p>
-                                  <ul>
-                                    ${this.serverSave.conflicts.map((path) => html`<li>${path}</li>`)}
-                                  </ul>
-                                  <wa-button
-                                    variant="brand"
-                                    ?disabled=${!usable}
-                                    @click=${() => this.saveToServer(true)}
-                                    >Replace</wa-button
-                                  >
-                                  <wa-button
-                                    appearance="outlined"
-                                    ?disabled=${!!this.busy}
-                                    @click=${() => {
-                                      this.serverSave = undefined;
-                                    }}
-                                    >Cancel</wa-button
-                                  >
-                                `
-                              : nothing
-                          }
-                        `
-                      : nothing
-                  }
-                </section>
                 <div class="cards">
                   ${this.selected.map((d) => {
                     const filename = `${this.safeName()}-${d.id}.png`;
@@ -1699,14 +1924,7 @@ export class ShinApp extends LitElement {
             : nothing
         }
       </main>
-      <div
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-        class=${oledWorking ? 'oled-toast' : ''}
-      >
-        ${oledWorking ? html`<wa-spinner aria-hidden="true"></wa-spinner><span>${oledTuning ? 'AI OLEDify tuning: comparing cutoffs…' : nothing}${oledTuning && this.oledProcessing ? ' · ' : nothing}${this.oledProcessing ? 'OLEDify processing: rendering previews and outputs…' : nothing}</span>` : nothing}
-      </div>`;
+      ${this.activity.render()}`;
   }
 }
 customElements.define('shin-app', ShinApp);

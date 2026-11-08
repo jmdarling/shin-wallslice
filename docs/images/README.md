@@ -1,5 +1,17 @@
 # Documentation images
 
+## v1.7.0 activity dock
+
+The six workflow screenshots now show the unified activity dock in the real
+application at 1440px, in light and dark appearances. Input has the default
+phone/tablet choices; Processing and Download use the CC0 Dusk Ridges PNG,
+Smart entropy crops, and local per-image OLEDify defaults. The OLEDify working
+image shows rendering delayed by the local verification harness so progress
+can be inspected; it does not involve an external AI service. Mobile errors,
+conflict decisions, and capture conditions are documented in the
+[v1.7.0 verification notes](../design/v1.7.0/README.md). Older sections below
+record historical capture conditions. Output-only artwork remains unchanged.
+
 ## v1.6.0 Input selection and source dimensions
 
 The light and dark Input screenshots show the upload box above the shared output-device choices

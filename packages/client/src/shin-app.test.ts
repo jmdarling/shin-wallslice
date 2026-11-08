@@ -149,6 +149,7 @@ async function app() {
   const a = document.createElement('shin-app') as ShinApp;
   document.body.append(a);
   await vi.waitFor(() => expect(a.ready).toBe(true));
+  a.shadowRoot!.querySelector<HTMLButtonElement>('.activity-summary')!.click();
   return a;
 }
 function file(name = 'view.png') {
@@ -926,7 +927,7 @@ function threshold(a: ShinApp, value: number) {
   slider.dispatchEvent(new Event('input'));
 }
 
-test('threshold toast spans debounce and successive renders, preserves crops and commits only the latest previews and outputs', async () => {
+test('render activity spans debounce and successive renders, preserves crops and commits only the latest previews and outputs', async () => {
   const a = await app();
   picker(a, [file()]);
   await processed(a);
@@ -942,18 +943,19 @@ test('threshold toast spans debounce and successive renders, preserves crops and
       return original(path, init);
     }),
   );
-  const toast = () => a.shadowRoot!.querySelector('.oled-toast');
+  const toast = () =>
+    a.shadowRoot!.querySelector('[data-activity=render][data-state=working]');
   checked(a, 'True black shadows');
   await vi.waitFor(() => expect(pending).toHaveLength(1));
-  expect(toast()?.textContent).toContain('rendering previews and outputs');
+  expect(toast()?.textContent).toContain('Updating previews and PNG outputs');
   const crops = structuredClone(a.crops);
   const manifest = a.manifest;
   threshold(a, 42);
   await a.updateComplete;
   expect(toast()?.textContent).toContain('OLEDify processing');
-  expect(toast()?.getAttribute('role')).toBe('status');
+  expect(toast()?.getAttribute('data-state')).toBe('working');
   expect(toast()?.querySelector('wa-spinner')).not.toBeNull();
-  expect(getComputedStyle(toast()!).pointerEvents).toBe('none');
+  expect(a.shadowRoot!.querySelector('.activity-summary')).not.toBeNull();
   const bounds = toast()!.getBoundingClientRect();
   expect(bounds.left).toBeGreaterThanOrEqual(0);
   expect(bounds.right).toBeLessThanOrEqual(window.innerWidth);
@@ -966,7 +968,11 @@ test('threshold toast spans debounce and successive renders, preserves crops and
   await a.updateComplete;
   pending[1]!(Response.json({ revision: 'older', source: pixel, outputs: {} }));
   await vi.waitFor(() => expect(pending).toHaveLength(3));
-  expect(a.shadowRoot!.querySelectorAll('.oled-toast')).toHaveLength(1);
+  expect(
+    a.shadowRoot!.querySelectorAll(
+      '[data-activity=render][data-state=working]',
+    ),
+  ).toHaveLength(1);
   expect(a.manifest).toBe(manifest);
   expect(renderBodies.at(-1)).toEqual({ crops, oled: true, threshold: 99 });
   const latest = {
@@ -996,7 +1002,7 @@ test('threshold toast spans debounce and successive renders, preserves crops and
   ).toEqual(Object.values(latest.outputs));
 });
 
-test('latest threshold failure clears the toast and exposes error and working Retry', async () => {
+test('latest threshold failure updates the dock and exposes a working render retry', async () => {
   oledInitial = {
     state: 'local',
     candidate: true,
@@ -1022,7 +1028,9 @@ test('latest threshold failure clears the toast and exposes error and working Re
   );
   threshold(a, 80);
   await a.updateComplete;
-  expect(a.shadowRoot!.querySelector('.oled-toast')).not.toBeNull();
+  expect(
+    a.shadowRoot!.querySelector('[data-activity=render][data-state=working]'),
+  ).not.toBeNull();
   await vi.waitFor(() => expect(resolve).toBeDefined());
   resolve!(
     Response.json(
@@ -1032,12 +1040,16 @@ test('latest threshold failure clears the toast and exposes error and working Re
   );
   await vi.waitFor(() => expect(a.error).toContain('Processing failed'));
   await a.updateComplete;
-  expect(a.shadowRoot!.querySelector('.oled-toast')).toBeNull();
+  expect(
+    a.shadowRoot!.querySelector('[data-activity=render][data-state=working]'),
+  ).toBeNull();
   expect(a.dirty).toBe(true);
   await expect
     .element(page.getByRole('alert'))
     .toHaveTextContent('Processing failed');
-  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Retry rendering', exact: true })
+    .click();
   await vi.waitFor(() => expect(a.dirty).toBe(false));
   expect(a.error).toBe('');
   expect(renderBodies.at(-1)!.threshold).toBe(80);
@@ -1562,6 +1574,10 @@ test('reset while pending makes crop eligible; failure retry preserves other man
           String(url).endsWith('/naming') && init?.method === 'POST',
       ).length;
   const before = namingPosts();
+  if (!a.activity.expanded)
+    a.shadowRoot!.querySelector<HTMLButtonElement>(
+      '.activity-summary',
+    )!.click();
   await page.getByRole('button', { name: 'Retry subject detection' }).click();
   await vi.waitFor(() => expect(a.detection.state).toBe('pending'));
   finish();
@@ -1783,9 +1799,10 @@ for (const width of [320, 1440]) {
       });
       expect(
         a
-          .shadowRoot!.querySelector('.save-feedback')!
-          .getAttribute('aria-live'),
-      ).toBe('polite');
+          .shadowRoot!.querySelector('[data-activity=server-save]')
+          ?.getAttribute('data-state'),
+      ).toBe('attention');
+      await page.getByText('View save details', { exact: true }).click();
       expect(a.shadowRoot!.textContent).toContain('originals/wallpaper.png');
       await page.getByRole('button', { name: 'Cancel', exact: true }).click();
       expect(saveBodies).toHaveLength(1);
@@ -1805,6 +1822,7 @@ for (const width of [320, 1440]) {
           failed: [],
           conflicts: [],
         });
+      await page.getByText('View save details', { exact: true }).click();
       // Keyboard activation on the explicit replacement control.
       const replace = a.shadowRoot!.querySelector(
         '.save-feedback wa-button',
@@ -1868,9 +1886,9 @@ test('save snapshots layout/name, prevents duplicate submissions, and reports pa
   await vi.waitFor(() => expect(a.serverSave?.state).toBe('failed'));
   expect(a.shadowRoot!.textContent).toContain('Save incomplete.');
   expect(a.shadowRoot!.textContent).toContain('phone/view.png');
-  expect(
-    a.shadowRoot!.querySelector('.save-feedback [role=alert]')!.textContent,
-  ).toContain('originals/view.webp');
+  expect(a.shadowRoot!.querySelector('.save-feedback')!.textContent).toContain(
+    'originals/view.webp',
+  );
   expect(a.shadowRoot!.textContent).toContain('Free space and retry');
   await expect.element(button).not.toBeDisabled();
   await page.getByRole('button', { name: 'Back to Processing' }).click();
@@ -1929,9 +1947,11 @@ test('per-image local defaults replace saved OLED preferences and remain usable 
   await processed(a);
   expect(a.prefs.oled).toBe(true);
   expect(a.prefs.threshold).toBe(16);
-  expect(a.shadowRoot!.querySelector('.oled-toast')?.textContent).toContain(
-    'AI OLEDify tuning',
-  );
+  expect(
+    a.shadowRoot!.querySelector(
+      '[data-activity=oled-analysis][data-state=working]',
+    )?.textContent,
+  ).toContain('OLEDify analysis');
   expect(
     a.shadowRoot!.querySelector('fieldset:last-child .meta')?.textContent,
   ).not.toContain('comparing cutoffs');
@@ -2062,9 +2082,17 @@ function deferRenders() {
   return { pending, complete };
 }
 const oledToast = (a: ShinApp) =>
-  a.shadowRoot!.querySelector<HTMLElement>('.oled-toast');
+  (() => {
+    const rows = [
+      ...a.shadowRoot!.querySelectorAll<HTMLElement>('[data-state=working]'),
+    ].filter((e) => ['oled-analysis', 'render'].includes(e.dataset.activity!));
+    if (!rows.length) return null;
+    const summary = document.createElement('div');
+    summary.textContent = rows.map((e) => e.textContent).join(' ');
+    return summary;
+  })();
 
-test('one OLEDify toast covers initial fallback rendering, AI-only navigation/export/save, and automatic-result render handoff', async () => {
+test('independent dock entries cover initial fallback rendering, AI-only navigation/export/save, and automatic-result render handoff', async () => {
   serverSavingEnabled = true;
   oledInitial = { ...pendingOled };
   let status = { ...pendingOled };
@@ -2073,16 +2101,22 @@ test('one OLEDify toast covers initial fallback rendering, AI-only navigation/ex
   const render = deferRenders();
   picker(a, [file()]);
   await vi.waitFor(() => expect(render.pending).toHaveLength(1));
-  expect(oledToast(a)?.textContent).toContain('AI OLEDify tuning');
-  expect(oledToast(a)?.textContent).toContain('rendering previews and outputs');
-  expect(a.shadowRoot!.querySelectorAll('.oled-toast')).toHaveLength(1);
+  expect(oledToast(a)?.textContent).toContain('OLEDify analysis');
+  expect(oledToast(a)?.textContent).toContain(
+    'Updating previews and PNG outputs',
+  );
+  expect(
+    a.shadowRoot!.querySelectorAll(
+      '[data-activity=render][data-state=working]',
+    ),
+  ).toHaveLength(1);
   const inline = a.shadowRoot!.querySelector('fieldset:last-child .meta');
   expect(inline?.textContent).toContain('Local fallback:');
   expect(inline?.textContent).not.toContain('comparing cutoffs');
   render.complete(0);
   await processed(a);
-  expect(oledToast(a)?.textContent).toContain('AI OLEDify tuning');
-  expect(oledToast(a)?.textContent).not.toContain('rendering previews');
+  expect(oledToast(a)?.textContent).toContain('OLEDify analysis');
+  expect(oledToast(a)?.textContent).not.toContain('Updating previews');
   await page.getByRole('button', { name: 'Next: Download' }).click();
   await expect
     .element(
@@ -2096,14 +2130,16 @@ test('one OLEDify toast covers initial fallback rendering, AI-only navigation/ex
     .getByRole('button', { name: 'Save to server', exact: true })
     .click();
   await vi.waitFor(() => expect(a.serverSave?.state).toBe('saved'));
-  expect(oledToast(a)?.textContent).toContain('AI OLEDify tuning');
+  expect(oledToast(a)?.textContent).toContain('OLEDify analysis');
   await page.getByRole('button', { name: 'Back to Processing' }).click();
   expect(oledToast(a)).not.toBeNull();
   await page.getByRole('button', { name: 'Next: Download' }).click();
   status = { ...pendingOled, state: 'succeeded', threshold: 42 };
   await vi.waitFor(() => expect(render.pending).toHaveLength(2));
-  expect(oledToast(a)?.textContent).not.toContain('AI OLEDify tuning');
-  expect(oledToast(a)?.textContent).toContain('rendering previews and outputs');
+  expect(oledToast(a)?.textContent).not.toContain('OLEDify analysis');
+  expect(oledToast(a)?.textContent).toContain(
+    'Updating previews and PNG outputs',
+  );
   await expect
     .element(
       page.getByRole('button', { name: 'Download PNG', exact: true }).first(),
@@ -2136,19 +2172,21 @@ test('independent AI/render failures and retries preserve the other working phas
     expect(a.error).toContain('Controlled render failure'),
   );
   await a.updateComplete;
-  expect(oledToast(a)?.textContent).toContain('AI OLEDify tuning');
-  expect(oledToast(a)?.textContent).not.toContain('rendering previews');
-  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  expect(oledToast(a)?.textContent).toContain('OLEDify analysis');
+  expect(oledToast(a)?.textContent).not.toContain('Updating previews');
+  await page
+    .getByRole('button', { name: 'Retry rendering', exact: true })
+    .click();
   await vi.waitFor(() => expect(render.pending).toHaveLength(2));
-  expect(oledToast(a)?.textContent).toContain('rendering previews');
+  expect(oledToast(a)?.textContent).toContain('Updating previews');
   status = {
     ...pendingOled,
     state: 'failed',
     message: 'Controlled AI failure',
   };
   await vi.waitFor(() => expect(a.oledAnalysis?.state).toBe('failed'));
-  expect(oledToast(a)?.textContent).not.toContain('AI OLEDify tuning');
-  expect(oledToast(a)?.textContent).toContain('rendering previews');
+  expect(oledToast(a)?.textContent).not.toContain('OLEDify analysis');
+  expect(oledToast(a)?.textContent).toContain('Updating previews');
   render.complete(1);
   await vi.waitFor(() => expect(a.dirty).toBe(false));
   await a.updateComplete;
@@ -2166,7 +2204,7 @@ test('independent AI/render failures and retries preserve the other working phas
   );
   await page.getByRole('button', { name: 'Retry OLEDify analysis' }).click();
   await vi.waitFor(() => expect(finishRetry).toBeDefined());
-  expect(oledToast(a)?.textContent).toContain('AI OLEDify tuning');
+  expect(oledToast(a)?.textContent).toContain('OLEDify analysis');
   status = { ...pendingOled, state: 'succeeded', threshold: 42 };
   finishRetry!(Response.json(status));
   await vi.waitFor(() => expect(a.oledAnalysis?.state).toBe('succeeded'));
@@ -2233,7 +2271,7 @@ test.each(['expired', 'shutdown', 'start-over', 'disconnect'])(
 );
 
 test.each([320, 390, 1440])(
-  'OLEDify toast preserves keyboard control, light/dark visibility, and viewport bounds at %spx',
+  'activity dock preserves keyboard control, light/dark visibility, and viewport bounds at %spx',
   async (width) => {
     await page.viewport(width, 900);
     oledInitial = { ...pendingOled };
@@ -2254,14 +2292,19 @@ test.each([320, 390, 1440])(
       document.documentElement.classList.add(appearance);
       await a.updateComplete;
       const toast = oledToast(a)!;
-      expect(toast.textContent).toContain('AI OLEDify tuning');
-      expect(toast.textContent).toContain('rendering previews');
-      expect(toast.getAttribute('role')).toBe('status');
-      expect(toast.getAttribute('aria-live')).toBe('polite');
-      expect(toast.getAttribute('aria-atomic')).toBe('true');
-      expect(toast.querySelector('wa-spinner')).not.toBeNull();
-      expect(getComputedStyle(toast).pointerEvents).toBe('none');
-      const bounds = toast.getBoundingClientRect();
+      expect(toast.textContent).toContain('OLEDify analysis');
+      expect(toast.textContent).toContain('Updating previews');
+      expect(
+        a
+          .shadowRoot!.querySelector('.activity-announcement[role=status]')
+          ?.getAttribute('aria-live'),
+      ).toBe('polite');
+      expect(
+        a.shadowRoot!.querySelector('[data-state=working] wa-spinner'),
+      ).not.toBeNull();
+      const bounds = a
+        .shadowRoot!.querySelector('.activity-dock')!
+        .getBoundingClientRect();
       expect(bounds.left).toBeGreaterThanOrEqual(0);
       expect(bounds.right).toBeLessThanOrEqual(width);
       expect(bounds.bottom).toBeLessThanOrEqual(900);
@@ -2270,7 +2313,94 @@ test.each([320, 390, 1440])(
     render.complete(0);
     await vi.waitFor(() => expect(a.dirty).toBe(false));
     await a.updateComplete;
-    expect(oledToast(a)?.textContent).not.toContain('rendering previews');
-    expect(oledToast(a)?.textContent).toContain('AI OLEDify tuning');
+    expect(oledToast(a)?.textContent).not.toContain('Updating previews');
+    expect(oledToast(a)?.textContent).toContain('OLEDify analysis');
   },
 );
+
+test('catalog and invalid-image recovery target their own operations', async () => {
+  const original = fetch;
+  let attempts = 0;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (path: string, init?: RequestInit) => {
+      if (path === '/api/catalog' && attempts++ === 0)
+        return Response.json(
+          { message: 'Catalog unavailable' },
+          { status: 503 },
+        );
+      return original(path, init);
+    }),
+  );
+  const a = new ShinApp();
+  document.body.append(a);
+  await a.updateComplete;
+  a.shadowRoot!.querySelector<HTMLButtonElement>('.activity-summary')!.click();
+  await expect
+    .element(page.getByRole('button', { name: 'Retry loading application' }))
+    .toBeVisible();
+  await page.getByRole('button', { name: 'Retry loading application' }).click();
+  await vi.waitFor(() => expect(a.ready).toBe(true));
+  expect(attempts).toBe(2);
+  picker(a, [new File(['bad'], 'bad.txt', { type: 'text/plain' })]);
+  await expect
+    .element(page.getByRole('button', { name: 'Choose another image' }))
+    .toBeVisible();
+  expect(attempts).toBe(2);
+  expect(uploadedFiles).toHaveLength(0);
+  expect(a.activity.entries.find((e) => e.id === 'upload')?.state).toBe(
+    'failed',
+  );
+});
+
+test('download retry fetches the failed export rather than rerendering previews', async () => {
+  const a = await downloadScreen(false);
+  const original = fetch;
+  const paths: string[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (path: string, init?: RequestInit) => {
+      if (path.includes('/zip/')) {
+        paths.push(path);
+        return Response.json(
+          { message: 'Export unavailable' },
+          { status: 503 },
+        );
+      }
+      return original(path, init);
+    }),
+  );
+  const renders = renderCount;
+  await page.getByRole('button', { name: 'Download ZIP', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Retry download', exact: true })
+    .click();
+  await vi.waitFor(() => expect(paths).toHaveLength(2));
+  expect(paths[0]).toBe(paths[1]);
+  expect(renderCount).toBe(renders);
+  expect(a.activity.entries.filter((e) => e.id === 'download')).toHaveLength(1);
+});
+
+test('server-save request failure retries the same current selection', async () => {
+  const a = await downloadScreen();
+  saveResponse = async () =>
+    Response.json({ message: 'Save service unavailable' }, { status: 503 });
+  await page
+    .getByRole('button', { name: 'Save to server', exact: true })
+    .click();
+  await vi.waitFor(() => expect(a.serverSave?.state).toBe('failed'));
+  saveResponse = async () =>
+    Response.json({
+      state: 'saved',
+      destination: '/data/output',
+      saved: ['originals/view.png'],
+      failed: [],
+      conflicts: [],
+    });
+  await page
+    .getByRole('button', { name: 'Retry saving to server', exact: true })
+    .click();
+  await vi.waitFor(() => expect(a.serverSave?.state).toBe('saved'));
+  expect(saveBodies).toHaveLength(2);
+  expect(saveBodies[1]).toEqual(saveBodies[0]);
+});

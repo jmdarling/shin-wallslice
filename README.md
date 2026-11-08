@@ -47,10 +47,10 @@ shin-wallslice runs on your own server in a single container. Cropping and expor
 **Unraid:** [import the supplied template and Apply](docs/unraid.md). Community
 Applications listing is pending. No source checkout or build is needed.
 
-**Install version 1.6.0** for Linux amd64 and arm64. The
+**Install version 1.7.0** for Linux amd64 and arm64. The
 commands below install it without registry login. See the
-[release](https://github.com/jmdarling/shin-wallslice/releases/tag/v1.6.0) and
-[1.6.0 changes](docs/maintainers/v1.6.0-release-notes.md). The release records the
+[release](https://github.com/jmdarling/shin-wallslice/releases/tag/v1.7.0) and
+[1.7.0 changes](docs/maintainers/v1.7.0-release-notes.md). The release records the
 exact digest, native runtime checks, SBOM/provenance, and vulnerability reports.
 
 Allow **4 GiB application RAM** and **4 GiB free writable temporary disk**. One
@@ -73,7 +73,7 @@ docker run -d \
   --memory=4g \
   -p 8080:3000 \
   --mount type=volume,src=shin-wallslice-data,dst=/data \
-  ghcr.io/jmdarling/shin-wallslice:1.6.0
+  ghcr.io/jmdarling/shin-wallslice:1.7.0
 ```
 
 Open [http://localhost:8080](http://localhost:8080), or
@@ -100,7 +100,7 @@ is needed. Its contents are:
 ```yaml
 services:
   wallslice:
-    image: ghcr.io/jmdarling/shin-wallslice:1.6.0
+    image: ghcr.io/jmdarling/shin-wallslice:1.7.0
     container_name: shin-wallslice
     restart: unless-stopped
     mem_limit: 4g
@@ -170,6 +170,30 @@ In PowerShell, set `$env:SHIN_WALLSLICE_PORT = '3100'` before `pnpm start`. Open
 
 Screenshots follow your light/dark preference where supported. Open a full-size capture for detail: [Input](docs/images/input-light.png) · [Processing](docs/images/processing-light.png) · [Download](docs/images/download-light.png).
 
+### Follow activity and recover from errors
+
+The activity dock is available in v1.7.0 and later.
+
+The **activity dock** at the bottom is the shared home for upload, rendering,
+AI, preference, download, and server-save notifications on every step. It starts
+compact, shows active and needs-attention counts, and expands with **Expand**.
+Each task updates in place. A spinner in the compact summary indicates active
+work. Completion, errors, and replacement decisions never open the dock
+automatically: choose **Expand** to inspect details and recovery actions.
+**Collapse** keeps work running; manually expanded details stay open until you
+collapse them. Start over returns the dock to its collapsed state.
+
+Completed and failed entries can be dismissed. Dismissal does not resolve a
+failure; its attention count remains, and **Show dismissed activity** restores
+it. History follows the current wallpaper across steps. **Start over** clears
+that history but retains unresolved application-wide errors such as failed
+preference saves. Reload clears notification history; it is not stored on disk.
+
+Use the action for the failed task: **Choose another image**, **Retry rendering**,
+**Retry saving preferences**, or the named AI retry. Field guidance and current
+settings stay beside their controls. A download notification confirms handoff to
+the browser, not that the browser saved the file to your device.
+
 ### 1. Choose an image
 
 <picture>
@@ -220,11 +244,11 @@ First use selects entropy when AI is disabled and AI when enabled. An explicit e
 
 Every accepted image starts with fresh defaults: OLEDify on at cutoff **16** when at least **15%** of visible pixels in the full normalized sRGB source have **all three channels ≤32**; otherwise off at 16. The cutoff and percentage comparisons include their boundaries. Fully transparent pixels are excluded from both counts. This percentage is a candidate heuristic, not measured device-energy savings. Device selection and crop positions do not affect it.
 
-With AI enabled, candidates immediately use that local fallback while a bounded original/trial comparison search refines one shared cutoff across all outputs. Noncandidates skip the search. One nonblocking toast shows active OLEDify work: **AI OLEDify tuning** while cutoffs are compared and **OLEDify processing** while previews and outputs are rendered. It covers on/off switches, threshold edits, and automatically applied defaults or recommendations, and stays visible until all active OLEDify work finishes. If both phases overlap, the same toast shows both. Local fallback explanations, completed/skipped recommendations, and failure/Retry feedback stay inline beside OLEDify (and on Download); progress is not duplicated there. You can continue to Download, download PNG/ZIP, or save to the server while it runs. AI may recommend leaving OLEDify off if no effective conversion is accepted. The judgment is best effort, not a guarantee of a globally optimal cutoff or artifact-free output; inspect your previews.
+With AI enabled, candidates immediately use that local fallback while a bounded original/trial comparison search refines one shared cutoff across all outputs. Noncandidates skip the search. The activity dock shows **OLEDify analysis** and **OLEDify processing** as independent tasks, alongside other app activity. They update in place when complete or failed; the failure offers **Retry OLEDify analysis** or **Retry rendering** for the relevant task. Current settings and local fallback guidance stay beside OLEDify. You can continue or download current previews while background AI runs; rendering must finish before exporting updated outputs. AI may recommend leaving OLEDify off. Its judgment is best effort; inspect your previews.
 
-![One OLEDify toast showing AI cutoff tuning and preview/output rendering together](docs/images/oledify-working.png)
+![Collapsed activity dock with a spinner while OLEDify renders](docs/images/oledify-working.png)
 
-_The same toast covers both phases. [Capture details](docs/design/v1.3.1/README.md): real app rendering with a delayed local mock provider; no external image submission._
+_Real application capture with controlled local responses; no external image submission. [Verification and capture details](docs/design/v1.7.0/README.md)._
 
 Change **True black shadows** or **Threshold** to take manual control of both settings for this image. Even restoring the original value protects your choices from late results and Retry. Recommendations remain visible. Navigation, devices, and crops preserve manual choices; a new image resets them. Previously saved OLEDify preferences never override the new image's defaults. Other preferences retain their behavior.
 
@@ -283,6 +307,8 @@ Tablet outputs are intentionally square. You can use a preset on any device that
 Custom devices are currently a source-level change. Edit [devices.json](packages/server/src/devices.json), add a unique lowercase hyphenated ID, display name, and positive integer width/height, then rebuild the app/image. Dimensions are capped at 16384 per side and the complete catalog must fit processing/storage budgets. There is no runtime custom-device editor or catalog override.
 
 ### Save wallpapers to your server
+
+Results appear in the activity dock. Open **View save details** to inspect the destination, saved paths, and files not saved. Partial saves remain **Save incomplete** with **Retry saving to server**. Existing files produce **Review existing files**; open the details and explicitly choose **Replace** or **Cancel**. Dismissal never approves replacement.
 
 Server saving is optional and disabled by default, and requires version **1.2.0
 or later**. Update an older installation before enabling it. Local source builds
@@ -395,7 +421,7 @@ docker run -d \
   -p 8080:3000 \
   --mount type=volume,src=shin-wallslice-data,dst=/data \
   --mount type=bind,src="$(pwd)/config/local.json",dst=/config/config.json,readonly \
-  ghcr.io/jmdarling/shin-wallslice:1.6.0
+  ghcr.io/jmdarling/shin-wallslice:1.7.0
 ```
 
 Use the absolute path to your private JSON file in the mount source. The file must exist and be readable by UID 1000; its parent directories must be traversable by that user. Protect files containing tokens from other users while granting that read access. The application does not need write access to `/config`. Do not place private files elsewhere in the build context and assume they will be ignored.
@@ -481,7 +507,7 @@ docker run -d \
   -e SHIN_WALLSLICE_HOST=0.0.0.0 \
   -e SHIN_WALLSLICE_PORT=3456 \
   -e SHIN_WALLSLICE_AI_ENABLED=false \
-  ghcr.io/jmdarling/shin-wallslice:1.6.0
+  ghcr.io/jmdarling/shin-wallslice:1.7.0
 ```
 
 This replaces the quick-start container, rather than running alongside it. The browser still uses port 8080. The built-in health check reads the effective configuration, including the overridden port.
@@ -527,17 +553,17 @@ The representation is the full oriented source **before cropping or OLEDify**, r
 
 **Local candidates additionally trigger OLEDify comparison search**, independent of naming/detection. Each evaluation submits two clearly labeled images: the original full composition and an actual OLEDified trial at the supplied cutoff. A retained sRGB RGBA representation fits within **1024 × 1024** without enlargement. Unlike the naming JPEG it remains raw/lossless, preserving shadows; trials use the inclusive all-RGB-channel rule, then composite both images on white for consistent transparency display and encode lossless PNG, each bounded to **5 MiB**. Preparation times out after 30 seconds. Final device outputs still apply OLEDify after their own exact resizing; bounded comparisons cannot reveal every full-resolution artifact.
 
-The integer search spans **0–255**, raises the lower bound for acceptable trials and lowers the upper bound for unacceptable trials, returning the highest actually evaluated acceptable cutoff that changes visible pixels. It stops on convergence or after `oledMaxVisionRequests` (default **8**, range **1–8**). Each request has a **30-second** timeout and **64 KiB** response limit; a search attempt is capped at **270 seconds** (including any Retry preparation), with up to **30 seconds** of initial comparison preparation during upload (at most **300 seconds** combined). Individual PNG encodes also have a 5-second processing timeout. There is no automatic retry loop. Multiple original/trial submissions can increase provider cost and latency. Your vision service must support **two image inputs in one request** and the requested JSON judgment. Unsupported comparisons, malformed judgments, timeouts, authentication/rate-limit/connection failures keep the local result and offer **Retry OLEDify analysis**, starting a new bounded attempt. Partial search results are not applied. The working toast clears the failed phase; if the other OLEDify phase is still active, its progress remains visible. Read the inline error and Retry controls to recover. Local analysis failure leaves manual controls usable and explicitly reports failure.
+The integer search spans **0–255**, raises the lower bound for acceptable trials and lowers the upper bound for unacceptable trials, returning the highest actually evaluated acceptable cutoff that changes visible pixels. It stops on convergence or after `oledMaxVisionRequests` (default **8**, range **1–8**). Each request has a **30-second** timeout and **64 KiB** response limit; a search attempt is capped at **270 seconds** (including any Retry preparation), with up to **30 seconds** of initial comparison preparation during upload (at most **300 seconds** combined). Individual PNG encodes also have a 5-second processing timeout. There is no automatic retry loop. Multiple original/trial submissions can increase provider cost and latency. Your vision service must support **two image inputs in one request** and the requested JSON judgment. Unsupported comparisons, malformed judgments, timeouts, authentication/rate-limit/connection failures keep the local result and offer **Retry OLEDify analysis**, starting a new bounded attempt. Partial search results are not applied. The dock marks only the failed activity as failed; other work remains visible. Expand the dock to read the error and use its named retry action. Local analysis failure leaves manual controls usable and explicitly reports failure.
 
 Connection settings and tokens stay server-side. They are not sent to the browser, saved in preferences, or included in health responses, client assets, or diagnostics. People who can inspect host/container configuration can still read environment secrets. Keep tokens out of Git, shared shell history, screenshots, and support reports. The ignored `config/local.json` is a convenience for private configuration, not a secret vault.
 
 ### What to expect from AI
 
-| Task              | Normal behavior                                                                      | Pending or failure                                                                                                                              |
-| ----------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| OLEDify           | Recommends a shared cutoff or off for local candidates; best effort                  | Local defaults and all downloads remain usable. Failure offers **Retry OLEDify analysis**. Manual edits protect both settings.                  |
-| Naming            | Suggests roughly three meaningful words; may recognize a show/game when identifiable | Keep editing or downloading. A failure retains the current name and offers **Retry AI naming**.                                                 |
-| Subject detection | Frames the main subject or coherent group for each selected device                   | Entropy previews remain usable. A service failure offers **Retry subject detection**; no clear subject uses entropy with an inline explanation. |
+| Task              | Normal behavior                                                                      | Pending or failure                                                                                                                                   |
+| ----------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OLEDify           | Recommends a shared cutoff or off for local candidates; best effort                  | Local defaults and all downloads remain usable. Failure offers **Retry OLEDify analysis**. Manual edits protect both settings.                       |
+| Naming            | Suggests roughly three meaningful words; may recognize a show/game when identifiable | Keep editing or downloading. A failure retains the current name and offers **Retry AI naming**.                                                      |
+| Subject detection | Frames the main subject or coherent group for each selected device                   | Entropy previews remain usable. A service failure offers **Retry subject detection**; no clear subject uses entropy with an explanation in the dock. |
 
 Recognition and framing are best effort. The app preserves the whole detected subject/group when it fits. Tighter crops prioritize a detected focal region, such as a person's face/head; without one, they center on the subject. Manual positioning remains available.
 
@@ -587,7 +613,7 @@ The image defaults to non-root `node` with UID/GID 1000. The [Unraid template](d
 ### Update and roll back
 
 Back up preferences, private configuration, and any persistent output directories; download or save active outputs first.
-Examples pin `:1.6.0` for reproducibility. To upgrade, choose a newer verified exact
+Examples pin `:1.7.0` for reproducibility. To upgrade, choose a newer verified exact
 version from the release notes, replace the image tag in your run/Compose settings,
 and recreate using the same data volume, ports, and optional configuration.
 Alternatively `:1`, `:1.3`, or `:latest` track their stable release series.
@@ -596,7 +622,7 @@ Publication makes images available; it never automatically updates your server.
 For Docker run:
 
 ```sh
-docker pull ghcr.io/jmdarling/shin-wallslice:1.6.0
+docker pull ghcr.io/jmdarling/shin-wallslice:1.7.0
 docker stop shin-wallslice
 docker rm shin-wallslice
 ```
@@ -606,6 +632,10 @@ mount/settings**. Restart alone does not load a new image. With Compose, edit th
 image tag, then `docker compose pull` and `docker compose up -d` from the same project.
 With Unraid use Check for Updates → Update, retaining appdata. To pin or roll back,
 choose a previously verified exact version/digest in Repository and Apply.
+
+Version 1.7.0 unifies notifications in the activity dock. No runtime configuration
+or stored-preference migration is required. Rollback to 1.6.0 restores the earlier
+notification layout without changing saved files or preferences.
 
 Version 1.6.0 adds Input device selection and live source-size guidance, and ships
 the unchanged-original exports introduced in v1.5.0 source builds. No runtime
@@ -654,7 +684,7 @@ docker cp ./wallslice-backup/. shin-wallslice:/data/
 # Restore ownership on this dedicated volume before starting:
 docker run --rm --user 0 \
   --mount type=volume,src=shin-wallslice-data,dst=/data \
-  ghcr.io/jmdarling/shin-wallslice:1.6.0 true
+  ghcr.io/jmdarling/shin-wallslice:1.7.0 true
 docker start shin-wallslice
 ```
 
@@ -678,28 +708,28 @@ docker inspect --format '{{.State.Health.Status}}' shin-wallslice
 
 Compose equivalents are `docker compose logs --tail 100 wallslice` and `docker compose ps`; local logs appear in the `pnpm start` terminal. Success is HTTP 200 with `{"status":"ok"}`. Health checks establish server readiness, not AI provider availability.
 
-| Symptom                                                 | Check and recovery                                                                                                                                                                                                                                                                                                                                             |
-| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Browser cannot connect                                  | Confirm the process/container is running and inspect logs. Check the host side of the port mapping, server LAN IP, and firewall. Another device must use the server's IP, not its own `localhost`.                                                                                                                                                             |
-| Port already allocated / address in use                 | Change the Docker/Compose host port or stop the conflicting service. For local production change `SHIN_WALLSLICE_PORT`. If changing the container's runtime port, also change the mapping's container side.                                                                                                                                                    |
-| Container is unhealthy or exits                         | Allow the initial health-check interval, then inspect logs and startup/configuration errors. Confirm the bind host allows access (`0.0.0.0` in containers), available memory/disk, and file permissions.                                                                                                                                                       |
-| Configuration fails at startup                          | Check JSON syntax, exact supported keys and environment names, strict numeric/boolean syntax, and which single override file wins. An explicit missing file fails; an invalid supplied value cannot be hidden by a later override. Fix it and restart.                                                                                                         |
-| Mount is missing, is a directory, or cannot be read     | Create the JSON file before mounting it. Check source/destination spelling and UID 1000 read/traverse access. For remote engines, the mount source must exist on the engine host.                                                                                                                                                                              |
-| Server saving missing                                   | Configure `outputDirectory` or `SHIN_WALLSLICE_OUTPUT_DIRECTORY` and restart; use a build containing v1.2.0. The action is intentionally hidden when unset.                                                                                                                                                                                                    |
-| Server save fails or is partial                         | Read the saved/not-saved paths in the result. Confirm the host mount is present, read-write, has free space, and grants UID/GID 1000 write/traverse permissions on the dedicated directory. Do not recursively change unrelated host ownership. Retry Save and review existing files; downloads still work. Move conflicting directories/links aside manually. |
-| Preferences cannot be saved or disappear                | Use the interface's Retry action after fixing data-directory write/traverse permissions. Confirm `/data` is mounted and you are using the same volume/project across replacement. Check for a configuration override changing the data path.                                                                                                                   |
-| Image rejected                                          | Use one valid still JPEG/PNG/WebP. Check both compressed byte size and decoded pixel count; animation and oversized/corrupt images are rejected. Resize/re-encode externally or increase budgets only with enough actual resources.                                                                                                                            |
-| Crop looks soft or cuts off the subject                 | Start with a larger source, change method/anchor, or drag the device's boundary. Exact output dimensions do not create missing source detail. AI recognition is best effort.                                                                                                                                                                                   |
-| Processing is busy                                      | Another operation is using the exclusive image/ZIP stage. Wait for it to finish, then retry. Avoid simultaneous operations in multiple tabs.                                                                                                                                                                                                                   |
-| Temporary storage is full / no job capacity             | Free space on the effective scratch filesystem. Start over in other active tabs or wait for abandoned jobs to expire. If increasing budgets, provide real capacity too. Do not delete live job files while processing.                                                                                                                                         |
-| Temporary wallpaper expired / outputs no longer current | For expiry or restart, start over and upload again. For stale outputs, wait for the current generation and retry from the app rather than reusing an old download URL.                                                                                                                                                                                         |
-| Pasting does nothing                                    | Ensure Input is active and the clipboard contains actual image data. Browser/OS clipboard formats vary; use Choose File or drag-and-drop instead.                                                                                                                                                                                                              |
-| Original upload unavailable in ZIP/save                 | Upload the source again. ZIPs cannot complete without the original. For server saves, inspect saved/not-saved paths, correct storage or permissions, then retry and review any conflicts. A partial save is not complete.                                                                                                                                      |
-| AI option missing                                       | AI defaults to disabled. Configure a vision endpoint/model and enable it, then restart/recreate. Check whether an environment `false` overrides JSON.                                                                                                                                                                                                          |
-| OLEDify analysis fails                                  | Check vision support for two simultaneous images and strict JSON judgments; Retry starts a new bounded attempt. Manual edits remain protected. Downloads use current previews.                                                                                                                                                                                 |
-| AI naming/detection fails                               | Check the server-reachable API base URL, appended `/chat/completions` path, image-capable model, credentials, provider rate limits, and firewall. `localhost` inside a container points to that container. Fix the service/configuration, restart if settings changed, then Retry or upload again.                                                             |
-| AI waits, finds no subject, or gives poor framing       | Requests time out after 30 seconds. No clear subject is a normal entropy fallback. Continue locally, move crops manually, or retry a failed task. Naming and detection can fail independently.                                                                                                                                                                 |
-| Memory kill or filesystem-full error                    | Check the host/container memory limit, effective planning budgets, free disk, and Docker writable-layer capacity. Reduce source dimensions or provide more resources; retry after recovery.                                                                                                                                                                    |
+| Symptom                                                 | Check and recovery                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Browser cannot connect                                  | Confirm the process/container is running and inspect logs. Check the host side of the port mapping, server LAN IP, and firewall. Another device must use the server's IP, not its own `localhost`.                                                                                                                                                                                                  |
+| Port already allocated / address in use                 | Change the Docker/Compose host port or stop the conflicting service. For local production change `SHIN_WALLSLICE_PORT`. If changing the container's runtime port, also change the mapping's container side.                                                                                                                                                                                         |
+| Container is unhealthy or exits                         | Allow the initial health-check interval, then inspect logs and startup/configuration errors. Confirm the bind host allows access (`0.0.0.0` in containers), available memory/disk, and file permissions.                                                                                                                                                                                            |
+| Configuration fails at startup                          | Check JSON syntax, exact supported keys and environment names, strict numeric/boolean syntax, and which single override file wins. An explicit missing file fails; an invalid supplied value cannot be hidden by a later override. Fix it and restart.                                                                                                                                              |
+| Mount is missing, is a directory, or cannot be read     | Create the JSON file before mounting it. Check source/destination spelling and UID 1000 read/traverse access. For remote engines, the mount source must exist on the engine host.                                                                                                                                                                                                                   |
+| Server saving missing                                   | Configure `outputDirectory` or `SHIN_WALLSLICE_OUTPUT_DIRECTORY` and restart; use a build containing v1.2.0. The action is intentionally hidden when unset.                                                                                                                                                                                                                                         |
+| Server save fails or is partial                         | Expand the activity dock and open **View save details** for saved/not-saved paths. Confirm the host mount is present, read-write, has free space, and grants UID/GID 1000 write/traverse permissions on the dedicated directory. Do not recursively change unrelated host ownership. Retry Save and review existing files; downloads still work. Move conflicting directories/links aside manually. |
+| Preferences cannot be saved or disappear                | Use **Retry saving preferences** in the activity dock after fixing data-directory write/traverse permissions. Confirm `/data` is mounted and you are using the same volume/project across replacement. Check for a configuration override changing the data path.                                                                                                                                   |
+| Image rejected                                          | Use one valid still JPEG/PNG/WebP. Check both compressed byte size and decoded pixel count; animation and oversized/corrupt images are rejected. Resize/re-encode externally or increase budgets only with enough actual resources.                                                                                                                                                                 |
+| Crop looks soft or cuts off the subject                 | Start with a larger source, change method/anchor, or drag the device's boundary. Exact output dimensions do not create missing source detail. AI recognition is best effort.                                                                                                                                                                                                                        |
+| Processing is busy                                      | Another operation is using the exclusive image/ZIP stage. Wait for it to finish, then retry. Avoid simultaneous operations in multiple tabs.                                                                                                                                                                                                                                                        |
+| Temporary storage is full / no job capacity             | Free space on the effective scratch filesystem. Start over in other active tabs or wait for abandoned jobs to expire. If increasing budgets, provide real capacity too. Do not delete live job files while processing.                                                                                                                                                                              |
+| Temporary wallpaper expired / outputs no longer current | For expiry or restart, start over and upload again. For stale outputs, wait for the current generation and retry from the app rather than reusing an old download URL.                                                                                                                                                                                                                              |
+| Pasting does nothing                                    | Ensure Input is active and the clipboard contains actual image data. Browser/OS clipboard formats vary; use Choose File or drag-and-drop instead.                                                                                                                                                                                                                                                   |
+| Original upload unavailable in ZIP/save                 | Upload the source again. ZIPs cannot complete without the original. For server saves, inspect saved/not-saved paths, correct storage or permissions, then retry and review any conflicts. A partial save is not complete.                                                                                                                                                                           |
+| AI option missing                                       | AI defaults to disabled. Configure a vision endpoint/model and enable it, then restart/recreate. Check whether an environment `false` overrides JSON.                                                                                                                                                                                                                                               |
+| OLEDify analysis fails                                  | Check vision support for two simultaneous images and strict JSON judgments; Retry starts a new bounded attempt. Manual edits remain protected. Downloads use current previews.                                                                                                                                                                                                                      |
+| AI naming/detection fails                               | Check the server-reachable API base URL, appended `/chat/completions` path, image-capable model, credentials, provider rate limits, and firewall. `localhost` inside a container points to that container. Fix the service/configuration, restart if settings changed, then Retry or upload again.                                                                                                  |
+| AI waits, finds no subject, or gives poor framing       | Requests time out after 30 seconds. No clear subject is a normal entropy fallback. Continue locally, move crops manually, or retry a failed task. Naming and detection can fail independently.                                                                                                                                                                                                      |
+| Memory kill or filesystem-full error                    | Check the host/container memory limit, effective planning budgets, free disk, and Docker writable-layer capacity. Reduce source dimensions or provide more resources; retry after recovery.                                                                                                                                                                                                         |
 
 When reporting a problem in [GitHub Issues](https://github.com/jmdarling/shin-wallslice/issues), include your source revision (`git rev-parse --short HEAD`), architecture, installation method, sanitized settings, exact error, and reproduction steps. Redact tokens, private endpoint details, and private images from logs/screenshots. Do not paste an entire `docker inspect` response: it can expose environment credentials. A minimal non-sensitive image and its dimensions are more useful than a private wallpaper.
 

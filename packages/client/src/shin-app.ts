@@ -429,6 +429,71 @@ export class ShinApp extends LitElement {
   private get selected() {
     return this.devices.filter((d) => this.prefs.devices.includes(d.id));
   }
+  private deviceChoices() {
+    return html`<fieldset
+      ?disabled=${!this.ready || (this.page === 'input' && !!this.busy)}
+    >
+      <legend>Output devices</legend>
+      <div class="options">
+        ${this.devices.map(
+          (d) =>
+            html`<label
+              ><input
+                type="checkbox"
+                .checked=${this.prefs.devices.includes(d.id)}
+                @change=${(e: Event) => {
+                  const checked = (e.target as HTMLInputElement).checked;
+                  this.prefs = {
+                    ...this.prefs,
+                    devices: checked
+                      ? [...this.prefs.devices, d.id]
+                      : this.prefs.devices.filter((id) => id !== d.id),
+                  };
+                  if (this.job) {
+                    this.manuallyPositioned.delete(d.id);
+                    if (checked)
+                      this.crops = { ...this.crops, [d.id]: this.position(d) };
+                    else {
+                      const next = { ...this.crops };
+                      delete next[d.id];
+                      this.crops = next;
+                    }
+                    this.schedule();
+                  }
+                  this.save();
+                }}
+              />${d.name}</label
+            >`,
+        )}
+      </div>
+    </fieldset>`;
+  }
+  private sourceRecommendation() {
+    const selected = this.selected;
+    return html`<div class="source-recommendation">
+      <h2 id="source-size-label">Recommended source dimensions</h2>
+      <p
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        aria-labelledby="source-size-label"
+      >
+        ${
+          !this.ready
+            ? 'Recommended dimensions will appear when device choices load.'
+            : selected.length
+              ? html`<strong
+                    >${`${Math.max(...selected.map((d) => d.width))} × ${Math.max(...selected.map((d) => d.height))} px`}</strong
+                  ><br />Width × height`
+              : 'Select at least one device to see recommended dimensions'
+        }
+      </p>
+      <p class="meta">
+        Choose a source at least this wide and tall for your selected outputs.
+        Smaller images still work, but crops may need upscaling.
+      </p>
+    </div>`;
+  }
   private schedule(oled = false) {
     if (oled) this.oledProcessing = true;
     this.serverSave = undefined;
@@ -674,9 +739,29 @@ export class ShinApp extends LitElement {
     }
     .input-layout {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 3rem;
-      align-items: center;
+      grid-template-columns: 310px minmax(0, 1fr);
+      gap: 2rem;
+      align-items: start;
+    }
+    .input-layout > .drop {
+      grid-column: 1 / -1;
+    }
+    .source-recommendation {
+      border-top: 1px solid var(--app-panel-border);
+      margin-top: 1.25rem;
+      padding-top: 1.25rem;
+    }
+    .source-recommendation h2 {
+      font-size: 0.875rem;
+      margin-bottom: 0.5rem;
+    }
+    .source-recommendation strong {
+      color: var(--app-text);
+      font-size: 1.5rem;
+      font-weight: 650;
+    }
+    .source-recommendation p {
+      margin: 0.5rem 0 0;
     }
     .drop {
       border: 1px dashed var(--app-control-border);
@@ -1266,6 +1351,9 @@ export class ShinApp extends LitElement {
                     <p>JPEG, PNG, or WebP</p>
                     ${this.aiEnabled ? html`<p class="disclosure">AI enabled: an image representation is automatically sent to the configured AI service for naming and subject detection. Local OLEDify candidates also submit multiple original/trial comparisons, up to the configured search limit. This can increase provider cost and latency.</p>` : nothing}
                   </div>
+                  <aside class="panel">
+                    ${this.deviceChoices()} ${this.sourceRecommendation()}
+                  </aside>
                   <figure class="example">
                     <div class="example-image">
                       <img
@@ -1283,45 +1371,7 @@ export class ShinApp extends LitElement {
             ? html`<h1 class="sr-only">Processing</h1>
                 <div class="layout">
                   <aside class="panel">
-                    <fieldset>
-                      <legend>Output devices</legend>
-                      <div class="options">
-                        ${this.devices.map(
-                          (d) =>
-                            html`<label
-                              ><input
-                                type="checkbox"
-                                .checked=${this.prefs.devices.includes(d.id)}
-                                @change=${(e: Event) => {
-                                  const checked = (e.target as HTMLInputElement)
-                                    .checked;
-                                  this.prefs = {
-                                    ...this.prefs,
-                                    devices: checked
-                                      ? [...this.prefs.devices, d.id]
-                                      : this.prefs.devices.filter(
-                                          (id) => id !== d.id,
-                                        ),
-                                  };
-                                  this.manuallyPositioned.delete(d.id);
-                                  if (checked)
-                                    this.crops = {
-                                      ...this.crops,
-                                      [d.id]: this.position(d),
-                                    };
-                                  else {
-                                    const next = { ...this.crops };
-                                    delete next[d.id];
-                                    this.crops = next;
-                                  }
-                                  this.save();
-                                  this.schedule();
-                                }}
-                              />${d.name}</label
-                            >`,
-                        )}
-                      </div>
-                    </fieldset>
+                    ${this.deviceChoices()}
                     <fieldset>
                       <legend>Crop method</legend>
                       <div class="crop-method">

@@ -1,0 +1,15 @@
+{
+  "url": "http://127.0.0.1:5173",
+  "verified": [
+    "Default, all-device, landscape and independent maxima before upload; keyboard changes retain focus and polite status semantics",
+    "Empty choice persists across reload and permits real upload; Download gated; Processing selection initializes a crop and carries back through Start over",
+    "Corrupt-image rejection and retry; 64 × 64 source accepted, upscaling warning shown, completed output reaches Download",
+    "Input choices written to existing flat-file preferences; review left on Input with default selections"
+  ],
+  "captures": [
+    "input-light.png",
+    "input-mobile-light.png",
+    "input-dark.png",
+    "input-mobile-dark.png"
+  ]
+}

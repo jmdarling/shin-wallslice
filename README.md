@@ -17,7 +17,7 @@ _[View the comparison full size](docs/images/device-outputs.png). One original, 
 
 shin-wallslice runs on your own server in a single container. Cropping and exports use local image processing; no account, database, or second container is required. Optional AI can suggest names and frame a detected subject through a vision service you configure.
 
-- **Fit your screens:** six bundled device presets, independent crop positioning, and exact output dimensions.
+- **Fit your screens:** six bundled device presets, live source-size guidance before upload, independent crop positioning, and exact output dimensions.
 - **Choose your framing:** local Smart (entropy), five anchors, or optional Smart (AI), with pointer, touch, and keyboard adjustments.
 - **Make shadows black:** OLEDify automatically recommends per-image defaults locally, optionally refines the cutoff with AI, and keeps manual control available.
 - **Take the results:** lossless PNGs individually or in a ZIP, optionally organized into device folders. ZIPs and server saves also include your unchanged upload in `originals/`. Configure an output directory to save the same files directly to your server, with confirmation before replacement.
@@ -47,10 +47,10 @@ shin-wallslice runs on your own server in a single container. Cropping and expor
 **Unraid:** [import the supplied template and Apply](docs/unraid.md). Community
 Applications listing is pending. No source checkout or build is needed.
 
-**Install version 1.3.1** for Linux amd64 and arm64. The
+**Install version 1.6.0** for Linux amd64 and arm64. The
 commands below install it without registry login. See the
-[release](https://github.com/jmdarling/shin-wallslice/releases/tag/v1.3.1) and
-[1.3.1 changes](docs/maintainers/v1.3.1-release-notes.md). The release records the
+[release](https://github.com/jmdarling/shin-wallslice/releases/tag/v1.6.0) and
+[1.6.0 changes](docs/maintainers/v1.6.0-release-notes.md). The release records the
 exact digest, native runtime checks, SBOM/provenance, and vulnerability reports.
 
 Allow **4 GiB application RAM** and **4 GiB free writable temporary disk**. One
@@ -73,7 +73,7 @@ docker run -d \
   --memory=4g \
   -p 8080:3000 \
   --mount type=volume,src=shin-wallslice-data,dst=/data \
-  ghcr.io/jmdarling/shin-wallslice:1.3.1
+  ghcr.io/jmdarling/shin-wallslice:1.6.0
 ```
 
 Open [http://localhost:8080](http://localhost:8080), or
@@ -100,7 +100,7 @@ is needed. Its contents are:
 ```yaml
 services:
   wallslice:
-    image: ghcr.io/jmdarling/shin-wallslice:1.3.1
+    image: ghcr.io/jmdarling/shin-wallslice:1.6.0
     container_name: shin-wallslice
     restart: unless-stopped
     mem_limit: 4g
@@ -174,8 +174,21 @@ Screenshots follow your light/dark preference where supported. Open a full-size 
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/input-dark.png">
-  <img alt="Input screen with the file picker and drop/paste area" src="docs/images/input-light.png" width="1440">
+  <img alt="Input screen with output-device choices, recommended source dimensions, and file picker/drop/paste area" src="docs/images/input-light.png" width="1440">
 </picture>
+
+Choose **Output devices** on Input before finding an image. First use selects
+**iPhone 18 Pro Max** and **M5 iPad Pro 11-inch**; later visits restore your saved
+choices. **Recommended source dimensions** updates immediately as you select or
+deselect devices, before you upload. The recommendation is width × height in
+pixels: the largest selected output width and the largest selected output height,
+which can come from different devices. The default choices recommend
+**2420 × 2868 px**; all six presets recommend **3840 × 2868 px**.
+
+This is guidance, not an upload requirement. Smaller images and other aspect
+ratios still work; individual crops may need upscaling. With nothing selected,
+Input says **Select at least one device to see recommended dimensions** and still
+allows upload. Processing requires a device before continuing to Download.
 
 Select **Choose File**, drop one image onto the page, or paste a copied image while on Input. Accepted formats are **still JPEG, PNG, and WebP**. Animated images are rejected. Paste requires an actual image on the clipboard; a copied URL or file reference may not contain image data. File selection is always an alternative.
 
@@ -188,7 +201,7 @@ Choose a source with enough resolution for your largest output. Orientation is n
   <img alt="Processing screen showing device choices, crop controls, and independent phone and tablet crop boundaries" src="docs/images/processing-light.png" width="1440">
 </picture>
 
-Select output devices in the left panel (above the previews on mobile). The header marks the current stage. Every crop has a fixed size and aspect ratio; position it to choose which part of the source to keep.
+Your Input device choices carry over to Processing. Adjust output devices in the left panel (above the previews on mobile) at any time. Changes on either page are remembered, including after Start over, reload, and application restart when preference storage is retained. The header marks the current stage. Every crop has a fixed size and aspect ratio; position it to choose which part of the source to keep.
 
 | Control                      | What it does                                                                                          |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------- |
@@ -245,8 +258,8 @@ embedded metadata, color profile, and orientation are unchanged; it receives no
 cropping, resizing, color conversion, or OLEDify. For clipboard images, this is
 the image file the clipboard supplies. Generated device wallpapers still use
 normalized orientation and color. Original inclusion is automatic, regardless
-of the folder checkbox, in source builds containing **v1.5.0**; the pinned 1.3.1
-release above exports only device PNGs. No new configuration is required.
+of the folder checkbox, in **v1.6.0 and later releases** (introduced in v1.5.0
+source builds). No new configuration is required.
 
 Individual PNGs always retain the device suffix. Install the downloaded file as wallpaper using your device's normal wallpaper settings; shin-wallslice does not change device settings remotely. Outputs have exact pixel dimensions, but a device may still apply its own zoom or placement.
 
@@ -262,6 +275,8 @@ Individual PNGs always retain the device suffix. Install the downloaded file as 
 | M1, 2020 MacBook Air          | 2560 × 1600   | Landscape |
 | 14-inch, Nov 2024 MacBook Pro | 3024 × 1964   | Landscape |
 | Generic 16:9 4K               | 3840 × 2160   | Landscape |
+
+The Input source-size recommendation uses these output dimensions, including the square tablet sizes. For a single selection it equals that preset's dimensions. It does not rotate presets or change output sizes.
 
 Tablet outputs are intentionally square. You can use a preset on any device that suits its dimensions; model names identify the bundled presets rather than auto-detected hardware.
 
@@ -380,7 +395,7 @@ docker run -d \
   -p 8080:3000 \
   --mount type=volume,src=shin-wallslice-data,dst=/data \
   --mount type=bind,src="$(pwd)/config/local.json",dst=/config/config.json,readonly \
-  ghcr.io/jmdarling/shin-wallslice:1.3.1
+  ghcr.io/jmdarling/shin-wallslice:1.6.0
 ```
 
 Use the absolute path to your private JSON file in the mount source. The file must exist and be readable by UID 1000; its parent directories must be traversable by that user. Protect files containing tokens from other users while granting that read access. The application does not need write access to `/config`. Do not place private files elsewhere in the build context and assume they will be ignored.
@@ -466,7 +481,7 @@ docker run -d \
   -e SHIN_WALLSLICE_HOST=0.0.0.0 \
   -e SHIN_WALLSLICE_PORT=3456 \
   -e SHIN_WALLSLICE_AI_ENABLED=false \
-  ghcr.io/jmdarling/shin-wallslice:1.3.1
+  ghcr.io/jmdarling/shin-wallslice:1.6.0
 ```
 
 This replaces the quick-start container, rather than running alongside it. The browser still uses port 8080. The built-in health check reads the effective configuration, including the overridden port.
@@ -572,7 +587,7 @@ The image defaults to non-root `node` with UID/GID 1000. The [Unraid template](d
 ### Update and roll back
 
 Back up preferences, private configuration, and any persistent output directories; download or save active outputs first.
-Examples pin `:1.3.1` for reproducibility. To upgrade, choose a newer verified exact
+Examples pin `:1.6.0` for reproducibility. To upgrade, choose a newer verified exact
 version from the release notes, replace the image tag in your run/Compose settings,
 and recreate using the same data volume, ports, and optional configuration.
 Alternatively `:1`, `:1.3`, or `:latest` track their stable release series.
@@ -581,7 +596,7 @@ Publication makes images available; it never automatically updates your server.
 For Docker run:
 
 ```sh
-docker pull ghcr.io/jmdarling/shin-wallslice:1.3.1
+docker pull ghcr.io/jmdarling/shin-wallslice:1.6.0
 docker stop shin-wallslice
 docker rm shin-wallslice
 ```
@@ -591,6 +606,13 @@ mount/settings**. Restart alone does not load a new image. With Compose, edit th
 image tag, then `docker compose pull` and `docker compose up -d` from the same project.
 With Unraid use Check for Updates → Update, retaining appdata. To pin or roll back,
 choose a previously verified exact version/digest in Repository and Apply.
+
+Version 1.6.0 adds Input device selection and live source-size guidance, and ships
+the unchanged-original exports introduced in v1.5.0 source builds. No runtime
+configuration or preference-format migration is needed. Rollback to 1.3.1 needs
+no configuration changes, but loses Input selection/recommendations and automatic
+original inclusion in ZIP/server exports. Previously saved originals remain files
+in your output directory and are not removed by rollback.
 
 Version 1.3.1 changes OLEDify progress presentation without changing runtime
 configuration or preferences. Rollback to 1.3.0 needs no configuration changes.
@@ -632,7 +654,7 @@ docker cp ./wallslice-backup/. shin-wallslice:/data/
 # Restore ownership on this dedicated volume before starting:
 docker run --rm --user 0 \
   --mount type=volume,src=shin-wallslice-data,dst=/data \
-  ghcr.io/jmdarling/shin-wallslice:1.3.1 true
+  ghcr.io/jmdarling/shin-wallslice:1.6.0 true
 docker start shin-wallslice
 ```
 

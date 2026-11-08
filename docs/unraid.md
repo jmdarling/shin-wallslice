@@ -96,12 +96,12 @@ separate output mount needs its own permissions. Keep `/data` for preferences.
 The environment value is a **container path**, not the Unraid host path.
 
 On Download choose **Save to server**. The folder checkbox selects either
-`<safe-name>-<device-id>.png` or `<device-id>/<safe-name>.png`. Source builds
-containing v1.5.0 also save the unchanged upload at
+`<safe-name>-<device-id>.png` or `<device-id>/<safe-name>.png`. Version 1.6.0
+and later releases (introduced in v1.5.0 source builds) also save the unchanged upload at
 `originals/<safe-name>.<extension>` in either layout, matching ZIP downloads
 (`.jpg`, `.png`, or `.webp`). This includes embedded metadata and uses the current
 wallpaper name; review originals before sharing. No additional setting or mount
-is needed. The pinned 1.3.1 release exports only device PNGs. Review listed
+is needed. Review listed
 conflicts, including originals, and choose **Replace** or **Cancel** before any files are written. Saving can partially complete;
 read the saved/not-saved list, fix permissions or storage capacity, and retry.
 Browser downloads remain available. Keep the same output mapping when updating

@@ -5,6 +5,7 @@ import '@awesome.me/webawesome/dist/styles/webawesome.css';
 import './style.css';
 import { followBrowserTheme } from './theme.js';
 import { CropEditor } from './crop-editor.js';
+import bundledDevices from '../../server/src/devices.json';
 import type {
   NamingStatus,
   Crop,
@@ -215,6 +216,192 @@ function checked(a: ShinApp, label: string) {
   input.click();
 }
 
+test('Input recommendation uses independent catalog maxima, single outputs and an empty selection', async () => {
+  const original = globalThis.fetch;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((input: string, init?: RequestInit) =>
+      input === '/api/catalog'
+        ? Promise.resolve(
+            Response.json({
+              devices: bundledDevices,
+              preferences: {
+                ...preferences,
+                devices: bundledDevices.slice(0, 2).map((d) => d.id),
+              },
+              preferenceError: '',
+            }),
+          )
+        : original(input, init),
+    ),
+  );
+  const a = await app();
+  await a.updateComplete;
+  const recommendation = () =>
+    a.shadowRoot!.querySelector('.source-recommendation [role=status]')!;
+  expect(recommendation().textContent).toContain('2420 × 2868 px');
+  expect(
+    a.shadowRoot!.querySelectorAll('input[type=checkbox]:checked'),
+  ).toHaveLength(2);
+  for (const device of bundledDevices.slice(2)) checked(a, device.name);
+  await a.updateComplete;
+  expect(recommendation().textContent).toContain('3840 × 2868 px');
+  checked(a, bundledDevices[0]!.name);
+  await a.updateComplete;
+  expect(recommendation().textContent).toContain('3840 × 2752 px');
+  for (const device of bundledDevices.slice(1, 5)) checked(a, device.name);
+  await a.updateComplete;
+  expect(recommendation().textContent).toContain('3840 × 2160 px');
+  checked(a, bundledDevices[5]!.name);
+  checked(a, bundledDevices[1]!.name);
+  await a.updateComplete;
+  expect(recommendation().textContent).toContain('2420 × 2420 px');
+  checked(a, bundledDevices[1]!.name);
+  await a.updateComplete;
+  expect(recommendation().textContent).toContain(
+    'Select at least one device to see recommended dimensions',
+  );
+  expect(recommendation().textContent).not.toContain('0 × 0');
+  expect(recommendation().getAttribute('aria-live')).toBe('polite');
+  expect(recommendation().getAttribute('aria-atomic')).toBe('true');
+  expect(renderCount).toBe(0);
+  expect(a.job).toBeUndefined();
+});
+
+test('Input restores saved choices and immediately updates while ordered preference saves are pending', async () => {
+  preferences.devices = ['laptop'];
+  const original = globalThis.fetch;
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: string, init?: RequestInit) => {
+      if (input === '/api/preferences') await pending;
+      return original(input, init);
+    }),
+  );
+  const a = await app();
+  await a.updateComplete;
+  const size = () =>
+    a.shadowRoot!.querySelector('.source-recommendation')!.textContent;
+  expect(size()).toContain('200 × 100 px');
+  const phone = a.shadowRoot!.querySelector(
+    'input[type=checkbox]',
+  ) as HTMLInputElement;
+  phone.focus();
+  await userEvent.keyboard(' ');
+  await a.updateComplete;
+  expect(a.shadowRoot!.activeElement).toBe(phone);
+  expect(phone.checked).toBe(true);
+  expect(size()).toContain('200 × 200 px');
+  checked(a, 'Laptop');
+  checked(a, 'Tablet');
+  checked(a, 'Phone');
+  checked(a, 'Tablet');
+  await a.updateComplete;
+  expect(size()).toContain('Select at least one device');
+  expect(preferences.devices).toEqual(['laptop']);
+  expect(renderCount).toBe(0);
+  release();
+  await vi.waitFor(() => expect(preferences.devices).toEqual([]));
+  a.remove();
+  const b = await app();
+  await b.updateComplete;
+  expect(b.prefs.devices).toEqual([]);
+  expect(
+    b.shadowRoot!.querySelector('.source-recommendation')!.textContent,
+  ).toContain('Select at least one device');
+});
+
+test.each([false, true])(
+  'Input does not invent dimensions before catalog load or on failure (failure=%s)',
+  async (failure) => {
+    const original = globalThis.fetch;
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string, init?: RequestInit) => {
+        if (input === '/api/catalog') {
+          await pending;
+          if (failure) throw new Error('Catalog unavailable');
+        }
+        return original(input, init);
+      }),
+    );
+    const a = document.createElement('shin-app') as ShinApp;
+    document.body.append(a);
+    await a.updateComplete;
+    const content = () =>
+      a.shadowRoot!.querySelector('.source-recommendation')!.textContent;
+    expect(content()).not.toMatch(/\d+ × \d+|Select at least one device/);
+    expect(
+      (a.shadowRoot!.querySelector('input[type=file]') as HTMLInputElement)
+        .disabled,
+    ).toBe(true);
+    release();
+    if (failure) {
+      await vi.waitFor(() => expect(a.error).toContain('Catalog unavailable'));
+      expect(a.ready).toBe(false);
+      expect(content()).not.toMatch(/\d+ × \d+|Select at least one device/);
+    } else {
+      await vi.waitFor(() => expect(a.ready).toBe(true));
+      await a.updateComplete;
+      expect(content()).toContain('200 × 200 px');
+    }
+  },
+);
+
+test('Input preference failure preserves the current selection and a later edit retries saving', async () => {
+  const original = globalThis.fetch;
+  let fail = true;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((input: string, init?: RequestInit) => {
+      if (input === '/api/preferences' && fail)
+        return Promise.resolve(
+          Response.json(
+            { message: 'Could not save preferences' },
+            { status: 500 },
+          ),
+        );
+      return original(input, init);
+    }),
+  );
+  const a = await app();
+  checked(a, 'Phone');
+  await vi.waitFor(() => expect(a.preferenceError).toContain('Could not save'));
+  expect(a.prefs.devices).toEqual(['tablet']);
+  fail = false;
+  checked(a, 'Laptop');
+  await vi.waitFor(() =>
+    expect(preferences.devices).toEqual(['tablet', 'laptop']),
+  );
+  await vi.waitFor(() => expect(a.preferenceError).toBe(''));
+});
+
+test('empty Input selection allows upload and Processing can initialize a newly selected crop', async () => {
+  preferences.devices = [];
+  const a = await app();
+  picker(a, [file()]);
+  await processed(a);
+  expect(a.shadowRoot!.querySelectorAll('crop-editor')).toHaveLength(0);
+  await expect
+    .element(page.getByRole('button', { name: 'Next: Download' }))
+    .toBeDisabled();
+  checked(a, 'Laptop');
+  await vi.waitFor(() => expect(a.dirty).toBe(false));
+  expect(a.crops.laptop).toEqual(smart.laptop);
+  expect(a.shadowRoot!.querySelectorAll('crop-editor')).toHaveLength(1);
+  await expect
+    .element(page.getByRole('button', { name: 'Next: Download' }))
+    .toBeEnabled();
+});
+
 test('Input has a labeled picker and accepts one file, shows the source and selected editors', async () => {
   const a = await app();
   await expect
@@ -266,6 +453,9 @@ test.each(['picker', 'drop', 'paste'])(
   '%s uploads the exact supplied file bytes without image conversion',
   async (method) => {
     const a = await app();
+    checked(a, 'Phone');
+    checked(a, 'Laptop');
+    await a.updateComplete;
     const bytes = new Uint8Array([0, 255, 123, 4, 50, 0, 80]);
     const source = new File([bytes], 'original.webp', { type: 'image/webp' });
     if (method === 'picker') picker(a, [source]);
@@ -289,6 +479,11 @@ test.each(['picker', 'drop', 'paste'])(
         );
     }
     await processed(a);
+    expect(a.prefs.devices).toEqual(['tablet', 'laptop']);
+    expect(Object.keys(a.crops)).toEqual(['tablet', 'laptop']);
+    expect(
+      a.shadowRoot!.querySelectorAll('input[type=checkbox]:checked'),
+    ).toHaveLength(2);
     expect(uploadedFiles).toHaveLength(1);
     expect(new Uint8Array(await uploadedFiles[0]!.arrayBuffer())).toEqual(
       bytes,
@@ -538,6 +733,10 @@ test('selection gates Download; Back preserves name and positions; Start over re
   ) as HTMLElement;
   start.click();
   await vi.waitFor(() => expect(a.page).toBe('input'));
+  await a.updateComplete;
+  expect(
+    a.shadowRoot!.querySelector('.source-recommendation')!.textContent,
+  ).toContain('200 × 100 px');
   expect(a.name).toBe('');
   expect(a.manifest).toBeUndefined();
   expect(a.prefs.devices).toEqual(['laptop']);

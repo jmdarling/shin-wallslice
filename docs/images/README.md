@@ -1,5 +1,17 @@
 # Documentation images
 
+## v1.6.0 Input selection and source dimensions
+
+The light and dark Input screenshots show the upload box above the shared output-device choices
+and live **2420 × 2868 px** recommendation for the first-use phone/11-inch tablet
+selection. These are real full-page captures from the development app with AI
+disabled, at a 1440px desktop width and 1000px viewport height. The Input page has
+no uploaded image; its Dusk Ridges illustration remains the bundled example.
+[Capture conditions and desktop/mobile evidence](../design/v1.6.0/README.md)
+include 320px light/dark checks, keyboard/touch selection, and real uploads.
+Processing and Download screenshots retain their existing conditions below;
+their controls and generated output appearance are unchanged by this version.
+
 ## v1.5.0 original exports
 
 The existing workflow screens and generated device PNGs retain their appearance,
@@ -20,7 +32,7 @@ The Dusk Ridges artwork (the SVG and its rasterized/cropped derivatives) is dedi
 
 ## Captures and exports
 
-The Input, Processing, and Download screenshots are real captures of the current application in light and dark modes at a 1440px desktop viewport. They use an isolated instance with AI disabled, the Dusk Ridges PNG, center anchors, OLEDify off, threshold 16, and phone/tablet selections. The filename base is `dusk-ridges` and device-folder organization is unchecked. The screenshots contain no live credentials or private images. Dark variants are selected automatically by the README's picture elements where supported.
+The Processing and Download screenshots are real captures of the application in light and dark modes at a 1440px desktop viewport. They use an isolated instance with AI disabled, the Dusk Ridges PNG, center anchors, OLEDify off, threshold 16, and phone/tablet selections. The filename base is `dusk-ridges` and device-folder organization is unchecked. The screenshots contain no live credentials or private images. Dark variants are selected automatically by the README's picture elements where supported. Current Input capture conditions are documented above.
 
 `export-iphone-18-pro-max.png`, `export-m5-ipad-pro-11-inch.png`, and `export-generic-16x9-4k.png` are actual server-generated PNGs with center crops, OLEDify disabled, and dimensions matching their presets. `export-generic-16x9-4k-oled.png` uses the same crop with OLEDify enabled at threshold **32**.
 
